@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#1a2a6c">
   <title>PAMIGO</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/layout.css">
@@ -22,6 +23,7 @@
     <button class="location" id="refreshLocation">🔄 تحديث الموقع</button>
   </div>
 
+  <!-- Auth -->
   <div id="authScreen" style="display:none">
     <div class="card login-box">
       <div class="auth-tabs">
@@ -59,6 +61,7 @@
     </div>
   </div>
 
+  <!-- Main -->
   <div id="mainScreen" style="display:none">
 
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 18px">
@@ -74,13 +77,20 @@
       <span id="merchantName" style="color:#065f46;font-weight:600">-</span>
     </div>
 
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="home">🏠 الرئيسية</button>
-      <button class="tab-btn" data-tab="offers">🎁 العروض</button>
-      <button class="tab-btn" data-tab="invoice">🧾 الفاتورة</button>
-      <button class="tab-btn" data-tab="requests">📋 طلباتي</button>
+    <!-- Tabs -->
+    <div class="tabs" id="mainTabs">
+      <button class="tab-btn active" data-tab="home" data-role="all">🏠 الرئيسية</button>
+      <button class="tab-btn" data-tab="offers" data-role="all">🎁 العروض</button>
+      <button class="tab-btn" data-tab="invoice" data-role="all">🧾 الفاتورة</button>
+      <button class="tab-btn" data-tab="requests" data-role="all">📋 طلباتي</button>
+      <button class="tab-btn" data-tab="dashboard" data-role="merchant" style="display:none">📊 لوحتي</button>
+      <button class="tab-btn" data-tab="reports" data-role="merchant" style="display:none">📈 تقاريري</button>
+      <button class="tab-btn" data-tab="analytics" data-role="merchant" style="display:none">📉 تحليلاتي</button>
+      <button class="tab-btn" data-tab="admin" data-role="admin" style="display:none">👑 الأدمن</button>
+      <button class="tab-btn" data-tab="account" data-role="all">👤 حسابي</button>
     </div>
 
+    <!-- ============ الرئيسية ============ -->
     <div class="tab-content active" id="tab-home">
       <div class="radius-control">
         <label>🔍 نطاق البحث: <span id="homeRadiusValue">2</span> كم</label>
@@ -125,6 +135,7 @@
       <div id="merchantsList"><div class="no-requests">⏳ جاري التحميل...</div></div>
     </div>
 
+    <!-- ============ العروض ============ -->
     <div class="tab-content" id="tab-offers">
       <div class="radius-control">
         <div>
@@ -153,6 +164,7 @@
       <div class="offers-grid" id="offersGrid"></div>
     </div>
 
+    <!-- ============ الفاتورة ============ -->
     <div class="tab-content" id="tab-invoice">
       <div class="card">
         <h4 style="margin-bottom:10px">🧾 رفع فاتورة</h4>
@@ -169,50 +181,32 @@
         <button id="submitInvoiceBtn" style="margin-top:10px">✅ رفع الفاتورة</button>
         <div id="invoiceResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
       </div>
-
       <div class="card" id="merchantCashbackCard" style="display:none">
         <h4 style="margin-bottom:12px">💵 ملخص الكاش باك</h4>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div style="background:#dbeafe;padding:12px;border-radius:10px;text-align:center">
-            <div style="font-size:11px;color:#1e40af">ممنوح للعملاء</div>
-            <div style="font-size:18px;font-weight:700;color:#1e40af;margin-top:4px" id="merCbGiven">0 ج</div>
-          </div>
-          <div style="background:#fef3c7;padding:12px;border-radius:10px;text-align:center">
-            <div style="font-size:11px;color:#92400e">مصروف</div>
-            <div style="font-size:18px;font-weight:700;color:#92400e;margin-top:4px" id="merCbSpent">0 ج</div>
-          </div>
-          <div style="background:#fee2e2;padding:12px;border-radius:10px;text-align:center">
-            <div style="font-size:11px;color:#991b1b">التزام متبقي</div>
-            <div style="font-size:18px;font-weight:700;color:#991b1b;margin-top:4px" id="merCbRemaining">0 ج</div>
-          </div>
-          <div style="background:#d1fae5;padding:12px;border-radius:10px;text-align:center">
-            <div style="font-size:11px;color:#065f46">صافي المبيعات</div>
-            <div style="font-size:18px;font-weight:700;color:#065f46;margin-top:4px" id="merNetSales">0 ج</div>
-          </div>
+          <div style="background:#dbeafe;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#1e40af">ممنوح</div><div style="font-size:18px;font-weight:700;color:#1e40af;margin-top:4px" id="merCbGiven">0 ج</div></div>
+          <div style="background:#fef3c7;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#92400e">مصروف</div><div style="font-size:18px;font-weight:700;color:#92400e;margin-top:4px" id="merCbSpent">0 ج</div></div>
+          <div style="background:#fee2e2;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#991b1b">متبقي</div><div style="font-size:18px;font-weight:700;color:#991b1b;margin-top:4px" id="merCbRemaining">0 ج</div></div>
+          <div style="background:#d1fae5;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#065f46">صافي</div><div style="font-size:18px;font-weight:700;color:#065f46;margin-top:4px" id="merNetSales">0 ج</div></div>
         </div>
       </div>
-
       <div class="card" id="merchantWalletsCard" style="display:none">
         <h4 style="margin-bottom:10px">👥 أرصدة عملائي</h4>
         <div id="merchantWalletsList"><p style="color:#6b7280;font-size:14px">لا يوجد أرصدة</p></div>
       </div>
-
       <div class="card" id="merchantInvoicesCard" style="display:none">
         <h4 style="margin-bottom:10px">📄 آخر فواتير متجري</h4>
         <div id="merchantInvoicesList"><p style="color:#6b7280;font-size:14px">لا توجد فواتير</p></div>
       </div>
-
       <div id="customerBalanceBanner" class="my-balance-banner" style="display:none">
         <div class="lbl">💰 رصيدك الكلي من الكاش باك</div>
         <div class="val" id="totalBalanceValue">0 ج</div>
         <div class="sub">من <span id="balanceShopsCount">0</span> متجر</div>
       </div>
-
       <div class="card" id="customerWalletsCard" style="display:none">
         <h4 style="margin-bottom:10px">🏪 رصيدك في كل متجر</h4>
         <div id="customerWalletsList"></div>
       </div>
-
       <div class="card" id="customerRedeemCard" style="display:none">
         <h4 style="margin-bottom:10px">💵 استخدام رصيد الكاش باك</h4>
         <select id="redeemMerchant"><option value="">اختار المتجر</option></select>
@@ -221,15 +215,14 @@
         <button id="redeemBtn" style="margin-top:10px">✅ تطبيق الخصم</button>
         <div id="redeemResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
       </div>
-
       <div class="card" id="customerInvoicesCard" style="display:none">
         <h4 style="margin-bottom:10px">📄 فواتيري</h4>
         <div id="customerInvoicesList"><p style="color:#6b7280;font-size:14px">لا توجد فواتير</p></div>
       </div>
     </div>
 
+    <!-- ============ طلباتي ============ -->
     <div class="tab-content" id="tab-requests">
-
       <div class="card" id="requestFormCard" style="display:none">
         <h4 style="margin-bottom:10px">📝 طلب خاص</h4>
         <select id="reqCategory">
@@ -248,8 +241,7 @@
         <input type="text" id="reqProduct" placeholder="اسم المنتج أو الخدمة">
         <textarea id="reqDetails" placeholder="تفاصيل إضافية..."></textarea>
         <label style="margin-top:10px;font-size:14px;font-weight:600;display:block">📸 صورة (اختياري)</label>
-        <div style="border:2px dashed #ddd;padding:20px;text-align:center;border-radius:10px;cursor:pointer;margin:6px 0"
-             onclick="document.getElementById('reqImage').click()">
+        <div style="border:2px dashed #ddd;padding:20px;text-align:center;border-radius:10px;cursor:pointer;margin:6px 0" onclick="document.getElementById('reqImage').click()">
           <i class="fas fa-camera" style="font-size:24px;color:var(--primary)"></i>
           <p style="margin:4px 0">اضغط لرفع صورة</p>
           <span id="reqFileName" style="color:var(--primary);font-weight:600">لم يتم اختيار ملف</span>
@@ -259,7 +251,6 @@
         <button id="sendRequestBtn" style="margin-top:10px">📤 إرسال الطلب للتجار</button>
         <div id="requestSendResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
       </div>
-
       <div id="reqStatsWrapper" style="display:none">
         <div class="stats">
           <div class="stat">📊 إجمالي<br><strong id="statTotal">0</strong></div>
@@ -274,9 +265,7 @@
           <button class="category-chip" data-filter="accepted">✅ مقبولة</button>
         </div>
       </div>
-
       <div id="myRequestsList"></div>
-
       <div id="merchantRequestsWrapper" style="display:none">
         <div class="card" style="border-right:4px solid var(--success)">
           <h4 style="margin-bottom:10px">📥 الطلبات الواردة</h4>
@@ -284,7 +273,233 @@
           <div id="merchantRequestsList"><p style="color:#6b7280;font-size:14px">جاري التحميل...</p></div>
         </div>
       </div>
+    </div>
 
+    <!-- ============ لوحتي (للتاجر) ============ -->
+    <div class="tab-content" id="tab-dashboard">
+      <div class="card">
+        <h4 style="margin-bottom:12px">📊 إحصائيات متجري</h4>
+        <div class="stats">
+          <div class="stat">👥 العملاء<br><strong id="dashCust">0</strong></div>
+          <div class="stat">💰 المبيعات<br><strong id="dashSales">0 ج</strong></div>
+          <div class="stat">🎁 العروض<br><strong id="dashOffers">0</strong></div>
+        </div>
+      </div>
+      <div class="card">
+        <h5 style="margin-bottom:12px;color:var(--primary)">💵 ملخص الكاش باك</h5>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div style="background:#dbeafe;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#1e40af">ممنوح</div><div style="font-size:18px;font-weight:700;color:#1e40af;margin-top:4px" id="dashGiven">0 ج</div></div>
+          <div style="background:#fef3c7;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#92400e">مصروف</div><div style="font-size:18px;font-weight:700;color:#92400e;margin-top:4px" id="dashSpent">0 ج</div></div>
+          <div style="background:#fee2e2;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#991b1b">متبقي</div><div style="font-size:18px;font-weight:700;color:#991b1b;margin-top:4px" id="dashRemaining">0 ج</div></div>
+          <div style="background:#d1fae5;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#065f46">صافي</div><div style="font-size:18px;font-weight:700;color:#065f46;margin-top:4px" id="dashNetSales">0 ج</div></div>
+        </div>
+      </div>
+      <div class="card" style="border-right:4px solid #ff6b35">
+        <h4 style="margin-bottom:10px">💰 نسبة الكاش باك بتاعتك</h4>
+        <div class="rate-slider-container">
+          <div class="rate-display"><span id="rateValueDisplay">15</span>%</div>
+          <div class="rate-tier-display" id="rateTierDisplay">🥈 مميز</div>
+          <input type="range" id="rateSlider" min="1" max="50" step="1" value="15">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-top:5px"><span>1%</span><span>50%</span></div>
+        </div>
+        <button id="saveRateBtn" style="margin-top:10px;background:#10b981">💾 حفظ النسبة</button>
+        <div id="rateSaveResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
+      </div>
+      <div class="card">
+        <h5 style="margin-bottom:10px">➕ إضافة عرض جديد</h5>
+        <input type="text" id="offerTitle" placeholder="اسم العرض">
+        <input type="text" id="offerDiscount" placeholder="الخصم (مثل: 20% OFF)">
+        <button id="addOfferBtn" style="margin-top:10px">📤 نشر العرض</button>
+        <div id="offerResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
+        <div style="border-bottom:1px solid #ddd;margin:15px 0"></div>
+        <h5 style="margin-bottom:10px">📋 عروضي المنشورة</h5>
+        <div id="myOffersList"><p style="color:#6b7280">لا توجد عروض</p></div>
+        <div style="border-bottom:1px solid #ddd;margin:15px 0"></div>
+        <h5 style="margin-bottom:10px">👥 عملائي</h5>
+        <div id="myCustomersList"><p style="color:#6b7280">لا يوجد عملاء</p></div>
+        <div style="border-bottom:1px solid #ddd;margin:15px 0"></div>
+        <h5 style="margin-bottom:10px">🧾 فواتيري</h5>
+        <div id="dashInvoicesList"><p style="color:#6b7280">لا توجد فواتير</p></div>
+        <div style="border-bottom:1px solid #ddd;margin:15px 0"></div>
+        <h5 style="margin-bottom:10px">💰 أرصدة عملائي</h5>
+        <div id="dashWalletsList"><p style="color:#6b7280">لا يوجد أرصدة</p></div>
+      </div>
+    </div>
+
+    <!-- ============ تقاريري ============ -->
+    <div class="tab-content" id="tab-reports">
+      <div class="card" id="reportContent">
+        <h4 style="margin-bottom:15px">📈 تقارير متجري</h4>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:15px">
+          <button class="report-period-btn" data-period="daily">📅 النهاردة</button>
+          <button class="report-period-btn" data-period="weekly">📅 الأسبوع</button>
+          <button class="report-period-btn" data-period="monthly">📅 الشهر</button>
+          <button class="report-period-btn active" data-period="all">📅 الكل</button>
+        </div>
+        <div id="reportPeriodLabel" style="text-align:center;color:var(--primary);margin-bottom:15px;font-weight:600;font-size:15px"></div>
+        <div class="stats">
+          <div class="stat">📄 الفواتير<br><strong id="repInvoices">0</strong></div>
+          <div class="stat">💰 المبيعات<br><strong id="repSales">0 ج</strong></div>
+          <div class="stat">💵 كاش باك ممنوح<br><strong id="repGiven">0 ج</strong></div>
+          <div class="stat">💵 كاش باك مصروف<br><strong id="repSpent">0 ج</strong></div>
+        </div>
+        <div id="reportDetails"></div>
+        <button id="exportPdfBtn" style="margin-top:15px;background:#10b981">📥 تصدير PDF</button>
+      </div>
+    </div>
+
+    <!-- ============ تحليلاتي ============ -->
+    <div class="tab-content" id="tab-analytics">
+      <div class="card">
+        <h4 style="margin-bottom:15px">📉 تحليلات متجري</h4>
+        <div class="analytics-grid">
+          <div class="analytics-card"><div class="label">إجمالي العملاء</div><div class="value" id="anaTotalCustomers">0</div></div>
+          <div class="analytics-card"><div class="label">متوسط الإنفاق</div><div class="value" id="anaAvgSpend">0 ج</div></div>
+          <div class="analytics-card"><div class="label">أكثر يوم مبيعات</div><div class="value" id="anaTopDay">-</div></div>
+          <div class="analytics-card"><div class="label">أكثر ساعة</div><div class="value" id="anaTopHour">-</div></div>
+          <div class="analytics-card"><div class="label">العرض الأكثر تأثيراً</div><div class="value" id="anaTopOffer">-</div></div>
+          <div class="analytics-card"><div class="label">متوسط التقييم</div><div class="value" id="anaAvgRating">-</div></div>
+          <div class="analytics-card"><div class="label">العملاء المتكررون</div><div class="value" id="anaRepeatCustomers">0</div></div>
+          <div class="analytics-card"><div class="label">نسبة النمو</div><div class="value" id="anaGrowth">0%</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ الأدمن ============ -->
+    <div class="tab-content" id="tab-admin">
+      <div class="admin-header">
+        <h3>👑 لوحة الأدمن</h3>
+        <p>مرحباً بك يا صاحب المنصة</p>
+      </div>
+      <div class="admin-subtabs">
+        <button class="admin-subtab active" data-admin="dashboard">📊 إحصائيات</button>
+        <button class="admin-subtab" data-admin="traders">🏪 التجار</button>
+        <button class="admin-subtab" data-admin="customers">👥 العملاء</button>
+        <button class="admin-subtab" data-admin="invoices">🧾 الفواتير</button>
+        <button class="admin-subtab" data-admin="notifications">📢 إشعارات</button>
+      </div>
+
+      <!-- إحصائيات -->
+      <div class="admin-section active" id="admin-dashboard">
+        <div class="card">
+          <h4 style="margin-bottom:15px">📊 إحصائيات المنصة</h4>
+          <div class="stats">
+            <div class="stat">🏪 التجار<br><strong id="admTraders">0</strong></div>
+            <div class="stat">👥 العملاء<br><strong id="admCustomers">0</strong></div>
+            <div class="stat">🧾 الفواتير<br><strong id="admInvoices">0</strong></div>
+            <div class="stat">💰 المبيعات<br><strong id="admSales">0 ج</strong></div>
+          </div>
+          <div class="stats">
+            <div class="stat">💵 كاش باك ممنوح<br><strong id="admGiven">0 ج</strong></div>
+            <div class="stat">💵 كاش باك مصروف<br><strong id="admSpent">0 ج</strong></div>
+            <div class="stat">📊 رصيد متبقي<br><strong id="admRemaining">0 ج</strong></div>
+            <div class="stat">🎁 عروض<br><strong id="admOffers">0</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- التجار -->
+      <div class="admin-section" id="admin-traders">
+        <div class="card">
+          <h4 style="margin-bottom:15px">🏪 إدارة التجار</h4>
+          <button id="showAddTraderBtn" style="background:#27ae60;margin-bottom:15px">➕ إضافة تاجر جديد</button>
+          <div id="addTraderForm" style="display:none;background:#f9fafb;padding:15px;border-radius:12px;margin-bottom:15px;border-right:4px solid #27ae60">
+            <h5 style="margin-bottom:10px;color:var(--primary)">➕ إضافة تاجر جديد</h5>
+            <input type="text" id="newTraderName" placeholder="اسم التاجر">
+            <input type="text" id="newTraderBankCode" placeholder="البنكود (مثال: MERCH-MNS13)" style="text-transform:uppercase">
+            <input type="text" id="newTraderPhone" placeholder="رقم الموبايل">
+            <select id="newTraderCategory">
+              <option value="fashion">👗 ملابس</option>
+              <option value="restaurants">🍕 مطاعم</option>
+              <option value="bigfood">🍔 وجبات</option>
+              <option value="electronics">📱 إلكترونيات</option>
+              <option value="car_parts">🛞 قطع غيار</option>
+              <option value="car_accessories">🪞 كماليات</option>
+              <option value="car_repair">🔧 صيانة</option>
+              <option value="clinics">🩺 عيادات</option>
+              <option value="labs">🧪 معامل</option>
+              <option value="radiology">📡 أشعة</option>
+              <option value="hospitals">🏨 مستشفيات</option>
+            </select>
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيفات الفرعية:</label>
+            <div id="newTraderSubs" class="categories" style="margin-bottom:0"></div>
+            <input type="number" id="newTraderLat" placeholder="Latitude" step="0.0001">
+            <input type="number" id="newTraderLng" placeholder="Longitude" step="0.0001">
+            <input type="number" id="newTraderRate" placeholder="نسبة الكاش باك" min="1" max="50" value="15">
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button id="addTraderConfirmBtn" style="flex:1;background:#27ae60">✅ إضافة</button>
+              <button id="hideAddTraderBtn" style="flex:1;background:#95a5a6">❌ إلغاء</button>
+            </div>
+            <div id="addTraderResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
+          </div>
+          <div id="adminTradersList"></div>
+        </div>
+      </div>
+
+      <!-- العملاء -->
+      <div class="admin-section" id="admin-customers">
+        <div class="card">
+          <h4 style="margin-bottom:15px">👥 إدارة العملاء</h4>
+          <div id="adminCustomersList"></div>
+        </div>
+      </div>
+
+      <!-- الفواتير -->
+      <div class="admin-section" id="admin-invoices">
+        <div class="card">
+          <h4 style="margin-bottom:15px">🧾 كل الفواتير</h4>
+          <input type="text" id="adminInvoiceSearch" placeholder="🔍 ابحث برقم الفاتورة أو الموبايل..." style="margin-bottom:10px">
+          <div id="adminInvoicesList"></div>
+        </div>
+      </div>
+
+      <!-- الإشعارات -->
+      <div class="admin-section" id="admin-notifications">
+        <div class="card">
+          <h4 style="margin-bottom:15px">📢 إرسال إشعار</h4>
+          <input type="text" id="notifTitle" placeholder="عنوان الإشعار">
+          <textarea id="notifMessage" placeholder="نص الإشعار" style="width:100%;padding:12px;margin:6px 0;border:1px solid #ddd;border-radius:10px;min-height:80px"></textarea>
+          <select id="notifTarget">
+            <option value="all">الكل</option>
+            <option value="customers">العملاء فقط</option>
+            <option value="merchants">التجار فقط</option>
+          </select>
+          <button id="sendNotifBtn" style="background:#c0392b;margin-top:8px">📤 إرسال</button>
+          <div id="notifResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
+          <div style="border-top:1px solid #ddd;margin-top:15px;padding-top:15px">
+            <h5 style="margin-bottom:10px">📋 الإشعارات المرسلة</h5>
+            <div id="adminNotifHistory"><p style="color:#6b7280">لا توجد إشعارات</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ حسابي ============ -->
+    <div class="tab-content" id="tab-account">
+      <div class="card">
+        <h4 style="margin-bottom:15px">👤 حسابي</h4>
+        <div class="info-row"><span>الاسم</span><strong id="accName">-</strong></div>
+        <div class="info-row"><span>رقم الهاتف</span><strong id="accPhone">-</strong></div>
+        <div class="info-row"><span>رصيد الكاش باك</span><strong id="accBalance">-</strong></div>
+        <div class="info-row"><span>عدد الفواتير</span><strong id="accInvoicesCount">-</strong></div>
+        <div class="info-row"><span>📍 الموقع</span><strong id="accLocation">غير محدد</strong></div>
+      </div>
+      <div class="card" id="myWalletsCard" style="display:none">
+        <h4 style="margin-bottom:15px">💰 تفصيل رصيدي</h4>
+        <div id="customerWalletsBreakdown"></div>
+      </div>
+      <div class="card">
+        <h4 id="pickerTitle" style="margin-bottom:8px">📍 حدد موقعك</h4>
+        <p id="pickerHint" style="font-size:13px;color:#6b7280;margin-bottom:8px">اضغط على الخريطة أو ابحث بالعنوان</p>
+        <div class="location-search-box">
+          <input type="text" id="addressSearch" placeholder="ابحث بالعنوان">
+          <button id="searchAddrBtn">🔍</button>
+        </div>
+        <div id="searchResult" style="font-size:13px;color:#6b7280;margin-bottom:8px"></div>
+        <div id="pickerMap"></div>
+        <button id="saveLocationBtn" style="margin-top:10px">💾 حفظ الموقع</button>
+        <div id="locationSaveResult" style="margin-top:8px;font-weight:bold"></div>
+      </div>
     </div>
 
   </div>
@@ -298,8 +513,10 @@
     </div>
   </div>
 
-  <div class="footer">PAMIGO v37.0 — Stage 6</div>
+  <div class="footer">PAMIGO v38.0 — Stage 7</div>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script type="module" src="app.js"></script>
   <script>
     window.togglePass = function(inputId, btn) {

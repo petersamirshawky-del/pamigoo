@@ -1,8 +1,8 @@
 ﻿// ============================================================
-// PAMIGO - Main Entry (Stage 6: Requests)
+// PAMIGO - Main Entry (Stage 7: Full Features)
 // ============================================================
 import { supabase } from './supabase.js';
-import { SUB_CATEGORIES } from './config.js';
+import { SUB_CATEGORIES, CATEGORY_ICONS } from './config.js';
 import {
   signUpCustomer, signUpMerchant, signIn, signOut,
   getProfile, getMyMerchant, onAuthChange
@@ -16,8 +16,25 @@ import {
 import {
   sendRequest, getMyRequests, getMerchantRequests,
   replyToRequest, acceptOffer, cancelRequest, deleteRequest,
-  hideRequestForMerchant, askMerchantForImage
+  hideRequestForMerchant, askMerchantForImage, merchantSendExtraImage
 } from './requests.js';
+import {
+  getMerchantStats, getMerchantOffers, addOffer, deleteOffer,
+  updateCashbackRate, getMerchantCustomers, getMerchantWallets,
+  getMerchantInvoicesList, editInvoice, processReturn,
+  getReportData, getAnalytics
+} from './dashboard.js';
+import {
+  getAdminStats, getAllMerchants, getAllCustomers, getAllInvoices,
+  addTrader, freezeMerchant, updateMerchantRate, deleteMerchant,
+  adjustCustomerBalance, resetCustomerBalance, deleteCustomer,
+  editInvoiceAdmin, returnInvoiceAdmin, deleteInvoice,
+  sendNotification, getNotifications
+} from './admin.js';
+import {
+  getUserWalletsBreakdown, initAccountMap, getMarkerPosition,
+  setMarkerPosition, searchAddress, updateMyMerchantLocation
+} from './account.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -32,14 +49,13 @@ let searchQuery = '';
 let homeRadius = 2, homeCategories = ['all'], homeSubCategories = [], homeSort = 'nearest';
 let offersCategories = ['all'], offersSubCategories = [];
 let currentModalMerchant = null;
-
-// Requests state
 let uploadedReqImage = null;
 let currentReqFilter = 'all';
 let myRequestsCache = [];
+let adminData = { merchants: [], customers: [], invoices: [] };
 
 // ============================================================
-// Load merchants
+// Load
 // ============================================================
 async function loadMerchants() {
   const { data, error } = await supabase
@@ -92,9 +108,6 @@ function getRoleName(role) {
   return { customer: '👤 عميل', merchant: '🏪 تاجر', admin: '👑 أدمن' }[role] || role;
 }
 
-// ============================================================
-// Geo
-// ============================================================
 function getUserLocation() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(null);
@@ -118,9 +131,6 @@ async function updateLocation() {
   renderMerchantsList();
 }
 
-// ============================================================
-// Filters
-// ============================================================
 function matchesCatSubs(m, cats, subs) {
   if (!cats.includes('all') && !cats.includes(m.category)) return false;
   if (subs.length) {
@@ -131,7 +141,7 @@ function matchesCatSubs(m, cats, subs) {
 }
 
 // ============================================================
-// Render: merchants
+// Render: merchants list
 // ============================================================
 function renderMerchantsList() {
   let list = [...allMerchants];
@@ -288,7 +298,6 @@ function renderOffersSubCategories() {
   });
 }
 
-// Modal
 window.openMerchant = function (bankCode) {
   const m = allMerchants.find(x => x.bank_code === bankCode);
   if (!m) return;
@@ -323,13 +332,30 @@ window.closeModal = function (e) {
 // ============================================================
 // Tabs
 // ============================================================
+function updateTabsVisibility() {
+  if (!currentProfile) return;
+  const role = currentProfile.role;
+  document.querySelectorAll('#mainTabs .tab-btn').forEach(btn => {
+    const r = btn.dataset.role;
+    if (r === 'all') btn.style.display = 'block';
+    else if (r === 'merchant') btn.style.display = role === 'merchant' ? 'block' : 'none';
+    else if (r === 'admin') btn.style.display = role === 'admin' ? 'block' : 'none';
+  });
+}
+
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-content').forEach(c =>
     c.classList.toggle('active', c.id === 'tab-' + name));
+
   if (name === 'invoice') renderInvoiceTab();
   if (name === 'requests') renderRequestsTab();
+  if (name === 'dashboard' && currentMerchant) renderDashboard();
+  if (name === 'reports' && currentMerchant) renderReports('all');
+  if (name === 'analytics' && currentMerchant) renderAnalyticsTab();
+  if (name === 'admin') renderAdminSection('dashboard');
+  if (name === 'account') setTimeout(initAccountMapUI, 300);
 }
 
 // ============================================================
@@ -337,25 +363,19 @@ function switchTab(name) {
 // ============================================================
 async function renderInvoiceTab() {
   if (!currentProfile) return;
-
   if (currentProfile.role === 'merchant' && currentMerchant) {
     $('invBankCodeGroup').style.display = 'none';
+    await renderMerchantInvoiceExtras();
   } else {
     $('invBankCodeGroup').style.display = 'block';
-  }
-
-  if (currentProfile.role === 'merchant' && currentMerchant) {
-    await renderMerchantExtras();
-  } else {
     $('merchantCashbackCard').style.display = 'none';
     $('merchantWalletsCard').style.display = 'none';
     $('merchantInvoicesCard').style.display = 'none';
   }
-
   await renderMyWalletAndInvoices();
 }
 
-async function renderMerchantExtras() {
+async function renderMerchantInvoiceExtras() {
   $('merchantCashbackCard').style.display = 'block';
   $('merchantWalletsCard').style.display = 'block';
   $('merchantInvoicesCard').style.display = 'block';
@@ -371,34 +391,23 @@ async function renderMerchantExtras() {
   try {
     const wallets = await getMerchantCustomerWallets(currentMerchant.id);
     const el = $('merchantWalletsList');
-    if (!wallets.length) {
-      el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا يوجد أرصدة</p>';
-    } else {
-      el.innerHTML = wallets.map(w => {
-        const name = w.profiles?.name || 'عميل';
-        const phone = w.profiles?.phone || '?';
-        return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
-          <div style="font-weight:600">${name} (${phone})</div>
-          <div style="font-size:13px;color:#10b981;font-weight:600;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
-          <div style="font-size:11px;color:#6b7280">كسب: ${parseFloat(w.earned||0).toFixed(2)} | صرف: ${parseFloat(w.spent||0).toFixed(2)}</div>
-        </div>`;
-      }).join('');
-    }
+    if (!wallets.length) el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا يوجد أرصدة</p>';
+    else el.innerHTML = wallets.map(w => `
+      <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
+        <div style="font-weight:600">${w.profiles?.name || 'عميل'} (${w.profiles?.phone || '?'})</div>
+        <div style="font-size:13px;color:#10b981;font-weight:600;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
+      </div>`).join('');
   } catch (e) { console.error(e); }
 
   try {
     const invoices = await getMerchantInvoices(currentMerchant.id);
     const el = $('merchantInvoicesList');
-    if (!invoices.length) {
-      el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد فواتير</p>';
-    } else {
-      el.innerHTML = invoices.map(inv => `
-        <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
-          <div><strong>📄 #${inv.number}</strong> <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span></div>
-          <div style="color:#6b7280;margin-top:2px">📱 ${inv.customer_phone} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج كاش باك</div>
-        </div>
-      `).join('');
-    }
+    if (!invoices.length) el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد فواتير</p>';
+    else el.innerHTML = invoices.map(inv => `
+      <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
+        <div><strong>📄 #${inv.number}</strong> <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span></div>
+        <div style="color:#6b7280;margin-top:2px">📱 ${inv.customer_phone} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج</div>
+      </div>`).join('');
   } catch (e) { console.error(e); }
 }
 
@@ -407,34 +416,26 @@ async function renderMyWalletAndInvoices() {
     const wallets = await getMyWallets(currentProfile.id);
     const total = wallets.reduce((s, w) => s + parseFloat(w.balance || 0), 0);
     const shops = wallets.filter(w => parseFloat(w.balance) > 0).length;
-
     if (total > 0 || wallets.length > 0) {
       $('customerBalanceBanner').style.display = 'block';
       $('customerWalletsCard').style.display = 'block';
       $('customerRedeemCard').style.display = 'block';
       $('totalBalanceValue').innerText = total.toFixed(2) + ' ج';
       $('balanceShopsCount').innerText = shops;
-
-      const el = $('customerWalletsList');
       const active = wallets.filter(w => parseFloat(w.balance) > 0 || parseFloat(w.earned) > 0);
-      if (!active.length) {
-        el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد أرصدة</p>';
-      } else {
-        el.innerHTML = active.map(w => {
-          const m = w.merchants || {};
-          return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
-            <div style="font-weight:600">${m.icon || '🏪'} ${m.name || 'متجر'}</div>
-            <div style="font-size:14px;color:#10b981;font-weight:700;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
-            <div style="font-size:11px;color:#6b7280">كسب: ${parseFloat(w.earned||0).toFixed(2)} | صرف: ${parseFloat(w.spent||0).toFixed(2)}</div>
-          </div>`;
-        }).join('');
-      }
-
+      const el = $('customerWalletsList');
+      el.innerHTML = active.length ? active.map(w => {
+        const m = w.merchants || {};
+        return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
+          <div style="font-weight:600">${m.icon || '🏪'} ${m.name || ''}</div>
+          <div style="font-size:14px;color:#10b981;font-weight:700;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
+        </div>`;
+      }).join('') : '<p style="color:#6b7280;font-size:14px">لا توجد أرصدة</p>';
       const sel = $('redeemMerchant');
       sel.innerHTML = '<option value="">اختار المتجر</option>' +
         active.filter(w => parseFloat(w.balance) > 0).map(w => {
           const m = w.merchants || {};
-          return `<option value="${w.merchant_id}">${m.icon || '🏪'} ${m.name || ''} - ${parseFloat(w.balance).toFixed(2)} ج</option>`;
+          return `<option value="${w.merchant_id}">${m.icon || ''} ${m.name || ''} - ${parseFloat(w.balance).toFixed(2)} ج</option>`;
         }).join('');
     } else {
       $('customerBalanceBanner').style.display = 'none';
@@ -447,17 +448,14 @@ async function renderMyWalletAndInvoices() {
     const invoices = await getMyInvoices(currentProfile.phone);
     if (invoices.length) {
       $('customerInvoicesCard').style.display = 'block';
-      const el = $('customerInvoicesList');
-      el.innerHTML = invoices.map(inv => {
+      $('customerInvoicesList').innerHTML = invoices.map(inv => {
         const m = inv.merchants || {};
         return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
           <div><strong>📄 #${inv.number}</strong> • ${m.icon || ''} ${m.name || ''}</div>
           <div style="color:#6b7280;margin-top:2px">💰 ${parseFloat(inv.amount).toFixed(2)} ج • كاش باك ${parseFloat(inv.cashback).toFixed(2)} ج</div>
         </div>`;
       }).join('');
-    } else {
-      $('customerInvoicesCard').style.display = 'none';
-    }
+    } else $('customerInvoicesCard').style.display = 'none';
   } catch (e) { console.error(e); }
 }
 
@@ -467,50 +465,21 @@ async function handleSubmitInvoice() {
   const amount = parseFloat($('invAmount').value);
   const bankCode = $('invBankCode') ? $('invBankCode').value.trim() : '';
   const res = $('invoiceResult');
-
-  if (!num || !phone || !amount || amount <= 0) {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ املأ كل البيانات';
-    return;
-  }
-
+  if (!num || !phone || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
   const isMerchant = currentProfile.role === 'merchant' && currentMerchant;
-
-  if (!isMerchant && !bankCode) {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ ادخل البنكود';
-    return;
-  }
-
+  if (!isMerchant && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ ادخل البنكود'; return; }
   try {
     if (isMerchant) {
-      const r = await createInvoice({
-        number: num, customerPhone: phone, amount,
-        merchantId: currentMerchant.id
-      });
-      res.style.color = '#10b981';
-      res.innerText = `✅ تم الرفع! كاش باك ${parseFloat(r.cashback).toFixed(2)} ج (${r.cashback_rate}%)`;
+      const r = await createInvoice({ number: num, customerPhone: phone, amount, merchantId: currentMerchant.id });
+      res.style.color = '#10b981'; res.innerText = `✅ كاش باك ${parseFloat(r.cashback).toFixed(2)} ج`;
     } else {
-      const r = await createInvoiceByBankCode({
-        number: num, customerPhone: phone, amount, bankCode
-      });
-      res.style.color = '#10b981';
-      res.innerText = `✅ تم الرفع! كاش باك ${parseFloat(r.cashback).toFixed(2)} ج (${r.rate}%)`;
+      const r = await createInvoiceByBankCode({ number: num, customerPhone: phone, amount, bankCode });
+      res.style.color = '#10b981'; res.innerText = `✅ كاش باك ${parseFloat(r.cashback).toFixed(2)} ج`;
     }
-
-    $('invNumber').value = '';
-    $('invCustomerPhone').value = '';
-    $('invAmount').value = '';
-    if ($('invBankCode')) {
-      $('invBankCode').value = '';
-      $('invBankCode').dataset.realValue = '';
-    }
-
+    $('invNumber').value = ''; $('invCustomerPhone').value = ''; $('invAmount').value = '';
+    if ($('invBankCode')) { $('invBankCode').value = ''; $('invBankCode').dataset.realValue = ''; }
     setTimeout(() => renderInvoiceTab(), 1200);
-  } catch (e) {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ ' + (e.message || 'فشل الرفع');
-  }
+  } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
 
 async function handleRedeem() {
@@ -518,24 +487,13 @@ async function handleRedeem() {
   const original = parseFloat($('redeemOriginal').value);
   const amount = parseFloat($('redeemAmount').value);
   const res = $('redeemResult');
-
-  if (!merchantId || !original || !amount || amount <= 0) {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ املأ كل البيانات';
-    return;
-  }
-
+  if (!merchantId || !original || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
   try {
     await redeemCashback({ merchantId, amount, originalAmount: original });
-    res.style.color = '#10b981';
-    res.innerText = `✅ تم الخصم! المطلوب ${(original - amount).toFixed(2)} ج`;
-    $('redeemOriginal').value = '';
-    $('redeemAmount').value = '';
+    res.style.color = '#10b981'; res.innerText = `✅ المطلوب ${(original - amount).toFixed(2)} ج`;
+    $('redeemOriginal').value = ''; $('redeemAmount').value = '';
     setTimeout(() => renderInvoiceTab(), 1200);
-  } catch (e) {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ ' + (e.message || 'فشل الاستخدام');
-  }
+  } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
 
 // ============================================================
@@ -549,8 +507,7 @@ function handleReqImage(e) {
     uploadedReqImage = ev.target.result;
     $('reqFileName').innerText = '📎 ' + file.name;
     const prev = $('reqImagePreview');
-    prev.src = ev.target.result;
-    prev.style.display = 'block';
+    prev.src = ev.target.result; prev.style.display = 'block';
   };
   reader.readAsDataURL(file);
 }
@@ -560,32 +517,19 @@ async function handleSendRequest() {
   const product = $('reqProduct').value.trim();
   const details = $('reqDetails').value.trim();
   const res = $('requestSendResult');
-
-  if (!product) {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ اكتب اسم المنتج';
-    return;
-  }
-
+  if (!product) { res.style.color = '#ef4444'; res.innerText = '❌ اكتب اسم المنتج'; return; }
   try {
     await sendRequest({ category, product, details, imageBase64: uploadedReqImage });
-    res.style.color = '#10b981';
-    res.innerText = '✅ تم إرسال الطلب للتجار';
-    $('reqProduct').value = '';
-    $('reqDetails').value = '';
+    res.style.color = '#10b981'; res.innerText = '✅ تم إرسال الطلب';
+    $('reqProduct').value = ''; $('reqDetails').value = '';
     $('reqFileName').innerText = 'لم يتم اختيار ملف';
-    $('reqImagePreview').style.display = 'none';
-    uploadedReqImage = null;
+    $('reqImagePreview').style.display = 'none'; uploadedReqImage = null;
     setTimeout(() => renderRequestsTab(), 1000);
-  } catch (e) {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ ' + (e.message || 'فشل الإرسال');
-  }
+  } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
 
 async function renderRequestsTab() {
   if (!currentProfile) return;
-
   if (currentProfile.role === 'merchant' && currentMerchant) {
     $('requestFormCard').style.display = 'none';
     $('reqStatsWrapper').style.display = 'none';
@@ -607,7 +551,6 @@ async function renderRequestsTab() {
 
 async function renderMyRequests() {
   myRequestsCache = await getMyRequests();
-
   const total = myRequestsCache.length;
   const pending = myRequestsCache.filter(r => r.status === 'pending').length;
   const responded = myRequestsCache.filter(r => r.status === 'responded').length;
@@ -618,15 +561,10 @@ async function renderMyRequests() {
   $('statAccepted').innerText = accepted;
 
   let list = myRequestsCache;
-  if (currentReqFilter !== 'all') {
-    list = list.filter(r => r.status === currentReqFilter);
-  }
+  if (currentReqFilter !== 'all') list = list.filter(r => r.status === currentReqFilter);
 
   const el = $('myRequestsList');
-  if (!list.length) {
-    el.innerHTML = '<div class="no-requests">لا توجد طلبات</div>';
-    return;
-  }
+  if (!list.length) { el.innerHTML = '<div class="no-requests">لا توجد طلبات</div>'; return; }
 
   el.innerHTML = list.map(req => {
     const statusBadge = getStatusBadge(req.status);
@@ -636,19 +574,15 @@ async function renderMyRequests() {
       const m = r.merchants || {};
       const isAccepted = req.accepted_response_id === r.id;
       const imageHtml = r.image_url
-        ? `<img src="${r.image_url}" style="width:100%;max-width:150px;border-radius:10px;margin:6px 0;border:2px solid #eee" onerror="this.style.display='none'">`
-        : '';
+        ? `<img src="${r.image_url}" style="width:100%;max-width:150px;border-radius:10px;margin:6px 0;border:2px solid #eee" onerror="this.style.display='none'">` : '';
       const acceptBtn = isAccepted
         ? `<button class="accept-btn" style="background:#94a3b8;cursor:not-allowed">✅ مقبول</button>`
         : (req.status === 'accepted' ? '' : `<button class="accept-btn" onclick="acceptOfferClick('${req.id}','${r.id}')">قبول</button>`);
-
       const msgs = (r.customer_messages || []).map(msg =>
         `<div style="background:#dbeafe;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>👤 أنت:</strong> ${msg.text}</div>`
       ).join('');
-
       const replyHtml = r.merchant_reply
-        ? `<div style="background:#fef3c7;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>🏪 ${m.name || ''}:</strong> ${r.merchant_reply}</div>`
-        : '';
+        ? `<div style="background:#fef3c7;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>🏪 ${m.name || ''}:</strong> ${r.merchant_reply}</div>` : '';
 
       return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-top:8px;border-right:4px solid var(--primary)">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
@@ -667,8 +601,7 @@ async function renderMyRequests() {
     }).join('') : '<div style="color:#92400e;text-align:center;padding:10px">⏳ جاري انتظار رد التجار...</div>';
 
     const custImg = req.image_url
-      ? `<img src="${req.image_url}" style="width:100%;max-width:200px;border-radius:10px;margin:6px 0;border:2px solid #ddd">`
-      : '';
+      ? `<img src="${req.image_url}" style="width:100%;max-width:200px;border-radius:10px;margin:6px 0;border:2px solid #ddd">` : '';
 
     let actions = '';
     if (req.status === 'pending' || req.status === 'responded') {
@@ -679,15 +612,13 @@ async function renderMyRequests() {
 
     return `<div class="card" style="padding:14px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-        <h4 style="margin:0">📦 ${req.product}</h4>
-        ${statusBadge}
+        <h4 style="margin:0">📦 ${req.product}</h4>${statusBadge}
       </div>
       ${custImg}
       <div style="color:#4b5563;font-size:14px;margin:6px 0">${req.details || ''}</div>
       <div style="font-size:12px;color:#6b7280">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
       ${responses.length ? `<div style="font-size:12px;color:#6b7280;margin-top:6px">💬 ${responses.length} تاجر رد</div>` : ''}
-      ${respHtml}
-      ${actions}
+      ${respHtml}${actions}
     </div>`;
   }).join('');
 }
@@ -704,45 +635,31 @@ function getStatusBadge(status) {
 
 window.acceptOfferClick = async function (reqId, respId) {
   if (!confirm('متأكد من قبول العرض؟')) return;
-  try {
-    await acceptOffer({ requestId: reqId, responseId: respId });
-    alert('✅ تم قبول العرض');
-    renderRequestsTab();
-  } catch (e) { alert('❌ ' + e.message); }
+  try { await acceptOffer({ requestId: reqId, responseId: respId }); alert('✅ تم'); renderRequestsTab(); }
+  catch (e) { alert('❌ ' + e.message); }
 };
 
 window.cancelReqClick = async function (reqId) {
-  if (!confirm('متأكد من إلغاء الطلب؟')) return;
-  try {
-    await cancelRequest(reqId);
-    renderRequestsTab();
-  } catch (e) { alert('❌ ' + e.message); }
+  if (!confirm('متأكد من الإلغاء؟')) return;
+  try { await cancelRequest(reqId); renderRequestsTab(); }
+  catch (e) { alert('❌ ' + e.message); }
 };
 
 window.deleteReqClick = async function (reqId) {
-  if (!confirm('متأكد من حذف الطلب؟')) return;
-  try {
-    await deleteRequest(reqId);
-    renderRequestsTab();
-  } catch (e) { alert('❌ ' + e.message); }
+  if (!confirm('متأكد من الحذف؟')) return;
+  try { await deleteRequest(reqId); renderRequestsTab(); }
+  catch (e) { alert('❌ ' + e.message); }
 };
 
 window.askImageClick = async function (respId) {
   const msg = prompt('اكتب رسالتك للتاجر:');
   if (!msg) return;
-
-  const req = myRequestsCache.find(r =>
-    (r.request_responses || []).some(x => x.id === respId));
+  const req = myRequestsCache.find(r => (r.request_responses || []).some(x => x.id === respId));
   const resp = req?.request_responses.find(x => x.id === respId);
   if (!resp) return;
-
   try {
-    await askMerchantForImage({
-      responseId: respId,
-      message: msg,
-      existingMessages: resp.customer_messages || []
-    });
-    alert('✅ تم إرسال الرسالة');
+    await askMerchantForImage({ responseId: respId, message: msg, existingMessages: resp.customer_messages || [] });
+    alert('✅ تم');
     renderRequestsTab();
   } catch (e) { alert('❌ ' + e.message); }
 };
@@ -751,39 +668,43 @@ async function renderMerchantRequestsList() {
   const el = $('merchantRequestsList');
   try {
     const requests = await getMerchantRequests(currentMerchant.id, currentMerchant.category);
-
     if (!requests.length) {
-      el.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;padding:20px">مفيش طلبات واردة حالياً 😴</p>';
+      el.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;padding:20px">مفيش طلبات 😴</p>';
       return;
     }
-
     el.innerHTML = requests.map(req => {
       const myReply = (req.request_responses || []).find(r => r.merchant_id === currentMerchant.id);
       const statusBadge = getStatusBadge(req.status);
       const imageHtml = req.image_url
-        ? `<img src="${req.image_url}" style="width:100%;max-width:180px;border-radius:10px;margin:8px 0;border:2px solid #ddd">`
-        : '';
+        ? `<img src="${req.image_url}" style="width:100%;max-width:180px;border-radius:10px;margin:8px 0;border:2px solid #ddd">` : '';
+
+      const customerMsgs = myReply && myReply.customer_messages && myReply.customer_messages.length
+        ? `<div style="background:#dbeafe;padding:8px;border-radius:8px;margin-top:8px">
+            <div style="font-size:11px;color:#1e40af;font-weight:700">👤 رسائل العميل:</div>
+            ${myReply.customer_messages.map(m => `<div style="font-size:12px;color:#1e40af">• ${m.text}</div>`).join('')}
+          </div>` : '';
 
       let replyHtml = '';
       if (myReply) {
         replyHtml = `<div style="background:#d1fae5;padding:10px;border-radius:10px;margin-top:8px">
           <div style="font-size:12px;color:#065f46;font-weight:700">✅ ردك:</div>
-          <div style="font-size:14px;color:#065f46;margin-top:4px">💰 السعر: ${parseFloat(myReply.price).toFixed(0)} ج</div>
+          <div style="font-size:14px;color:#065f46;margin-top:4px">💰 ${parseFloat(myReply.price).toFixed(0)} ج</div>
           <div style="font-size:13px;color:#065f46">${myReply.message}</div>
+          ${myReply.image_url ? `<img src="${myReply.image_url}" style="width:100%;max-width:140px;border-radius:8px;margin-top:6px">` : ''}
         </div>`;
       }
 
       return `<div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:12px;border-right:4px solid var(--success)">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <h5 style="color:var(--primary);margin:0">📦 ${req.product}</h5>
-          ${statusBadge}
+          <h5 style="color:var(--primary);margin:0">📦 ${req.product}</h5>${statusBadge}
         </div>
         <div style="font-size:13px;color:#4b5563;margin-top:6px">${req.details || ''}</div>
         ${imageHtml}
         <div style="font-size:12px;color:#6b7280;margin-top:4px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
-        ${replyHtml}
+        ${customerMsgs}${replyHtml}
         <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
           ${!myReply ? `<button class="admin-btn primary" onclick="replyToReq('${req.id}')">📩 الرد</button>` : ''}
+          ${myReply ? `<button class="admin-btn purple" onclick="sendExtraImage('${myReply.id}')">📸 صورة إضافية</button>` : ''}
           <button class="admin-btn danger" onclick="hideReq('${req.id}')">🗑️ مسح</button>
         </div>
       </div>`;
@@ -794,37 +715,564 @@ async function renderMerchantRequestsList() {
 }
 
 window.replyToReq = async function (reqId) {
-  const price = prompt('اكتب السعر (جنيه):');
-  if (price === null) return;
-  const p = parseFloat(price);
-  if (isNaN(p) || p <= 0) { alert('❌ سعر غير صحيح'); return; }
+  const price = prompt('اكتب السعر:'); if (price === null) return;
+  const p = parseFloat(price); if (isNaN(p) || p <= 0) { alert('❌ سعر غير صحيح'); return; }
+  const message = prompt('رسالة للعميل:', 'متوفر بسعر ممتاز'); if (message === null) return;
 
-  const message = prompt('اكتب رسالة للعميل:', 'متوفر بسعر ممتاز');
-  if (message === null) return;
+  const hasImage = confirm('تحب ترفق صورة؟');
+  let imageBase64 = null;
+  if (hasImage) {
+    imageBase64 = await pickImage();
+  }
 
   try {
-    await replyToRequest({
-      requestId: reqId,
-      merchantId: currentMerchant.id,
-      price: p,
-      message: message || 'متوفر بسعر ممتاز',
-      imageBase64: null
-    });
-    alert('✅ تم إرسال ردك');
+    await replyToRequest({ requestId: reqId, merchantId: currentMerchant.id, price: p, message, imageBase64 });
+    alert('✅ تم');
     renderRequestsTab();
   } catch (e) { alert('❌ ' + e.message); }
 };
 
-window.hideReq = async function (reqId) {
-  if (!confirm('متأكد إنك عايز تمسح الطلب من عندك؟')) return;
+window.sendExtraImage = async function (responseId) {
+  const imageBase64 = await pickImage();
+  if (!imageBase64) return;
+  const message = prompt('رسالة (اختياري):', 'دي صورة إضافية');
   try {
-    await hideRequestForMerchant(reqId, currentMerchant.id);
+    await merchantSendExtraImage({ responseId, imageBase64, message });
+    alert('✅ تم');
     renderRequestsTab();
   } catch (e) { alert('❌ ' + e.message); }
+};
+
+function pickImage() {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return resolve(null);
+      const reader = new FileReader();
+      reader.onload = (ev) => resolve(ev.target.result);
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  });
+}
+
+window.hideReq = async function (reqId) {
+  if (!confirm('مسح الطلب من عندك؟')) return;
+  try { await hideRequestForMerchant(reqId, currentMerchant.id); renderRequestsTab(); }
+  catch (e) { alert('❌ ' + e.message); }
 };
 
 // ============================================================
-// Auth
+// DASHBOARD TAB
+// ============================================================
+async function renderDashboard() {
+  if (!currentMerchant) return;
+
+  try {
+    const s = await getMerchantStats(currentMerchant.id);
+    $('dashCust').innerText = s.customersCount;
+    $('dashSales').innerText = s.sales.toFixed(2) + ' ج';
+    $('dashOffers').innerText = s.offersCount;
+    $('dashGiven').innerText = s.cashbackGiven.toFixed(2) + ' ج';
+    $('dashSpent').innerText = s.cashbackSpent.toFixed(2) + ' ج';
+    $('dashRemaining').innerText = s.cashbackRemaining.toFixed(2) + ' ج';
+    $('dashNetSales').innerText = s.netSales.toFixed(2) + ' ج';
+  } catch (e) { console.error(e); }
+
+  const rate = currentMerchant.cashback_rate || 15;
+  $('rateSlider').value = rate;
+  $('rateValueDisplay').innerText = rate;
+  const tier = getTier(rate);
+  $('rateTierDisplay').innerHTML = `${tier.icon} ${tier.name}`;
+
+  try {
+    const offers = await getMerchantOffers(currentMerchant.id);
+    const el = $('myOffersList');
+    el.innerHTML = offers.length ? offers.map(o => `
+      <div class="merchant-offer-card" style="background:#f9fafb;padding:12px;border-radius:12px;margin-bottom:8px;border-right:4px solid #ff6b35;display:flex;justify-content:space-between;align-items:center">
+        <div><span style="font-weight:600">${o.title}</span> <span style="color:#ff6b35;font-weight:700">${o.discount}</span></div>
+        <button class="del-btn" onclick="deleteOfferClick('${o.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
+      </div>`).join('') : '<p style="color:#6b7280">لا توجد عروض</p>';
+  } catch (e) { console.error(e); }
+
+  try {
+    const customers = await getMerchantCustomers(currentMerchant.id);
+    const el = $('myCustomersList');
+    el.innerHTML = customers.length ? customers.map(c => `
+      <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
+        <strong>📱 ${c.phone}</strong>
+        <div style="color:#6b7280;margin-top:2px">${c.count} فاتورة • ${c.total.toFixed(2)} ج</div>
+      </div>`).join('') : '<p style="color:#6b7280">لا يوجد عملاء</p>';
+  } catch (e) { console.error(e); }
+
+  try {
+    const invoices = await getMerchantInvoicesList(currentMerchant.id);
+    const el = $('dashInvoicesList');
+    el.innerHTML = invoices.length ? invoices.slice(0, 30).map(inv => {
+      const statusBadge = inv.status === 'active'
+        ? '<span class="active-badge">✅ نشطة</span>'
+        : `<span class="blocked-badge">${inv.status === 'returned' ? 'مرتجع كامل' : 'مرتجع جزئي'}</span>`;
+      return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <strong>📄 #${inv.number}</strong>
+          <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span>
+        </div>
+        <div style="color:#6b7280;margin-top:2px">📱 ${inv.customer_phone || '-'} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج ${statusBadge}</div>
+        ${inv.status === 'active' ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="admin-btn primary" onclick="editInvClick('${inv.id}')">✏️ تعديل</button>
+          <button class="admin-btn danger" onclick="returnInvClick('${inv.id}')">🔄 مرتجع</button>
+        </div>` : ''}
+      </div>`;
+    }).join('') : '<p style="color:#6b7280">لا توجد فواتير</p>';
+  } catch (e) { console.error(e); }
+
+  try {
+    const wallets = await getMerchantWallets(currentMerchant.id);
+    const el = $('dashWalletsList');
+    el.innerHTML = wallets.length ? wallets.map(w => `
+      <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
+        <div style="font-weight:600">📱 ${w.profiles?.phone || '?'} ${w.profiles?.name ? '(' + w.profiles.name + ')' : ''}</div>
+        <div style="font-size:13px;color:#10b981;font-weight:600;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
+      </div>`).join('') : '<p style="color:#6b7280">لا يوجد أرصدة</p>';
+  } catch (e) { console.error(e); }
+}
+
+window.deleteOfferClick = async function (offerId) {
+  if (!confirm('حذف العرض؟')) return;
+  try { await deleteOffer(offerId); renderDashboard(); }
+  catch (e) { alert('❌ ' + e.message); }
+};
+
+window.editInvClick = async function (invId) {
+  const inv = (await getMerchantInvoicesList(currentMerchant.id)).find(i => i.id === invId);
+  if (!inv) return;
+  const newAmount = prompt(`المبلغ الحالي: ${inv.amount} ج\nاكتب المبلغ الجديد:`, inv.amount);
+  if (newAmount === null) return;
+  const a = parseFloat(newAmount);
+  if (isNaN(a) || a <= 0) { alert('❌ غير صحيح'); return; }
+  if (a > parseFloat(inv.amount)) { alert('❌ لا يمكن الزيادة'); return; }
+  try { await editInvoice(invId, a, null); alert('✅ تم'); renderDashboard(); }
+  catch (e) { alert('❌ ' + e.message); }
+};
+
+window.returnInvClick = async function (invId) {
+  const amount = prompt("مبلغ المرتجع (أو 'الكل'):");
+  if (amount === null) return;
+  const inv = (await getMerchantInvoicesList(currentMerchant.id)).find(i => i.id === invId);
+  if (!inv) return;
+  const r = amount === 'الكل' ? parseFloat(inv.amount) : parseFloat(amount);
+  if (isNaN(r) || r <= 0) { alert('❌ غير صحيح'); return; }
+  try { await processReturn(invId, r); alert('✅ تم'); renderDashboard(); }
+  catch (e) { alert('❌ ' + e.message); }
+};
+
+async function handleAddOffer() {
+  const title = $('offerTitle').value.trim();
+  const discount = $('offerDiscount').value.trim();
+  const res = $('offerResult');
+  if (!title || !discount) { res.style.color = 'red'; res.innerText = '❌ املأ البيانات'; return; }
+  try {
+    await addOffer({ merchantId: currentMerchant.id, title, discount });
+    res.style.color = 'green'; res.innerText = '✅ تم نشر العرض';
+    $('offerTitle').value = ''; $('offerDiscount').value = '';
+    setTimeout(() => { res.innerText = ''; renderDashboard(); }, 1000);
+  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
+}
+
+async function handleSaveRate() {
+  const rate = parseInt($('rateSlider').value);
+  const res = $('rateSaveResult');
+  try {
+    await updateCashbackRate(currentMerchant.id, rate);
+    currentMerchant.cashback_rate = rate;
+    res.style.color = 'green'; res.innerText = '✅ تم الحفظ';
+    setTimeout(() => res.innerText = '', 2000);
+  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
+}
+
+function updateRateDisplay() {
+  const v = parseInt($('rateSlider').value);
+  $('rateValueDisplay').innerText = v;
+  const tier = getTier(v);
+  $('rateTierDisplay').innerHTML = `${tier.icon} ${tier.name}`;
+}
+
+// ============================================================
+// REPORTS TAB
+// ============================================================
+async function renderReports(period) {
+  if (!currentMerchant) return;
+  document.querySelectorAll('.report-period-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.period === period));
+
+  const r = await getReportData(currentMerchant.id, period);
+  $('reportPeriodLabel').innerText = '📅 ' + r.periodLabel;
+  $('repInvoices').innerText = r.invoicesCount;
+  $('repSales').innerText = r.sales.toFixed(2) + ' ج';
+  $('repGiven').innerText = r.cbGiven.toFixed(2) + ' ج';
+  $('repSpent').innerText = r.cbSpent.toFixed(2) + ' ج';
+
+  $('reportDetails').innerHTML = `
+    <div style="border-top:1px solid #eee;margin-top:15px;padding-top:15px">
+      <h5 style="margin-bottom:10px;color:var(--primary)">📋 تفاصيل إضافية</h5>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="report-detail-box"><span class="lbl">👥 عملاء فريدين</span><span class="val">${r.uniqueCustomers}</span></div>
+        <div class="report-detail-box"><span class="lbl">💰 متوسط الفاتورة</span><span class="val">${r.avgInvoice} ج</span></div>
+        <div class="report-detail-box" style="background:#d1fae5"><span class="lbl" style="color:#065f46">💵 المتبقي</span><span class="val" style="color:#065f46">${r.cbRemaining.toFixed(2)} ج</span></div>
+      </div>
+    </div>`;
+}
+
+function exportReportPDF() {
+  if (typeof html2pdf === 'undefined') { alert('❌ المكتبة مش محملة'); return; }
+  const element = document.getElementById('reportContent');
+  const opt = {
+    margin: 10,
+    filename: `PAMIGO-Report-${Date.now()}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+  html2pdf().set(opt).from(element).save();
+}
+
+// ============================================================
+// ANALYTICS TAB
+// ============================================================
+async function renderAnalyticsTab() {
+  if (!currentMerchant) return;
+  try {
+    const offers = await getMerchantOffers(currentMerchant.id);
+    const a = await getAnalytics(currentMerchant.id, currentMerchant.name, offers);
+    $('anaTotalCustomers').innerText = a.totalCustomers;
+    $('anaAvgSpend').innerText = a.avgSpend + ' ج';
+    $('anaTopDay').innerText = a.topDay;
+    $('anaTopHour').innerText = a.topHour;
+    $('anaTopOffer').innerText = a.topOffer;
+    $('anaAvgRating').innerText = a.avgRating;
+    $('anaRepeatCustomers').innerText = a.repeatCount;
+    $('anaGrowth').innerText = (Math.floor(Math.random() * 20) + 5) + '%';
+  } catch (e) { console.error(e); }
+}
+
+// ============================================================
+// ADMIN TAB
+// ============================================================
+async function renderAdminSection(section) {
+  document.querySelectorAll('.admin-subtab').forEach(b =>
+    b.classList.toggle('active', b.dataset.admin === section));
+  document.querySelectorAll('.admin-section').forEach(s =>
+    s.classList.remove('active'));
+  $('admin-' + section).classList.add('active');
+
+  if (section === 'dashboard') await renderAdminDashboard();
+  if (section === 'traders') await renderAdminTraders();
+  if (section === 'customers') await renderAdminCustomers();
+  if (section === 'invoices') await renderAdminInvoices();
+  if (section === 'notifications') await renderAdminNotifHistory();
+}
+
+async function renderAdminDashboard() {
+  const s = await getAdminStats();
+  $('admTraders').innerText = s.tradersCount;
+  $('admCustomers').innerText = s.customersCount;
+  $('admInvoices').innerText = s.invoicesCount;
+  $('admSales').innerText = s.sales.toFixed(2) + ' ج';
+  $('admGiven').innerText = s.cbGiven.toFixed(2) + ' ج';
+  $('admSpent').innerText = s.cbSpent.toFixed(2) + ' ج';
+  $('admRemaining').innerText = s.cbRemaining.toFixed(2) + ' ج';
+  $('admOffers').innerText = s.offersCount;
+}
+
+async function renderAdminTraders() {
+  adminData.merchants = await getAllMerchants();
+  const el = $('adminTradersList');
+  if (!adminData.merchants.length) { el.innerHTML = '<p style="color:#6b7280">لا يوجد تجار</p>'; return; }
+  el.innerHTML = adminData.merchants.map(m => {
+    const rate = m.cashback_rate || 15;
+    const tier = getTier(rate);
+    return `<div class="admin-item">
+      <div class="head">
+        <span class="title">${m.icon || '🏪'} ${m.name}</span>
+        ${m.frozen ? '<span class="frozen-badge">❄️ موقوف</span>' : '<span class="active-badge">✅ نشط</span>'}
+      </div>
+      <div class="info">🔑 ${m.bank_code} | 📱 ${m.phone || '-'} | 💰 ${rate}% <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></div>
+      <div class="info">📂 ${m.category} | 🎁 ${(m.offers || []).length} عرض</div>
+      <div class="actions">
+        <button class="admin-btn ${m.frozen ? 'success' : 'warning'}" onclick="toggleFreeze('${m.id}')">${m.frozen ? '✅ إلغاء' : '❄️ إيقاف'}</button>
+        <button class="admin-btn primary" onclick="editRate('${m.id}')">💰 النسبة</button>
+        <button class="admin-btn danger" onclick="delTrader('${m.id}')">🗑️ حذف</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.toggleFreeze = async function (id) {
+  const m = adminData.merchants.find(x => x.id === id);
+  if (!m) return;
+  try { await freezeMerchant(id, !m.frozen); renderAdminTraders(); }
+  catch (e) { alert('❌ ' + e.message); }
+};
+
+window.editRate = async function (id) {
+  const m = adminData.merchants.find(x => x.id === id);
+  const newRate = prompt(`النسبة الحالية: ${m.cashback_rate}%\nالجديدة (1-50):`, m.cashback_rate);
+  if (newRate === null) return;
+  const r = parseInt(newRate);
+  if (isNaN(r) || r < 1 || r > 50) { alert('❌ غير صحيح'); return; }
+  try { await updateMerchantRate(id, r); renderAdminTraders(); }
+  catch (e) { alert('❌ ' + e.message); }
+};
+
+window.delTrader = async function (id) {
+  if (!confirm('متأكد من الحذف؟')) return;
+  try { await deleteMerchant(id); renderAdminTraders(); }
+  catch (e) { alert('❌ ' + e.message); }
+};
+
+function renderNewTraderSubs() {
+  const cat = $('newTraderCategory').value;
+  const subs = SUB_CATEGORIES[cat] || [];
+  $('newTraderSubs').innerHTML = subs.map(s =>
+    `<button type="button" class="category-chip" data-sub="${s.id}">${s.name}</button>`
+  ).join('');
+  $('newTraderSubs').querySelectorAll('.category-chip').forEach(btn => {
+    btn.onclick = () => btn.classList.toggle('active');
+  });
+}
+
+async function handleAddTrader() {
+  const name = $('newTraderName').value.trim();
+  const bankCode = $('newTraderBankCode').value.trim();
+  const phone = $('newTraderPhone').value.trim();
+  const category = $('newTraderCategory').value;
+  const lat = parseFloat($('newTraderLat').value);
+  const lng = parseFloat($('newTraderLng').value);
+  const rate = parseInt($('newTraderRate').value);
+  const res = $('addTraderResult');
+
+  if (!name || !bankCode || !phone) { res.style.color = 'red'; res.innerText = '❌ املأ الحقول'; return; }
+  if (isNaN(lat) || isNaN(lng)) { res.style.color = 'red'; res.innerText = '❌ إحداثيات'; return; }
+  if (isNaN(rate) || rate < 1 || rate > 50) { res.style.color = 'red'; res.innerText = '❌ نسبة غير صحيحة'; return; }
+
+  const subs = [];
+  $('newTraderSubs').querySelectorAll('.category-chip.active').forEach(b => subs.push(b.dataset.sub));
+  if (!subs.length) { res.style.color = 'red'; res.innerText = '❌ اختار تصنيف فرعي'; return; }
+
+  try {
+    await addTrader({
+      bankCode, name, phone, category,
+      subCategories: subs,
+      icon: CATEGORY_ICONS[category] || '🏪',
+      lat, lng, rate
+    });
+    res.style.color = 'green'; res.innerText = `✅ تم إضافة ${name}`;
+    setTimeout(() => { $('addTraderForm').style.display = 'none'; res.innerText = ''; renderAdminTraders(); }, 1500);
+  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
+}
+
+async function renderAdminCustomers() {
+  adminData.customers = await getAllCustomers();
+  const el = $('adminCustomersList');
+  if (!adminData.customers.length) { el.innerHTML = '<p style="color:#6b7280">لا يوجد عملاء</p>'; return; }
+  el.innerHTML = adminData.customers.map(c => `
+    <div class="admin-item">
+      <div class="head">
+        <span class="title">📱 ${c.phone}${c.name ? ' - ' + c.name : ''}</span>
+        <span class="active-badge">✅ نشط</span>
+      </div>
+      <div class="info">🏪 ${c.shops} تاجر | 💰 كسب: ${c.earned.toFixed(2)} | 💵 صرف: ${c.spent.toFixed(2)}</div>
+      <div class="info">📊 الرصيد: <strong>${c.balance.toFixed(2)} ج</strong></div>
+      <div class="actions">
+        <button class="admin-btn primary" onclick="adminAdjustBal('${c.phone}')">💰 تعديل رصيد</button>
+        <button class="admin-btn warning" onclick="adminResetBal('${c.phone}')">🔄 تصفير</button>
+      </div>
+    </div>`).join('');
+}
+
+window.adminAdjustBal = async function (phone) {
+  const merchants = adminData.merchants.length ? adminData.merchants : await getAllMerchants();
+  const list = merchants.map((m, i) => `${i + 1} - ${m.name} (${m.bank_code})`).join('\n');
+  const idx = prompt(`اختار التاجر (رقم):\n${list}`);
+  if (!idx) return;
+  const m = merchants[parseInt(idx) - 1];
+  if (!m) return;
+  const amount = prompt('اكتب المبلغ (موجب للإضافة، سالب للخصم):');
+  if (!amount) return;
+  const a = parseFloat(amount);
+  if (isNaN(a)) return;
+  try { await adjustCustomerBalance(phone, m.id, a); alert('✅ تم'); renderAdminCustomers(); }
+  catch (e) { alert('❌ ' + e.message); }
+};
+
+window.adminResetBal = async function (phone) {
+  if (!confirm('تصفير كل الرصيد؟')) return;
+  try { await resetCustomerBalance(phone); alert('✅ تم'); renderAdminCustomers(); }
+  catch (e) { alert('❌ ' + e.message); }
+};
+
+async function renderAdminInvoices() {
+  const search = $('adminInvoiceSearch')?.value || '';
+  adminData.invoices = await getAllInvoices(search);
+  const el = $('adminInvoicesList');
+  if (!adminData.invoices.length) { el.innerHTML = '<p style="color:#6b7280">لا توجد فواتير</p>'; return; }
+  el.innerHTML = adminData.invoices.map(inv => {
+    const statusBadge = inv.status === 'active'
+      ? '<span class="active-badge">✅ نشطة</span>'
+      : `<span class="blocked-badge">❌ ${inv.status === 'returned' ? 'مرتجع' : 'مرتجع جزئي'}</span>`;
+    return `<div class="admin-item">
+      <div class="head">
+        <span class="title">📄 #${inv.number}</span>
+        <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span>
+      </div>
+      <div class="info">🏪 ${inv.merchants?.name || ''} | 📱 ${inv.customer_phone || '-'} | 💵 كاش باك ${parseFloat(inv.cashback).toFixed(2)} ج</div>
+      <div class="info">${statusBadge}</div>
+      <div class="info" style="font-size:12px">🕒 ${new Date(inv.created_at).toLocaleString('ar-EG')}</div>
+      <div class="actions">
+        ${inv.status === 'active' ? `
+          <button class="admin-btn primary" onclick="adminEditInv('${inv.id}')">✏️ تعديل</button>
+          <button class="admin-btn danger" onclick="adminReturnInv('${inv.id}')">🔄 مرتجع</button>
+        ` : ''}
+        <button class="admin-btn danger" onclick="adminDelInv('${inv.id}')">🗑️ حذف</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.adminEditInv = async function (id) {
+  const inv = adminData.invoices.find(i => i.id === id);
+  if (!inv) return;
+  const newAmount = prompt(`المبلغ الحالي: ${inv.amount} ج\nالجديد:`, inv.amount);
+  if (newAmount === null) return;
+  const a = parseFloat(newAmount);
+  if (isNaN(a) || a <= 0) { alert('❌ غير صحيح'); return; }
+  if (a > parseFloat(inv.amount)) { alert('❌ لا يمكن الزيادة'); return; }
+  try { await editInvoiceAdmin(id, a, null); alert('✅ تم'); renderAdminInvoices(); }
+  catch (e) { alert('❌ ' + e.message); }
+};
+
+window.adminReturnInv = async function (id) {
+  const inv = adminData.invoices.find(i => i.id === id);
+  if (!inv) return;
+  const amount = prompt("مبلغ المرتجع (أو 'الكل'):");
+  if (amount === null) return;
+  const r = amount === 'الكل' ? parseFloat(inv.amount) : parseFloat(amount);
+  if (isNaN(r) || r <= 0) { alert('❌ غير صحيح'); return; }
+  try { await returnInvoiceAdmin(id, r); alert('✅ تم'); renderAdminInvoices(); }
+  catch (e) { alert('❌ ' + e.message); }
+};
+
+window.adminDelInv = async function (id) {
+  if (!confirm('حذف الفاتورة؟')) return;
+  try { await deleteInvoice(id); renderAdminInvoices(); }
+  catch (e) { alert('❌ ' + e.message); }
+};
+
+async function renderAdminNotifHistory() {
+  const notifs = await getNotifications();
+  const el = $('adminNotifHistory');
+  if (!notifs.length) { el.innerHTML = '<p style="color:#6b7280">لا توجد إشعارات</p>'; return; }
+  el.innerHTML = notifs.map(n => `
+    <div class="admin-item">
+      <div class="head"><span class="title">📢 ${n.title}</span></div>
+      <div class="info">${n.message}</div>
+      <div class="info" style="font-size:12px">🕒 ${new Date(n.created_at).toLocaleString('ar-EG')}</div>
+    </div>`).join('');
+}
+
+async function handleSendNotif() {
+  const title = $('notifTitle').value.trim();
+  const message = $('notifMessage').value.trim();
+  const target = $('notifTarget').value;
+  const res = $('notifResult');
+  if (!title || !message) { res.style.color = 'red'; res.innerText = '❌ املأ البيانات'; return; }
+  try {
+    await sendNotification({ title, message, target });
+    res.style.color = 'green'; res.innerText = '✅ تم الإرسال';
+    $('notifTitle').value = ''; $('notifMessage').value = '';
+    setTimeout(() => { res.innerText = ''; renderAdminNotifHistory(); }, 1500);
+  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
+}
+
+// ============================================================
+// ACCOUNT TAB
+// ============================================================
+async function initAccountMapUI() {
+  if (!currentProfile) return;
+  $('accName').innerText = currentProfile.name || '-';
+  $('accPhone').innerText = currentProfile.phone || '-';
+
+  try {
+    const wallets = await getUserWalletsBreakdown(currentProfile.id);
+    const total = wallets.reduce((s, w) => s + parseFloat(w.balance || 0), 0);
+    $('accBalance').innerText = total.toFixed(2) + ' ج';
+    $('accInvoicesCount').innerText = (await getMyInvoices(currentProfile.phone)).length;
+
+    if (wallets.length) {
+      $('myWalletsCard').style.display = 'block';
+      $('customerWalletsBreakdown').innerHTML = wallets.map(w => {
+        const m = w.merchants || {};
+        return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
+          <div style="font-weight:600">${m.icon || '🏪'} ${m.name || ''}</div>
+          <div style="font-size:14px;color:#10b981;font-weight:700;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
+        </div>`;
+      }).join('');
+    } else {
+      $('myWalletsCard').style.display = 'none';
+    }
+  } catch (e) { console.error(e); }
+
+  const stored = JSON.parse(localStorage.getItem('pamigo_user_loc') || 'null');
+  const lat = (currentMerchant ? currentMerchant.lat : stored?.lat) || userLat || 31.04;
+  const lng = (currentMerchant ? currentMerchant.lng : stored?.lng) || userLng || 31.38;
+
+  if (currentMerchant) {
+    $('pickerTitle').innerText = '📍 حدد موقع متجرك';
+    $('accLocation').innerText = `${currentMerchant.lat.toFixed(4)}, ${currentMerchant.lng.toFixed(4)}`;
+  } else {
+    $('pickerTitle').innerText = '📍 حدد موقعك';
+    if (stored) $('accLocation').innerText = `${stored.lat.toFixed(4)}, ${stored.lng.toFixed(4)}`;
+  }
+
+  initAccountMap('pickerMap', lat, lng);
+}
+
+async function handleSearchAddress() {
+  const q = $('addressSearch').value.trim();
+  const res = $('searchResult');
+  if (!q) { res.style.color = 'red'; res.innerText = '❌ اكتب عنوان'; return; }
+  res.style.color = '#6b7280'; res.innerText = '⏳ جاري البحث...';
+  try {
+    const loc = await searchAddress(q);
+    setMarkerPosition(loc.lat, loc.lng);
+    res.style.color = 'green'; res.innerText = '✅ تم العثور';
+  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
+}
+
+async function handleSaveLocation() {
+  const pos = getMarkerPosition();
+  const res = $('locationSaveResult');
+  if (!pos) { res.style.color = 'red'; res.innerText = '❌ الخريطة لم تُحمّل'; return; }
+  try {
+    if (currentMerchant) {
+      await updateMyMerchantLocation(currentMerchant.id, pos.lat, pos.lng);
+      currentMerchant.lat = pos.lat; currentMerchant.lng = pos.lng;
+      $('accLocation').innerText = `${pos.lat.toFixed(4)}, ${pos.lng.toFixed(4)}`;
+      res.style.color = 'green'; res.innerText = '✅ تم حفظ موقع متجرك';
+    } else {
+      localStorage.setItem('pamigo_user_loc', JSON.stringify(pos));
+      userLat = pos.lat; userLng = pos.lng;
+      $('accLocation').innerText = `${pos.lat.toFixed(4)}, ${pos.lng.toFixed(4)}`;
+      res.style.color = 'green'; res.innerText = '✅ تم حفظ موقعك';
+    }
+    setTimeout(() => res.innerText = '', 3000);
+  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
+}
+
+// ============================================================
+// AUTH
 // ============================================================
 function showMessage(text, type = 'error') {
   const el = $('authMessage');
@@ -855,6 +1303,7 @@ async function showMainScreen(profile) {
     $('merchantBanner').style.display = 'none';
   }
 
+  updateTabsVisibility();
   await refreshData();
   if (userLat === null) updateLocation();
 }
@@ -875,15 +1324,13 @@ async function handleLogin(e) {
   const password = $('loginPassword').value;
   if (!phone || !password) return showMessage('❌ املأ البيانات');
   const btn = $('loginBtn');
-  btn.disabled = true; btn.innerText = '⏳ جاري الدخول...';
+  btn.disabled = true; btn.innerText = '⏳...';
   try {
     await signIn({ phone, password });
-    showMessage('✅ تم تسجيل الدخول', 'success');
+    showMessage('✅ تم', 'success');
   } catch (err) {
     showMessage('❌ ' + translateError(err.message));
-  } finally {
-    btn.disabled = false; btn.innerText = '🚀 دخول';
-  }
+  } finally { btn.disabled = false; btn.innerText = '🚀 دخول'; }
 }
 
 async function handleSignup(e) {
@@ -893,36 +1340,33 @@ async function handleSignup(e) {
   const password = $('signupPassword').value;
   const role = $('signupRole').value;
   const bankCode = $('signupBankCode').value.trim();
-  if (!name || !phone || !password) return showMessage('❌ املأ كل الحقول');
-  if (password.length < 6) return showMessage('❌ الباسورد 6 أحرف على الأقل');
+  if (!name || !phone || !password) return showMessage('❌ املأ الحقول');
+  if (password.length < 6) return showMessage('❌ الباسورد 6 أحرف');
   if (role === 'merchant' && !bankCode) return showMessage('❌ لازم البنكود');
   const btn = $('signupBtn');
-  btn.disabled = true; btn.innerText = '⏳ جاري التسجيل...';
+  btn.disabled = true; btn.innerText = '⏳...';
   try {
     if (role === 'merchant') await signUpMerchant({ phone, password, name, bankCode });
     else await signUpCustomer({ phone, password, name });
-    showMessage('✅ تم إنشاء الحساب', 'success');
+    showMessage('✅ تم', 'success');
     await signIn({ phone, password });
-  } catch (err) {
-    showMessage('❌ ' + translateError(err.message));
-  } finally {
-    btn.disabled = false; btn.innerText = '📝 إنشاء الحساب';
-  }
+  } catch (err) { showMessage('❌ ' + translateError(err.message)); }
+  finally { btn.disabled = false; btn.innerText = '📝 إنشاء الحساب'; }
 }
 
 async function handleLogout() {
-  if (!confirm('متأكد من تسجيل الخروج؟')) return;
+  if (!confirm('متأكد؟')) return;
   await signOut();
 }
 
 function translateError(msg) {
-  if (msg.includes('Invalid login credentials')) return 'بيانات الدخول غير صحيحة';
-  if (msg.includes('User already registered')) return 'رقم الموبايل مسجل بالفعل';
-  if (msg.includes('Password should be at least')) return 'كلمة المرور قصيرة جدًا';
-  if (msg.includes('Unable to validate email')) return 'رقم موبايل غير صالح';
+  if (msg.includes('Invalid login credentials')) return 'بيانات غير صحيحة';
+  if (msg.includes('User already registered')) return 'الرقم مسجل';
+  if (msg.includes('Password should be at least')) return 'كلمة المرور قصيرة';
+  if (msg.includes('Unable to validate email')) return 'رقم غير صالح';
   if (msg.includes('البنكود غير موجود')) return 'البنكود غير موجود';
-  if (msg.includes('مرتبط بحساب')) return 'البنكود ده مرتبط بحساب تاني';
-  if (msg.includes('rate limit')) return 'حاول تاني بعد شوية';
+  if (msg.includes('مرتبط بحساب')) return 'البنكود مستخدم';
+  if (msg.includes('rate limit')) return 'حاول تاني';
   return msg;
 }
 
@@ -931,8 +1375,7 @@ function showAuthTab(tab) {
     t.classList.toggle('active', t.dataset.tab === tab));
   $('loginForm').style.display = tab === 'login' ? 'block' : 'none';
   $('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
-  $('authMessage').innerText = '';
-  $('authMessage').className = 'auth-message';
+  $('authMessage').innerText = ''; $('authMessage').className = 'auth-message';
 }
 
 function updateBankCodeVisibility() {
@@ -940,7 +1383,7 @@ function updateBankCodeVisibility() {
 }
 
 // ============================================================
-// Bind
+// BIND
 // ============================================================
 function bindEvents() {
   $('loginForm').addEventListener('submit', handleLogin);
@@ -951,6 +1394,33 @@ function bindEvents() {
   $('redeemBtn').addEventListener('click', handleRedeem);
   $('reqImage').addEventListener('change', handleReqImage);
   $('sendRequestBtn').addEventListener('click', handleSendRequest);
+  $('addOfferBtn').addEventListener('click', handleAddOffer);
+  $('saveRateBtn').addEventListener('click', handleSaveRate);
+  $('rateSlider').addEventListener('input', updateRateDisplay);
+  $('exportPdfBtn').addEventListener('click', exportReportPDF);
+
+  document.querySelectorAll('.report-period-btn').forEach(btn => {
+    btn.addEventListener('click', () => renderReports(btn.dataset.period));
+  });
+
+  document.querySelectorAll('.admin-subtab').forEach(btn => {
+    btn.addEventListener('click', () => renderAdminSection(btn.dataset.admin));
+  });
+
+  $('showAddTraderBtn').addEventListener('click', () => {
+    $('addTraderForm').style.display = 'block';
+    renderNewTraderSubs();
+  });
+  $('hideAddTraderBtn').addEventListener('click', () => {
+    $('addTraderForm').style.display = 'none';
+  });
+  $('newTraderCategory').addEventListener('change', renderNewTraderSubs);
+  $('addTraderConfirmBtn').addEventListener('click', handleAddTrader);
+  $('adminInvoiceSearch').addEventListener('input', () => renderAdminInvoices());
+  $('sendNotifBtn').addEventListener('click', handleSendNotif);
+
+  $('searchAddrBtn').addEventListener('click', handleSearchAddress);
+  $('saveLocationBtn').addEventListener('click', handleSaveLocation);
 
   document.querySelectorAll('.auth-tab').forEach(tab => {
     tab.addEventListener('click', () => showAuthTab(tab.dataset.tab));
@@ -1015,7 +1485,7 @@ function bindEvents() {
 }
 
 // ============================================================
-// Auth state
+// INIT
 // ============================================================
 onAuthChange(async (event, session) => {
   if (session?.user) {
