@@ -386,3 +386,114 @@
   padding: 30px;
   color: var(--text-muted);
 }
+
+/* ============================================================
+   Auth Tabs
+   ============================================================ */
+.auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  background: var(--bg-soft);
+  padding: 5px;
+  border-radius: var(--radius-pill);
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .2s;
+}
+
+.auth-tab:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.auth-tab.active {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(26, 42, 108, 0.25);
+}
+
+/* ============================================================
+   Auth Message
+   ============================================================ */
+.auth-message {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  display: none;
+}
+
+.auth-message.success {
+  display: block;
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.auth-message.error {
+  display: block;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* ============================================================
+   Role Badges
+   ============================================================ */
+.role-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.role-customer { background: #dbeafe; color: #1e40af; }
+.role-merchant { background: #d1fae5; color: #065f46; }
+.role-admin    { background: #fee2e2; color: #991b1b; }
+
+/* ============================================================
+   Info Row
+   ============================================================ */
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+}
+
+.info-row:last-of-type { border-bottom: none; }
+.info-row span   { color: var(--text-muted); }
+.info-row strong { color: var(--text); font-weight: 600; }
+
+/* ============================================================
+   Danger Button
+   ============================================================ */
+.btn-danger {
+  width: 100%;
+  padding: 12px;
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-pill);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .2s;
+}
+
+.btn-danger:hover { background: #dc2626; }
