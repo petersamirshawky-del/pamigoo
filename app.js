@@ -1,5 +1,5 @@
 ﻿// ============================================================
-// PAMIGO - Main Entry (Stage 5: Invoices + Wallets)
+// PAMIGO - Main Entry (Stage 6: Requests)
 // ============================================================
 import { supabase } from './supabase.js';
 import { SUB_CATEGORIES } from './config.js';
@@ -13,9 +13,17 @@ import {
   getMyWallets, redeemCashback, getMerchantCustomerWallets,
   getMerchantCashbackSummary
 } from './invoices.js';
+import {
+  sendRequest, getMyRequests, getMerchantRequests,
+  replyToRequest, acceptOffer, cancelRequest, deleteRequest,
+  hideRequestForMerchant, askMerchantForImage
+} from './requests.js';
 
 const $ = (id) => document.getElementById(id);
 
+// ============================================================
+// State
+// ============================================================
 let currentProfile = null;
 let currentMerchant = null;
 let allMerchants = [];
@@ -25,6 +33,14 @@ let homeRadius = 2, homeCategories = ['all'], homeSubCategories = [], homeSort =
 let offersCategories = ['all'], offersSubCategories = [];
 let currentModalMerchant = null;
 
+// Requests state
+let uploadedReqImage = null;
+let currentReqFilter = 'all';
+let myRequestsCache = [];
+
+// ============================================================
+// Load merchants
+// ============================================================
 async function loadMerchants() {
   const { data, error } = await supabase
     .from('merchants')
@@ -39,6 +55,9 @@ async function loadMerchants() {
   return data || [];
 }
 
+// ============================================================
+// Helpers
+// ============================================================
 function calcDistance(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -73,6 +92,9 @@ function getRoleName(role) {
   return { customer: '👤 عميل', merchant: '🏪 تاجر', admin: '👑 أدمن' }[role] || role;
 }
 
+// ============================================================
+// Geo
+// ============================================================
 function getUserLocation() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(null);
@@ -96,6 +118,9 @@ async function updateLocation() {
   renderMerchantsList();
 }
 
+// ============================================================
+// Filters
+// ============================================================
 function matchesCatSubs(m, cats, subs) {
   if (!cats.includes('all') && !cats.includes(m.category)) return false;
   if (subs.length) {
@@ -105,6 +130,9 @@ function matchesCatSubs(m, cats, subs) {
   return true;
 }
 
+// ============================================================
+// Render: merchants
+// ============================================================
 function renderMerchantsList() {
   let list = [...allMerchants];
   if (searchQuery) {
@@ -260,6 +288,7 @@ function renderOffersSubCategories() {
   });
 }
 
+// Modal
 window.openMerchant = function (bankCode) {
   const m = allMerchants.find(x => x.bank_code === bankCode);
   if (!m) return;
@@ -291,14 +320,21 @@ window.closeModal = function (e) {
   if (e.target.classList.contains('modal-overlay')) closeMerchantModal();
 };
 
+// ============================================================
+// Tabs
+// ============================================================
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-content').forEach(c =>
     c.classList.toggle('active', c.id === 'tab-' + name));
   if (name === 'invoice') renderInvoiceTab();
+  if (name === 'requests') renderRequestsTab();
 }
 
+// ============================================================
+// INVOICE TAB
+// ============================================================
 async function renderInvoiceTab() {
   if (!currentProfile) return;
 
@@ -502,6 +538,294 @@ async function handleRedeem() {
   }
 }
 
+// ============================================================
+// REQUESTS TAB
+// ============================================================
+function handleReqImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    uploadedReqImage = ev.target.result;
+    $('reqFileName').innerText = '📎 ' + file.name;
+    const prev = $('reqImagePreview');
+    prev.src = ev.target.result;
+    prev.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function handleSendRequest() {
+  const category = $('reqCategory').value;
+  const product = $('reqProduct').value.trim();
+  const details = $('reqDetails').value.trim();
+  const res = $('requestSendResult');
+
+  if (!product) {
+    res.style.color = '#ef4444';
+    res.innerText = '❌ اكتب اسم المنتج';
+    return;
+  }
+
+  try {
+    await sendRequest({ category, product, details, imageBase64: uploadedReqImage });
+    res.style.color = '#10b981';
+    res.innerText = '✅ تم إرسال الطلب للتجار';
+    $('reqProduct').value = '';
+    $('reqDetails').value = '';
+    $('reqFileName').innerText = 'لم يتم اختيار ملف';
+    $('reqImagePreview').style.display = 'none';
+    uploadedReqImage = null;
+    setTimeout(() => renderRequestsTab(), 1000);
+  } catch (e) {
+    res.style.color = '#ef4444';
+    res.innerText = '❌ ' + (e.message || 'فشل الإرسال');
+  }
+}
+
+async function renderRequestsTab() {
+  if (!currentProfile) return;
+
+  if (currentProfile.role === 'merchant' && currentMerchant) {
+    $('requestFormCard').style.display = 'none';
+    $('reqStatsWrapper').style.display = 'none';
+    $('myRequestsList').innerHTML = '';
+    $('merchantRequestsWrapper').style.display = 'block';
+    await renderMerchantRequestsList();
+  } else if (currentProfile.role === 'customer') {
+    $('requestFormCard').style.display = 'block';
+    $('reqStatsWrapper').style.display = 'block';
+    $('merchantRequestsWrapper').style.display = 'none';
+    await renderMyRequests();
+  } else {
+    $('requestFormCard').style.display = 'none';
+    $('reqStatsWrapper').style.display = 'none';
+    $('merchantRequestsWrapper').style.display = 'none';
+    $('myRequestsList').innerHTML = '<div class="no-requests">مش مسجل كعميل أو تاجر</div>';
+  }
+}
+
+async function renderMyRequests() {
+  myRequestsCache = await getMyRequests();
+
+  const total = myRequestsCache.length;
+  const pending = myRequestsCache.filter(r => r.status === 'pending').length;
+  const responded = myRequestsCache.filter(r => r.status === 'responded').length;
+  const accepted = myRequestsCache.filter(r => r.status === 'accepted').length;
+  $('statTotal').innerText = total;
+  $('statPending').innerText = pending;
+  $('statResponded').innerText = responded;
+  $('statAccepted').innerText = accepted;
+
+  let list = myRequestsCache;
+  if (currentReqFilter !== 'all') {
+    list = list.filter(r => r.status === currentReqFilter);
+  }
+
+  const el = $('myRequestsList');
+  if (!list.length) {
+    el.innerHTML = '<div class="no-requests">لا توجد طلبات</div>';
+    return;
+  }
+
+  el.innerHTML = list.map(req => {
+    const statusBadge = getStatusBadge(req.status);
+    const responses = req.request_responses || [];
+
+    const respHtml = responses.length ? responses.map(r => {
+      const m = r.merchants || {};
+      const isAccepted = req.accepted_response_id === r.id;
+      const imageHtml = r.image_url
+        ? `<img src="${r.image_url}" style="width:100%;max-width:150px;border-radius:10px;margin:6px 0;border:2px solid #eee" onerror="this.style.display='none'">`
+        : '';
+      const acceptBtn = isAccepted
+        ? `<button class="accept-btn" style="background:#94a3b8;cursor:not-allowed">✅ مقبول</button>`
+        : (req.status === 'accepted' ? '' : `<button class="accept-btn" onclick="acceptOfferClick('${req.id}','${r.id}')">قبول</button>`);
+
+      const msgs = (r.customer_messages || []).map(msg =>
+        `<div style="background:#dbeafe;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>👤 أنت:</strong> ${msg.text}</div>`
+      ).join('');
+
+      const replyHtml = r.merchant_reply
+        ? `<div style="background:#fef3c7;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>🏪 ${m.name || ''}:</strong> ${r.merchant_reply}</div>`
+        : '';
+
+      return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-top:8px;border-right:4px solid var(--primary)">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <strong style="color:var(--primary)">🏪 ${m.name || ''}</strong>
+          <span style="color:#ff6b35;font-weight:700">💰 ${parseFloat(r.price || 0).toFixed(0)} ج</span>
+        </div>
+        ${imageHtml}
+        <div style="font-size:13px;color:#4b5563;margin-top:4px">${r.message || ''}</div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          ${m.lat && m.lng ? `<button class="admin-btn primary" onclick="window.open('https://www.google.com/maps?q=${m.lat},${m.lng}','_blank')">📍</button>` : ''}
+          ${acceptBtn}
+          <button class="admin-btn purple" onclick="askImageClick('${r.id}')">📸 اسأل عن صورة</button>
+        </div>
+        ${msgs}${replyHtml}
+      </div>`;
+    }).join('') : '<div style="color:#92400e;text-align:center;padding:10px">⏳ جاري انتظار رد التجار...</div>';
+
+    const custImg = req.image_url
+      ? `<img src="${req.image_url}" style="width:100%;max-width:200px;border-radius:10px;margin:6px 0;border:2px solid #ddd">`
+      : '';
+
+    let actions = '';
+    if (req.status === 'pending' || req.status === 'responded') {
+      actions = `<button class="admin-btn danger" onclick="cancelReqClick('${req.id}')" style="margin-top:8px">🚫 إلغاء</button>`;
+    } else if (req.status === 'accepted' || req.status === 'cancelled') {
+      actions = `<button class="admin-btn danger" onclick="deleteReqClick('${req.id}')" style="margin-top:8px">🗑️ حذف</button>`;
+    }
+
+    return `<div class="card" style="padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <h4 style="margin:0">📦 ${req.product}</h4>
+        ${statusBadge}
+      </div>
+      ${custImg}
+      <div style="color:#4b5563;font-size:14px;margin:6px 0">${req.details || ''}</div>
+      <div style="font-size:12px;color:#6b7280">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
+      ${responses.length ? `<div style="font-size:12px;color:#6b7280;margin-top:6px">💬 ${responses.length} تاجر رد</div>` : ''}
+      ${respHtml}
+      ${actions}
+    </div>`;
+  }).join('');
+}
+
+function getStatusBadge(status) {
+  const map = {
+    pending: '<span style="background:#fef3c7;color:#92400e;font-size:12px;padding:3px 12px;border-radius:20px;font-weight:700">⏳ انتظار</span>',
+    responded: '<span style="background:#dbeafe;color:#1e40af;font-size:12px;padding:3px 12px;border-radius:20px;font-weight:700">💬 تم الرد</span>',
+    accepted: '<span style="background:#d1fae5;color:#065f46;font-size:12px;padding:3px 12px;border-radius:20px;font-weight:700">✅ مقبول</span>',
+    cancelled: '<span style="background:#fee2e2;color:#991b1b;font-size:12px;padding:3px 12px;border-radius:20px;font-weight:700">🚫 ملغي</span>'
+  };
+  return map[status] || map.pending;
+}
+
+window.acceptOfferClick = async function (reqId, respId) {
+  if (!confirm('متأكد من قبول العرض؟')) return;
+  try {
+    await acceptOffer({ requestId: reqId, responseId: respId });
+    alert('✅ تم قبول العرض');
+    renderRequestsTab();
+  } catch (e) { alert('❌ ' + e.message); }
+};
+
+window.cancelReqClick = async function (reqId) {
+  if (!confirm('متأكد من إلغاء الطلب؟')) return;
+  try {
+    await cancelRequest(reqId);
+    renderRequestsTab();
+  } catch (e) { alert('❌ ' + e.message); }
+};
+
+window.deleteReqClick = async function (reqId) {
+  if (!confirm('متأكد من حذف الطلب؟')) return;
+  try {
+    await deleteRequest(reqId);
+    renderRequestsTab();
+  } catch (e) { alert('❌ ' + e.message); }
+};
+
+window.askImageClick = async function (respId) {
+  const msg = prompt('اكتب رسالتك للتاجر:');
+  if (!msg) return;
+
+  const req = myRequestsCache.find(r =>
+    (r.request_responses || []).some(x => x.id === respId));
+  const resp = req?.request_responses.find(x => x.id === respId);
+  if (!resp) return;
+
+  try {
+    await askMerchantForImage({
+      responseId: respId,
+      message: msg,
+      existingMessages: resp.customer_messages || []
+    });
+    alert('✅ تم إرسال الرسالة');
+    renderRequestsTab();
+  } catch (e) { alert('❌ ' + e.message); }
+};
+
+async function renderMerchantRequestsList() {
+  const el = $('merchantRequestsList');
+  try {
+    const requests = await getMerchantRequests(currentMerchant.id, currentMerchant.category);
+
+    if (!requests.length) {
+      el.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;padding:20px">مفيش طلبات واردة حالياً 😴</p>';
+      return;
+    }
+
+    el.innerHTML = requests.map(req => {
+      const myReply = (req.request_responses || []).find(r => r.merchant_id === currentMerchant.id);
+      const statusBadge = getStatusBadge(req.status);
+      const imageHtml = req.image_url
+        ? `<img src="${req.image_url}" style="width:100%;max-width:180px;border-radius:10px;margin:8px 0;border:2px solid #ddd">`
+        : '';
+
+      let replyHtml = '';
+      if (myReply) {
+        replyHtml = `<div style="background:#d1fae5;padding:10px;border-radius:10px;margin-top:8px">
+          <div style="font-size:12px;color:#065f46;font-weight:700">✅ ردك:</div>
+          <div style="font-size:14px;color:#065f46;margin-top:4px">💰 السعر: ${parseFloat(myReply.price).toFixed(0)} ج</div>
+          <div style="font-size:13px;color:#065f46">${myReply.message}</div>
+        </div>`;
+      }
+
+      return `<div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:12px;border-right:4px solid var(--success)">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <h5 style="color:var(--primary);margin:0">📦 ${req.product}</h5>
+          ${statusBadge}
+        </div>
+        <div style="font-size:13px;color:#4b5563;margin-top:6px">${req.details || ''}</div>
+        ${imageHtml}
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
+        ${replyHtml}
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+          ${!myReply ? `<button class="admin-btn primary" onclick="replyToReq('${req.id}')">📩 الرد</button>` : ''}
+          <button class="admin-btn danger" onclick="hideReq('${req.id}')">🗑️ مسح</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<p style="color:#ef4444;font-size:14px">❌ ' + e.message + '</p>';
+  }
+}
+
+window.replyToReq = async function (reqId) {
+  const price = prompt('اكتب السعر (جنيه):');
+  if (price === null) return;
+  const p = parseFloat(price);
+  if (isNaN(p) || p <= 0) { alert('❌ سعر غير صحيح'); return; }
+
+  const message = prompt('اكتب رسالة للعميل:', 'متوفر بسعر ممتاز');
+  if (message === null) return;
+
+  try {
+    await replyToRequest({
+      requestId: reqId,
+      merchantId: currentMerchant.id,
+      price: p,
+      message: message || 'متوفر بسعر ممتاز',
+      imageBase64: null
+    });
+    alert('✅ تم إرسال ردك');
+    renderRequestsTab();
+  } catch (e) { alert('❌ ' + e.message); }
+};
+
+window.hideReq = async function (reqId) {
+  if (!confirm('متأكد إنك عايز تمسح الطلب من عندك؟')) return;
+  try {
+    await hideRequestForMerchant(reqId, currentMerchant.id);
+    renderRequestsTab();
+  } catch (e) { alert('❌ ' + e.message); }
+};
+
+// ============================================================
+// Auth
+// ============================================================
 function showMessage(text, type = 'error') {
   const el = $('authMessage');
   if (!el) return;
@@ -615,6 +939,9 @@ function updateBankCodeVisibility() {
   $('bankCodeGroup').style.display = $('signupRole').value === 'merchant' ? 'block' : 'none';
 }
 
+// ============================================================
+// Bind
+// ============================================================
 function bindEvents() {
   $('loginForm').addEventListener('submit', handleLogin);
   $('signupForm').addEventListener('submit', handleSignup);
@@ -622,6 +949,8 @@ function bindEvents() {
   $('signupRole').addEventListener('change', updateBankCodeVisibility);
   $('submitInvoiceBtn').addEventListener('click', handleSubmitInvoice);
   $('redeemBtn').addEventListener('click', handleRedeem);
+  $('reqImage').addEventListener('change', handleReqImage);
+  $('sendRequestBtn').addEventListener('click', handleSendRequest);
 
   document.querySelectorAll('.auth-tab').forEach(tab => {
     tab.addEventListener('click', () => showAuthTab(tab.dataset.tab));
@@ -674,8 +1003,20 @@ function bindEvents() {
       });
     });
   });
+
+  document.querySelectorAll('#reqFilters .category-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#reqFilters .category-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      currentReqFilter = chip.dataset.filter;
+      renderMyRequests();
+    });
+  });
 }
 
+// ============================================================
+// Auth state
+// ============================================================
 onAuthChange(async (event, session) => {
   if (session?.user) {
     const profile = await getProfile();
