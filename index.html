@@ -16,12 +16,18 @@
     <div class="header-left">
       <div>
         <h2>PAMIGO</h2>
-        <p>🔐 المرحلة 4 — الأدوار</p>
+        <p>
+          <i class="fas fa-map-pin" style="color:#ff6b35"></i>
+          <span id="locationText">جاري تحديد الموقع...</span>
+        </p>
       </div>
     </div>
+    <button class="location" id="refreshLocation">🔄 تحديث الموقع</button>
   </div>
 
-  <!-- شاشة الدخول -->
+  <!-- ============================================================
+       شاشة الدخول
+  ============================================================ -->
   <div id="authScreen" style="display:none">
     <div class="card login-box">
       <div class="auth-tabs">
@@ -29,44 +35,34 @@
         <button class="auth-tab" data-tab="signup">📝 حساب جديد</button>
       </div>
 
-      <!-- نموذج الدخول -->
       <form id="loginForm">
         <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">تسجيل الدخول</h4>
         <input type="tel" id="loginPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
-
         <div class="password-wrap">
           <input type="password" id="loginPassword" placeholder="🔑 كلمة المرور" autocomplete="current-password">
           <button type="button" class="eye-btn" onclick="togglePass('loginPassword', this)" tabindex="-1">👁️</button>
         </div>
-
         <button type="submit" id="loginBtn" style="margin-top:10px">🚀 دخول</button>
       </form>
 
-      <!-- نموذج التسجيل -->
       <form id="signupForm" style="display:none">
         <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">حساب جديد</h4>
-
         <input type="text" id="signupName" placeholder="👤 الاسم" autocomplete="name">
         <input type="tel" id="signupPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
-
         <div class="password-wrap">
           <input type="password" id="signupPassword" placeholder="🔑 كلمة المرور (6 أحرف على الأقل)" autocomplete="new-password">
           <button type="button" class="eye-btn" onclick="togglePass('signupPassword', this)" tabindex="-1">👁️</button>
         </div>
-
         <select id="signupRole">
           <option value="customer">👤 عميل</option>
           <option value="merchant">🏪 تاجر</option>
         </select>
-
-        <!-- حقل البنكود (بيظهر لو اختار تاجر) -->
         <div id="bankCodeGroup" style="display:none">
           <input type="text" id="signupBankCode" placeholder="🔑 البنكود (مثال: MERCH-MNS01)" autocomplete="off" style="text-transform:uppercase">
           <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">
-            💡 البنكود بتاعك بتستلمه من إدارة PAMIGO بعد ما يتم تسجيل متجرك.
+            💡 البنكود بتستلمه من إدارة PAMIGO.
           </p>
         </div>
-
         <button type="submit" id="signupBtn" style="margin-top:10px">📝 إنشاء الحساب</button>
       </form>
 
@@ -74,44 +70,124 @@
     </div>
   </div>
 
-  <!-- الشاشة الرئيسية -->
+  <!-- ============================================================
+       الشاشة الرئيسية
+  ============================================================ -->
   <div id="mainScreen" style="display:none">
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:15px">
-        <h3 style="margin:0">👋 أهلاً بك</h3>
+
+    <!-- بيانات المستخدم + خروج -->
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 18px">
+      <div style="display:flex;align-items:center;gap:10px">
         <span id="userRole" class="role-badge">-</span>
+        <strong id="userName" style="font-size:14px">-</strong>
       </div>
-      <div class="info-row"><span>👤 الاسم</span><strong id="userName">-</strong></div>
-      <div class="info-row"><span>📱 الموبايل</span><strong id="userPhone">-</strong></div>
-      <div class="info-row"><span>📅 تاريخ التسجيل</span><strong id="userSince">-</strong></div>
+      <button id="logoutBtn" style="width:auto;padding:8px 16px;font-size:13px;background:var(--danger);border-radius:30px">🚪 خروج</button>
     </div>
 
-    <!-- كارت التاجر -->
-    <div class="card" id="merchantCard" style="display:none;background:#d1fae5;border-right:4px solid var(--success)">
-      <h4 style="margin-bottom:10px;color:#065f46">🏪 متجرك</h4>
-      <div class="info-row"><span>🏪 الاسم</span><strong id="merchantName">-</strong></div>
-      <div class="info-row"><span>🔑 البنكود</span><strong id="merchantBankCode">-</strong></div>
-      <div class="info-row"><span>📂 التصنيف</span><strong id="merchantCategory">-</strong></div>
-      <div class="info-row"><span>💰 نسبة الكاش باك</span><strong id="merchantRate">-</strong></div>
+    <!-- تنبيه التاجر -->
+    <div id="merchantBanner" class="card" style="display:none;background:#d1fae5;border-right:4px solid var(--success);padding:12px 16px">
+      <strong style="color:#065f46">🏪 متجرك:</strong>
+      <span id="merchantName" style="color:#065f46;font-weight:600">-</span>
+      <div style="font-size:12px;color:#065f46;margin-top:4px">لوحة التاجر الكاملة هتكون متاحة في المرحلة الجاية.</div>
     </div>
 
-    <!-- كارت العميل -->
-    <div class="card" id="customerCard" style="display:none;background:#dbeafe;border-right:4px solid var(--primary)">
-      <h4 style="margin-bottom:8px;color:#1e40af">👤 حسابك جاهز</h4>
-      <p style="font-size:14px;color:#1e40af;line-height:1.7">
-        تقدر تشوف العروض القريبة منك والتفاعل مع التجار.
-      </p>
+    <!-- التبويبات -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="home">🏠 الرئيسية</button>
+      <button class="tab-btn" data-tab="offers">🎁 العروض</button>
     </div>
 
-    <button id="logoutBtn" class="btn-danger">🚪 تسجيل الخروج</button>
+    <!-- ========== تبويب الرئيسية ========== -->
+    <div class="tab-content active" id="tab-home">
+
+      <!-- نطاق البحث -->
+      <div class="radius-control">
+        <label>🔍 نطاق البحث: <span id="radiusValue">2</span> كم</label>
+        <input type="range" id="radiusSlider" min="0.5" max="10" step="0.5" value="2">
+
+        <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
+          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📊 ترتيب النتائج حسب:</label>
+          <div class="categories" id="sortOptions" style="margin-bottom:0">
+            <button class="category-chip active" data-sort="nearest">📍 الأقرب</button>
+            <button class="category-chip" data-sort="cashback">💰 أعلى كاش باك</button>
+            <button class="category-chip" data-sort="discount">🔥 أعلى خصم</button>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
+          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">🏷️ نوع الخدمة:</label>
+          <div class="categories" id="homeCategories" style="margin-bottom:0">
+            <button class="category-chip active" data-cat="all">🌟 الكل</button>
+            <button class="category-chip" data-cat="fashion">👗 ملابس</button>
+            <button class="category-chip" data-cat="restaurants">🍕 مطاعم</button>
+            <button class="category-chip" data-cat="bigfood">🍔 وجبات</button>
+            <button class="category-chip" data-cat="electronics">📱 إلكترونيات</button>
+            <button class="category-chip" data-cat="car_parts">🛞 قطع غيار</button>
+            <button class="category-chip" data-cat="car_accessories">🪞 كماليات</button>
+            <button class="category-chip" data-cat="car_repair">🔧 صيانة</button>
+            <button class="category-chip" data-cat="clinics">🩺 عيادات</button>
+            <button class="category-chip" data-cat="labs">🧪 معامل</button>
+            <button class="category-chip" data-cat="radiology">📡 أشعة</button>
+            <button class="category-chip" data-cat="hospitals">🏨 مستشفيات</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- البحث -->
+      <div class="search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchInput" placeholder="ابحث عن عروض أو متاجر...">
+      </div>
+
+      <!-- أفضل العروض -->
+      <div class="section-title"><h3>🔥 أفضل العروض</h3></div>
+      <div class="deals-scroll" id="dealsScroll"></div>
+
+      <!-- قائمة المتاجر -->
+      <div class="section-title"><h3>📍 المتاجر القريبة</h3></div>
+      <div id="merchantsList">
+        <div class="no-requests">⏳ جاري التحميل...</div>
+      </div>
+
+    </div>
+
+    <!-- ========== تبويب العروض ========== -->
+    <div class="tab-content" id="tab-offers">
+      <div class="section-title"><h3>🎁 عروض حصرية</h3></div>
+      <div class="categories" id="offersCategories">
+        <button class="category-chip active" data-cat="all">🌟 الكل</button>
+        <button class="category-chip" data-cat="restaurants">🍕 مطاعم</button>
+        <button class="category-chip" data-cat="bigfood">🍔 وجبات</button>
+        <button class="category-chip" data-cat="fashion">👗 ملابس</button>
+        <button class="category-chip" data-cat="electronics">📱 إلكترونيات</button>
+        <button class="category-chip" data-cat="car_parts">🛞 قطع غيار</button>
+        <button class="category-chip" data-cat="car_accessories">🪞 كماليات</button>
+        <button class="category-chip" data-cat="car_repair">🔧 صيانة</button>
+        <button class="category-chip" data-cat="clinics">🩺 عيادات</button>
+        <button class="category-chip" data-cat="labs">🧪 معامل</button>
+        <button class="category-chip" data-cat="radiology">📡 أشعة</button>
+        <button class="category-chip" data-cat="hospitals">🏨 مستشفيات</button>
+      </div>
+      <div class="offers-grid" id="offersGrid"></div>
+    </div>
+
   </div>
 
-  <div class="footer">PAMIGO v37.0 — Stage 4-A</div>
+  <!-- Modal -->
+  <div class="modal-overlay" id="merchantModal" onclick="closeModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <button class="close-btn" onclick="closeMerchantModal()">✕</button>
+      <h3 id="modalMerchantName">اسم التاجر</h3>
+      <div class="merchant-info" id="modalMerchantInfo" style="color:#6b7280;font-size:14px;margin-bottom:14px"></div>
+      <div id="modalOffersList"></div>
+    </div>
+  </div>
+
+  <div class="footer">PAMIGO v37.0 — Stage 4-B</div>
 
   <script type="module" src="app.js"></script>
 
   <script>
-    // زرار إظهار/إخفاء الباسورد
     window.togglePass = function(inputId, btn) {
       const input = document.getElementById(inputId);
       if (!input) return;
