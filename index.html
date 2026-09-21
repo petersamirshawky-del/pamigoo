@@ -50,10 +50,20 @@
         <select id="signupRole">
           <option value="customer">👤 عميل</option>
           <option value="merchant">🏪 تاجر</option>
+          <option value="admin">👑 أدمن</option>
         </select>
         <div id="bankCodeGroup" style="display:none">
           <input type="text" id="signupBankCode" placeholder="🔑 البنكود (مثال: MERCH-MNS01)" autocomplete="off" style="text-transform:uppercase">
           <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">💡 البنكود بتستلمه من إدارة PAMIGO.</p>
+        </div>
+        <div id="adminCodeGroup" style="display:none">
+          <div class="password-wrap">
+            <input type="password" id="signupAdminCode" placeholder="🔑 بنكود الأدمن" autocomplete="off">
+            <button type="button" class="eye-btn" onclick="togglePass('signupAdminCode', this)" tabindex="-1">👁️</button>
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">
+            💡 خاص بصاحب المنصة فقط.
+          </p>
         </div>
         <button type="submit" id="signupBtn" style="margin-top:10px">📝 إنشاء الحساب</button>
       </form>
@@ -79,8 +89,8 @@
 
     <!-- Tabs -->
     <div class="tabs" id="mainTabs">
-      <button class="tab-btn active" data-tab="home" data-role="all">🏠 الرئيسية</button>
-      <button class="tab-btn" data-tab="offers" data-role="all">🎁 العروض</button>
+      <button class="tab-btn active" data-tab="home" data-role="customer">🏠 الرئيسية</button>
+      <button class="tab-btn" data-tab="offers" data-role="customer">🎁 العروض</button>
       <button class="tab-btn" data-tab="invoice" data-role="all">🧾 الفاتورة</button>
       <button class="tab-btn" data-tab="requests" data-role="all">📋 طلباتي</button>
       <button class="tab-btn" data-tab="dashboard" data-role="merchant" style="display:none">📊 لوحتي</button>
@@ -275,7 +285,7 @@
       </div>
     </div>
 
-    <!-- ============ لوحتي (للتاجر) ============ -->
+    <!-- ============ لوحتي ============ -->
     <div class="tab-content" id="tab-dashboard">
       <div class="card">
         <h4 style="margin-bottom:12px">📊 إحصائيات متجري</h4>
@@ -360,7 +370,7 @@
           <div class="analytics-card"><div class="label">العرض الأكثر تأثيراً</div><div class="value" id="anaTopOffer">-</div></div>
           <div class="analytics-card"><div class="label">متوسط التقييم</div><div class="value" id="anaAvgRating">-</div></div>
           <div class="analytics-card"><div class="label">العملاء المتكررون</div><div class="value" id="anaRepeatCustomers">0</div></div>
-          <div class="analytics-card"><div class="label">نسبة النمو</div><div class="value" id="anaGrowth">0%</div></div>
+          <div class="analytics-card"><div class="label">نسبة النمو</div><div class="value" id="anaGrowth">—</div></div>
         </div>
       </div>
     </div>
@@ -379,7 +389,6 @@
         <button class="admin-subtab" data-admin="notifications">📢 إشعارات</button>
       </div>
 
-      <!-- إحصائيات -->
       <div class="admin-section active" id="admin-dashboard">
         <div class="card">
           <h4 style="margin-bottom:15px">📊 إحصائيات المنصة</h4>
@@ -398,7 +407,6 @@
         </div>
       </div>
 
-      <!-- التجار -->
       <div class="admin-section" id="admin-traders">
         <div class="card">
           <h4 style="margin-bottom:15px">🏪 إدارة التجار</h4>
@@ -436,7 +444,6 @@
         </div>
       </div>
 
-      <!-- العملاء -->
       <div class="admin-section" id="admin-customers">
         <div class="card">
           <h4 style="margin-bottom:15px">👥 إدارة العملاء</h4>
@@ -444,7 +451,6 @@
         </div>
       </div>
 
-      <!-- الفواتير -->
       <div class="admin-section" id="admin-invoices">
         <div class="card">
           <h4 style="margin-bottom:15px">🧾 كل الفواتير</h4>
@@ -453,7 +459,6 @@
         </div>
       </div>
 
-      <!-- الإشعارات -->
       <div class="admin-section" id="admin-notifications">
         <div class="card">
           <h4 style="margin-bottom:15px">📢 إرسال إشعار</h4>
@@ -513,7 +518,7 @@
     </div>
   </div>
 
-  <div class="footer">PAMIGO v38.0 — Stage 7</div>
+  <div class="footer">PAMIGO v38.0 — Stage 8</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>

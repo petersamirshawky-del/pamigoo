@@ -129,3 +129,23 @@ export async function getMyMerchant() {
 export function onAuthChange(callback) {
   return supabase.auth.onAuthStateChange((event, session) => callback(event, session));
 }
+// ============================================================
+// تسجيل أدمن بالبنكود السري
+// ============================================================
+export async function signUpAdmin({ phone, password, name, adminCode }) {
+  if (adminCode.trim() !== 'PETAD-12321') {
+    throw new Error('بنكود الأدمن غير صحيح');
+  }
+
+  const email = phoneToEmail(phone);
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { phone, name, role: 'admin' }
+    }
+  });
+
+  if (error) throw error;
+  return data;
+}
