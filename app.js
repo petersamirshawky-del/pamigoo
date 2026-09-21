@@ -953,7 +953,7 @@ async function renderAnalyticsTab() {
     $('anaTopOffer').innerText = a.topOffer;
     $('anaAvgRating').innerText = a.avgRating;
     $('anaRepeatCustomers').innerText = a.repeatCount;
-    $('anaGrowth').innerText = (Math.floor(Math.random() * 20) + 5) + '%';
+    $('anaGrowth').innerText = a.growth;
   } catch (e) { console.error(e); }
 }
 
