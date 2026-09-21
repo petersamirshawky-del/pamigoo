@@ -1,1 +1,111 @@
+﻿/* ============================================================
+   PAMIGO - Base Styles
+   ============================================================ */
 
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: #f0f4f8;
+  padding: 16px;
+  direction: rtl;
+  color: #1a1a2e;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+/* ---------- CSS Variables ---------- */
+:root {
+  --primary: #1a2a6c;
+  --primary-dark: #14204d;
+  --accent: #ff6b35;
+  --accent-dark: #e55a26;
+  --success: #10b981;
+  --success-dark: #059669;
+  --danger: #ef4444;
+  --warning: #f39c12;
+  --purple: #8b5cf6;
+  --text: #1a1a2e;
+  --text-muted: #6b7280;
+  --bg-soft: #eef2f7;
+  --border: #e5e7eb;
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --card-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-pill: 30px;
+}
+
+/* ---------- Links ---------- */
+a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color .2s;
+}
+
+a:hover {
+  color: var(--accent);
+}
+
+/* ---------- Code ---------- */
+code {
+  background: var(--bg-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--primary);
+}
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ---------- Selection ---------- */
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ---------- Status Box ---------- */
+.status-box {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  transition: all .3s;
+}
+
+/* ---------- Utilities ---------- */
+.text-center { text-align: center; }
+.text-muted  { color: var(--text-muted); }
+.mt-10 { margin-top: 10px; }
+.mt-20 { margin-top: 20px; }
+.mb-10 { margin-bottom: 10px; }
+.mb-20 { margin-bottom: 20px; }
+.hidden { display: none !important; }
