@@ -83,17 +83,17 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="home">🏠 الرئيسية</button>
       <button class="tab-btn" data-tab="offers">🎁 العروض</button>
+      <button class="tab-btn" data-tab="invoice">🧾 الفاتورة</button>
     </div>
 
-    <!-- ========== تبويب الرئيسية ========== -->
+    <!-- الرئيسية -->
     <div class="tab-content active" id="tab-home">
-
       <div class="radius-control">
         <label>🔍 نطاق البحث: <span id="homeRadiusValue">2</span> كم</label>
         <input type="range" id="homeRadiusSlider" min="0.5" max="10" step="0.5" value="2">
 
         <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
-          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📊 ترتيب النتائج حسب:</label>
+          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📊 ترتيب النتائج:</label>
           <div class="categories" id="homeSortOptions" style="margin-bottom:0">
             <button class="category-chip active" data-sort="nearest">📍 الأقرب</button>
             <button class="category-chip" data-sort="cashback">💰 أعلى كاش باك</button>
@@ -102,10 +102,7 @@
         </div>
 
         <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
-          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">
-            🏷️ نوع الخدمة:
-            <span style="font-size:11px;color:var(--text-muted);font-weight:400">(اختيار متعدد)</span>
-          </label>
+          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">🏷️ نوع الخدمة:</label>
           <div class="categories" id="homeCategories" style="margin-bottom:0">
             <button class="category-chip active" data-cat="all">🌟 الكل</button>
             <button class="category-chip" data-cat="fashion">👗 ملابس</button>
@@ -137,20 +134,14 @@
       <div class="deals-scroll" id="dealsScroll"></div>
 
       <div class="section-title"><h3>📍 المتاجر القريبة</h3></div>
-      <div id="merchantsList">
-        <div class="no-requests">⏳ جاري التحميل...</div>
-      </div>
+      <div id="merchantsList"><div class="no-requests">⏳ جاري التحميل...</div></div>
     </div>
 
-    <!-- ========== تبويب العروض (مبسط) ========== -->
+    <!-- العروض -->
     <div class="tab-content" id="tab-offers">
-
       <div class="radius-control">
         <div>
-          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">
-            🏷️ نوع الخدمة:
-            <span style="font-size:11px;color:var(--text-muted);font-weight:400">(اختيار متعدد)</span>
-          </label>
+          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">🏷️ نوع الخدمة:</label>
           <div class="categories" id="offersCategories" style="margin-bottom:0">
             <button class="category-chip active" data-cat="all">🌟 الكل</button>
             <button class="category-chip" data-cat="fashion">👗 ملابس</button>
@@ -166,7 +157,6 @@
             <button class="category-chip" data-cat="hospitals">🏨 مستشفيات</button>
           </div>
         </div>
-
         <div id="offersSubWrapper" style="margin-top:14px;border-top:1px solid #eee;padding-top:12px;display:none">
           <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📂 تصنيفات فرعية:</label>
           <div class="categories" id="offersSubCategories" style="margin-bottom:0"></div>
@@ -175,6 +165,87 @@
 
       <div class="section-title"><h3>🎁 كل العروض</h3></div>
       <div class="offers-grid" id="offersGrid"></div>
+    </div>
+
+    <!-- الفاتورة -->
+    <div class="tab-content" id="tab-invoice">
+
+      <!-- ===== للتاجر: نموذج رفع فاتورة ===== -->
+      <div class="card" id="merchantInvoiceForm" style="display:none">
+        <h4 style="margin-bottom:10px">🧾 رفع فاتورة</h4>
+        <input type="text" id="invNumber" placeholder="رقم الفاتورة">
+        <input type="tel" id="invCustomerPhone" placeholder="📱 رقم موبايل العميل">
+        <input type="number" id="invAmount" placeholder="💰 المبلغ (جنيه)" min="1" step="0.01">
+        <button id="submitInvoiceBtn" style="margin-top:10px">✅ رفع الفاتورة</button>
+        <div id="invoiceResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
+      </div>
+
+      <!-- ===== للتاجر: ملخص الكاش باك ===== -->
+      <div class="card" id="merchantCashbackCard" style="display:none">
+        <h4 style="margin-bottom:12px">💵 ملخص الكاش باك</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div style="background:#dbeafe;padding:12px;border-radius:10px;text-align:center">
+            <div style="font-size:11px;color:#1e40af">ممنوح للعملاء</div>
+            <div style="font-size:18px;font-weight:700;color:#1e40af;margin-top:4px" id="merCbGiven">0 ج</div>
+          </div>
+          <div style="background:#fef3c7;padding:12px;border-radius:10px;text-align:center">
+            <div style="font-size:11px;color:#92400e">مصروف</div>
+            <div style="font-size:18px;font-weight:700;color:#92400e;margin-top:4px" id="merCbSpent">0 ج</div>
+          </div>
+          <div style="background:#fee2e2;padding:12px;border-radius:10px;text-align:center">
+            <div style="font-size:11px;color:#991b1b">التزام متبقي</div>
+            <div style="font-size:18px;font-weight:700;color:#991b1b;margin-top:4px" id="merCbRemaining">0 ج</div>
+          </div>
+          <div style="background:#d1fae5;padding:12px;border-radius:10px;text-align:center">
+            <div style="font-size:11px;color:#065f46">صافي المبيعات</div>
+            <div style="font-size:18px;font-weight:700;color:#065f46;margin-top:4px" id="merNetSales">0 ج</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== للتاجر: أرصدة العملاء ===== -->
+      <div class="card" id="merchantWalletsCard" style="display:none">
+        <h4 style="margin-bottom:10px">👥 أرصدة عملائي</h4>
+        <div id="merchantWalletsList"><p style="color:#6b7280;font-size:14px">لا يوجد أرصدة</p></div>
+      </div>
+
+      <!-- ===== للتاجر: آخر الفواتير ===== -->
+      <div class="card" id="merchantInvoicesCard" style="display:none">
+        <h4 style="margin-bottom:10px">📄 آخر الفواتير</h4>
+        <div id="merchantInvoicesList"><p style="color:#6b7280;font-size:14px">لا توجد فواتير</p></div>
+      </div>
+
+      <!-- ===== للعميل: إجمالي الرصيد ===== -->
+      <div id="customerBalanceBanner" class="my-balance-banner" style="display:none">
+        <div class="lbl">💰 رصيدك الكلي من الكاش باك</div>
+        <div class="val" id="totalBalanceValue">0 ج</div>
+        <div class="sub">من <span id="balanceShopsCount">0</span> متجر</div>
+      </div>
+
+      <!-- ===== للعميل: تفصيل المحافظ ===== -->
+      <div class="card" id="customerWalletsCard" style="display:none">
+        <h4 style="margin-bottom:10px">🏪 رصيدك في كل متجر</h4>
+        <div id="customerWalletsList"></div>
+      </div>
+
+      <!-- ===== للعميل: استخدام رصيد ===== -->
+      <div class="card" id="customerRedeemCard" style="display:none">
+        <h4 style="margin-bottom:10px">💵 استخدام رصيد الكاش باك</h4>
+        <select id="redeemMerchant">
+          <option value="">اختار المتجر</option>
+        </select>
+        <input type="number" id="redeemOriginal" placeholder="💰 مبلغ الفاتورة الجديدة" min="1" step="0.01">
+        <input type="number" id="redeemAmount" placeholder="💵 المبلغ المراد استخدامه" min="1" step="0.01">
+        <button id="redeemBtn" style="margin-top:10px">✅ تطبيق الخصم</button>
+        <div id="redeemResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
+      </div>
+
+      <!-- ===== للعميل: آخر الفواتير ===== -->
+      <div class="card" id="customerInvoicesCard" style="display:none">
+        <h4 style="margin-bottom:10px">📄 فواتيري</h4>
+        <div id="customerInvoicesList"><p style="color:#6b7280;font-size:14px">لا توجد فواتير</p></div>
+      </div>
+
     </div>
 
   </div>
@@ -188,7 +259,7 @@
     </div>
   </div>
 
-  <div class="footer">PAMIGO v37.0 — Stage 4-C</div>
+  <div class="footer">PAMIGO v37.0 — Stage 5</div>
 
   <script type="module" src="app.js"></script>
   <script>

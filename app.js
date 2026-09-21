@@ -1,5 +1,5 @@
 ﻿// ============================================================
-// PAMIGO - Main Entry (Stage 4-C)
+// PAMIGO - Main Entry (Stage 5: Invoices + Wallets)
 // ============================================================
 import { supabase } from './supabase.js';
 import { SUB_CATEGORIES } from './config.js';
@@ -7,31 +7,26 @@ import {
   signUpCustomer, signUpMerchant, signIn, signOut,
   getProfile, getMyMerchant, onAuthChange
 } from './auth.js';
+import {
+  createInvoice, getMerchantInvoices, getMyInvoices,
+  getMyWallets, redeemCashback, getMerchantCustomerWallets,
+  getMerchantCashbackSummary
+} from './invoices.js';
 
 const $ = (id) => document.getElementById(id);
 
-// ============================================================
 // State
-// ============================================================
 let currentProfile = null;
+let currentMerchant = null;
 let allMerchants = [];
 let userLat = null, userLng = null;
 let searchQuery = '';
-
-// Home
-let homeRadius = 2;
-let homeCategories = ['all'];
-let homeSubCategories = [];
-let homeSort = 'nearest';
-
-// Offers
-let offersCategories = ['all'];
-let offersSubCategories = [];
-
+let homeRadius = 2, homeCategories = ['all'], homeSubCategories = [], homeSort = 'nearest';
+let offersCategories = ['all'], offersSubCategories = [];
 let currentModalMerchant = null;
 
 // ============================================================
-// Load
+// Load merchants
 // ============================================================
 async function loadMerchants() {
   const { data, error } = await supabase
@@ -47,9 +42,7 @@ async function loadMerchants() {
   return data || [];
 }
 
-// ============================================================
 // Helpers
-// ============================================================
 function calcDistance(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -84,9 +77,7 @@ function getRoleName(role) {
   return { customer: '👤 عميل', merchant: '🏪 تاجر', admin: '👑 أدمن' }[role] || role;
 }
 
-// ============================================================
 // Geo
-// ============================================================
 function getUserLocation() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(null);
@@ -110,9 +101,7 @@ async function updateLocation() {
   renderMerchantsList();
 }
 
-// ============================================================
-// Filters
-// ============================================================
+// Filter
 function matchesCatSubs(m, cats, subs) {
   if (!cats.includes('all')) {
     if (!cats.includes(m.category)) return false;
@@ -124,12 +113,9 @@ function matchesCatSubs(m, cats, subs) {
   return true;
 }
 
-// ============================================================
-// Render: merchants list (Home)
-// ============================================================
+// Render merchants
 function renderMerchantsList() {
   let list = [...allMerchants];
-
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
     list = list.filter(m =>
@@ -137,7 +123,6 @@ function renderMerchantsList() {
       (m.offers || []).some(o => (o.title || '').toLowerCase().includes(q))
     );
   }
-
   list = list.filter(m => matchesCatSubs(m, homeCategories, homeSubCategories));
 
   if (userLat !== null && userLng !== null) {
@@ -156,10 +141,7 @@ function renderMerchantsList() {
   }
 
   const el = $('merchantsList');
-  if (!list.length) {
-    el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج</div>`;
-    return;
-  }
+  if (!list.length) { el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج</div>`; return; }
 
   el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
@@ -167,27 +149,19 @@ function renderMerchantsList() {
     const maxDisc = getMaxDiscount(m);
     const rating = getAvgRating(m);
     const dist = m._dist ? m._dist.toFixed(2) + ' كم' : '';
-
     let subNames = '';
     if (m.sub_categories && m.sub_categories.length) {
       const l = SUB_CATEGORIES[m.category] || [];
-      subNames = m.sub_categories
-        .map(id => (l.find(x => x.id === id) || {}).name || id)
-        .join(', ');
+      subNames = m.sub_categories.map(id => (l.find(x => x.id === id) || {}).name || id).join(', ');
     }
-
     return `
       <div class="store-item" onclick="openMerchant('${m.bank_code}')">
         <div class="icon">${m.icon || '🏪'}</div>
         <div class="info">
           <h4>${m.name} <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></h4>
-          <div class="desc">
-            ${dist ? dist + ' • ' : ''}${(m.offers || []).length} عرض • كاش باك ${rate}%${maxDisc ? ' • خصم لحد ' + maxDisc + '%' : ''}
-          </div>
+          <div class="desc">${dist ? dist + ' • ' : ''}${(m.offers || []).length} عرض • كاش باك ${rate}%${maxDisc ? ' • خصم لحد ' + maxDisc + '%' : ''}</div>
           ${subNames ? `<div style="font-size:11px;color:#8b5cf6;margin-top:2px">${subNames}</div>` : ''}
-          <div style="font-size:12px;color:#f59e0b;margin-top:2px">
-            ${rating ? '⭐'.repeat(Math.floor(rating)) + ' ' + rating : '⭐ لا تقييمات'}
-          </div>
+          <div style="font-size:12px;color:#f59e0b;margin-top:2px">${rating ? '⭐'.repeat(Math.floor(rating)) + ' ' + rating : '⭐ لا تقييمات'}</div>
         </div>
         <div class="badge">${rate}%</div>
       </div>
@@ -195,18 +169,11 @@ function renderMerchantsList() {
   }).join('');
 }
 
-// ============================================================
-// Top deals
-// ============================================================
 function renderTopDeals() {
-  const sorted = [...allMerchants]
-    .filter(m => (m.offers || []).length > 0)
-    .sort((a, b) => (b.cashback_rate || 0) - (a.cashback_rate || 0))
-    .slice(0, 10);
-
+  const sorted = [...allMerchants].filter(m => (m.offers || []).length > 0)
+    .sort((a, b) => (b.cashback_rate || 0) - (a.cashback_rate || 0)).slice(0, 10);
   const el = $('dealsScroll');
   if (!sorted.length) { el.innerHTML = ''; return; }
-
   el.innerHTML = sorted.map(m => {
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
@@ -222,19 +189,11 @@ function renderTopDeals() {
   }).join('');
 }
 
-// ============================================================
-// Offers grid (بدون فلتر مكان / ترتيب — شبكة كاملة)
-// ============================================================
 function renderOffersGrid() {
-  let list = [...allMerchants].filter(m => (m.offers || []).length > 0);
-  list = list.filter(m => matchesCatSubs(m, offersCategories, offersSubCategories));
-
+  let list = [...allMerchants].filter(m => (m.offers || []).length > 0)
+    .filter(m => matchesCatSubs(m, offersCategories, offersSubCategories));
   const el = $('offersGrid');
-  if (!list.length) {
-    el.innerHTML = `<p style="text-align:center;padding:20px;color:#6b7280">لا توجد عروض</p>`;
-    return;
-  }
-
+  if (!list.length) { el.innerHTML = `<p style="text-align:center;padding:20px;color:#6b7280">لا توجد عروض</p>`; return; }
   el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
@@ -251,34 +210,20 @@ function renderOffersGrid() {
   }).join('');
 }
 
-// ============================================================
-// Sub-categories renderer
-// ============================================================
+// Sub-cats
 function renderSubCategoriesGeneric({ categories, subs, wrapperEl, containerEl, onToggle }) {
-  const singleCat = categories.length === 1 && categories[0] !== 'all'
-    ? categories[0] : null;
-
-  if (!singleCat || !SUB_CATEGORIES[singleCat]) {
-    wrapperEl.style.display = 'none';
-    return;
-  }
-
+  const singleCat = categories.length === 1 && categories[0] !== 'all' ? categories[0] : null;
+  if (!singleCat || !SUB_CATEGORIES[singleCat]) { wrapperEl.style.display = 'none'; return; }
   wrapperEl.style.display = 'block';
   const list = SUB_CATEGORIES[singleCat];
-
   containerEl.innerHTML = list.map(sub => `
-    <button class="category-chip ${subs.includes(sub.id) ? 'active' : ''}"
-            data-sub="${sub.id}">${sub.name}</button>
+    <button class="category-chip ${subs.includes(sub.id) ? 'active' : ''}" data-sub="${sub.id}">${sub.name}</button>
   `).join('');
-
   containerEl.querySelectorAll('.category-chip').forEach(btn => {
     btn.addEventListener('click', () => onToggle(btn.dataset.sub, btn));
   });
 }
 
-// ============================================================
-// Category toggle (multi)
-// ============================================================
 function toggleCategoryGeneric({ cat, chip, categories, subs, containerId, onUpdate }) {
   if (cat === 'all') {
     categories.length = 0; categories.push('all');
@@ -289,36 +234,22 @@ function toggleCategoryGeneric({ cat, chip, categories, subs, containerId, onUpd
   } else {
     const ai = categories.indexOf('all');
     if (ai > -1) categories.splice(ai, 1);
-    document.querySelector(`#${containerId} .category-chip[data-cat="all"]`)
-      ?.classList.remove('active');
-
+    document.querySelector(`#${containerId} .category-chip[data-cat="all"]`)?.classList.remove('active');
     const idx = categories.indexOf(cat);
-    if (idx > -1) {
-      categories.splice(idx, 1);
-      chip.classList.remove('active');
-    } else {
-      categories.push(cat);
-      chip.classList.add('active');
-    }
-
+    if (idx > -1) { categories.splice(idx, 1); chip.classList.remove('active'); }
+    else { categories.push(cat); chip.classList.add('active'); }
     if (categories.length === 0) {
       categories.push('all');
-      document.querySelector(`#${containerId} .category-chip[data-cat="all"]`)
-        ?.classList.add('active');
+      document.querySelector(`#${containerId} .category-chip[data-cat="all"]`)?.classList.add('active');
     }
   }
   onUpdate();
 }
 
-// ============================================================
-// Sub-category wrappers
-// ============================================================
 function renderHomeSubCategories() {
   renderSubCategoriesGeneric({
-    categories: homeCategories,
-    subs: homeSubCategories,
-    wrapperEl: $('homeSubWrapper'),
-    containerEl: $('homeSubCategories'),
+    categories: homeCategories, subs: homeSubCategories,
+    wrapperEl: $('homeSubWrapper'), containerEl: $('homeSubCategories'),
     onToggle: (id, btn) => {
       const i = homeSubCategories.indexOf(id);
       if (i > -1) { homeSubCategories.splice(i, 1); btn.classList.remove('active'); }
@@ -330,10 +261,8 @@ function renderHomeSubCategories() {
 
 function renderOffersSubCategories() {
   renderSubCategoriesGeneric({
-    categories: offersCategories,
-    subs: offersSubCategories,
-    wrapperEl: $('offersSubWrapper'),
-    containerEl: $('offersSubCategories'),
+    categories: offersCategories, subs: offersSubCategories,
+    wrapperEl: $('offersSubWrapper'), containerEl: $('offersSubCategories'),
     onToggle: (id, btn) => {
       const i = offersSubCategories.indexOf(id);
       if (i > -1) { offersSubCategories.splice(i, 1); btn.classList.remove('active'); }
@@ -343,21 +272,15 @@ function renderOffersSubCategories() {
   });
 }
 
-// ============================================================
 // Modal
-// ============================================================
 window.openMerchant = function (bankCode) {
   const m = allMerchants.find(x => x.bank_code === bankCode);
   if (!m) return;
   currentModalMerchant = m;
   const rate = m.cashback_rate || 15;
   const tier = getTier(rate);
-
   $('modalMerchantName').innerText = m.name;
-  $('modalMerchantInfo').innerHTML =
-    `${m.icon || '🏪'} • ${(m.offers || []).length} عرض • ` +
-    `<span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>`;
-
+  $('modalMerchantInfo').innerHTML = `${m.icon || '🏪'} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>`;
   $('modalOffersList').innerHTML = (m.offers || []).length
     ? m.offers.map((o, i) => `
         <div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:10px;border-right:4px solid #ff6b35;display:flex;justify-content:space-between;align-items:center;gap:10px">
@@ -369,7 +292,6 @@ window.openMerchant = function (bankCode) {
         </div>
       `).join('')
     : '<p style="text-align:center;color:#6b7280;padding:20px">لا توجد عروض حالياً</p>';
-
   $('merchantModal').classList.add('active');
 };
 
@@ -382,16 +304,195 @@ window.closeModal = function (e) {
   if (e.target.classList.contains('modal-overlay')) closeMerchantModal();
 };
 
-// ============================================================
 // Tabs
-// ============================================================
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.tab === name)
-  );
+    b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-content').forEach(c =>
-    c.classList.toggle('active', c.id === 'tab-' + name)
-  );
+    c.classList.toggle('active', c.id === 'tab-' + name));
+  if (name === 'invoice') renderInvoiceTab();
+}
+
+// ============================================================
+// Invoice Tab
+// ============================================================
+async function renderInvoiceTab() {
+  if (!currentProfile) return;
+
+  // إخفاء كل الكروت الأول
+  ['merchantInvoiceForm', 'merchantCashbackCard', 'merchantWalletsCard', 'merchantInvoicesCard',
+   'customerBalanceBanner', 'customerWalletsCard', 'customerRedeemCard', 'customerInvoicesCard']
+   .forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
+
+  if (currentProfile.role === 'merchant' && currentMerchant) {
+    await renderMerchantInvoiceTab();
+  } else if (currentProfile.role === 'customer') {
+    await renderCustomerInvoiceTab();
+  }
+}
+
+async function renderMerchantInvoiceTab() {
+  $('merchantInvoiceForm').style.display = 'block';
+  $('merchantCashbackCard').style.display = 'block';
+  $('merchantWalletsCard').style.display = 'block';
+  $('merchantInvoicesCard').style.display = 'block';
+
+  // ملخص الكاش باك
+  try {
+    const s = await getMerchantCashbackSummary(currentMerchant.id);
+    $('merCbGiven').innerText = s.cashbackGiven.toFixed(2) + ' ج';
+    $('merCbSpent').innerText = s.cashbackSpent.toFixed(2) + ' ج';
+    $('merCbRemaining').innerText = s.cashbackRemaining.toFixed(2) + ' ج';
+    $('merNetSales').innerText = s.netSales.toFixed(2) + ' ج';
+  } catch (e) { console.error(e); }
+
+  // أرصدة العملاء
+  try {
+    const wallets = await getMerchantCustomerWallets(currentMerchant.id);
+    const el = $('merchantWalletsList');
+    if (!wallets.length) {
+      el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا يوجد أرصدة</p>';
+    } else {
+      el.innerHTML = wallets.map(w => {
+        const name = w.profiles?.name || 'عميل';
+        const phone = w.profiles?.phone || '?';
+        return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
+          <div style="font-weight:600">${name} (${phone})</div>
+          <div style="font-size:13px;color:#10b981;font-weight:600;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
+          <div style="font-size:11px;color:#6b7280">كسب: ${parseFloat(w.earned||0).toFixed(2)} | صرف: ${parseFloat(w.spent||0).toFixed(2)}</div>
+        </div>`;
+      }).join('');
+    }
+  } catch (e) { console.error(e); }
+
+  // آخر الفواتير
+  try {
+    const invoices = await getMerchantInvoices(currentMerchant.id);
+    const el = $('merchantInvoicesList');
+    if (!invoices.length) {
+      el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد فواتير</p>';
+    } else {
+      el.innerHTML = invoices.map(inv => `
+        <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
+          <div><strong>📄 #${inv.number}</strong> <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span></div>
+          <div style="color:#6b7280;margin-top:2px">📱 ${inv.customer_phone} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج كاش باك</div>
+        </div>
+      `).join('');
+    }
+  } catch (e) { console.error(e); }
+}
+
+async function renderCustomerInvoiceTab() {
+  $('customerBalanceBanner').style.display = 'block';
+  $('customerWalletsCard').style.display = 'block';
+  $('customerRedeemCard').style.display = 'block';
+  $('customerInvoicesCard').style.display = 'block';
+
+  // محافظ العميل
+  try {
+    const wallets = await getMyWallets(currentProfile.id);
+    const total = wallets.reduce((s, w) => s + parseFloat(w.balance || 0), 0);
+    const shops = wallets.filter(w => parseFloat(w.balance) > 0).length;
+    $('totalBalanceValue').innerText = total.toFixed(2) + ' ج';
+    $('balanceShopsCount').innerText = shops;
+
+    const el = $('customerWalletsList');
+    const active = wallets.filter(w => parseFloat(w.balance) > 0 || parseFloat(w.earned) > 0);
+    if (!active.length) {
+      el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد أرصدة</p>';
+    } else {
+      el.innerHTML = active.map(w => {
+        const m = w.merchants || {};
+        return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
+          <div style="font-weight:600">${m.icon || '🏪'} ${m.name || 'متجر'}</div>
+          <div style="font-size:14px;color:#10b981;font-weight:700;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
+          <div style="font-size:11px;color:#6b7280">كسب: ${parseFloat(w.earned||0).toFixed(2)} | صرف: ${parseFloat(w.spent||0).toFixed(2)}</div>
+        </div>`;
+      }).join('');
+    }
+
+    // املأ قائمة المتاجر في redeem
+    const sel = $('redeemMerchant');
+    sel.innerHTML = '<option value="">اختار المتجر</option>' +
+      active.filter(w => parseFloat(w.balance) > 0).map(w => {
+        const m = w.merchants || {};
+        return `<option value="${w.merchant_id}">${m.icon || '🏪'} ${m.name || ''} - ${parseFloat(w.balance).toFixed(2)} ج</option>`;
+      }).join('');
+  } catch (e) { console.error(e); }
+
+  // فواتير العميل
+  try {
+    const invoices = await getMyInvoices(currentProfile.phone);
+    const el = $('customerInvoicesList');
+    if (!invoices.length) {
+      el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد فواتير</p>';
+    } else {
+      el.innerHTML = invoices.map(inv => {
+        const m = inv.merchants || {};
+        return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
+          <div><strong>📄 #${inv.number}</strong> • ${m.icon || ''} ${m.name || ''}</div>
+          <div style="color:#6b7280;margin-top:2px">💰 ${parseFloat(inv.amount).toFixed(2)} ج • كاش باك ${parseFloat(inv.cashback).toFixed(2)} ج</div>
+        </div>`;
+      }).join('');
+    }
+  } catch (e) { console.error(e); }
+}
+
+// ============================================================
+// Handlers
+// ============================================================
+async function handleSubmitInvoice() {
+  const num = $('invNumber').value.trim();
+  const phone = $('invCustomerPhone').value.trim();
+  const amount = parseFloat($('invAmount').value);
+  const res = $('invoiceResult');
+
+  if (!num || !phone || !amount || amount <= 0) {
+    res.style.color = '#ef4444';
+    res.innerText = '❌ املأ كل البيانات';
+    return;
+  }
+
+  try {
+    const inv = await createInvoice({
+      number: num, customerPhone: phone, amount,
+      merchantId: currentMerchant.id
+    });
+    res.style.color = '#10b981';
+    res.innerText = `✅ تم الرفع! كاش باك ${parseFloat(inv.cashback).toFixed(2)} ج (${inv.cashback_rate}%)`;
+    $('invNumber').value = '';
+    $('invCustomerPhone').value = '';
+    $('invAmount').value = '';
+    setTimeout(() => renderInvoiceTab(), 1000);
+  } catch (e) {
+    res.style.color = '#ef4444';
+    res.innerText = '❌ ' + (e.message || 'فشل الرفع');
+  }
+}
+
+async function handleRedeem() {
+  const merchantId = $('redeemMerchant').value;
+  const original = parseFloat($('redeemOriginal').value);
+  const amount = parseFloat($('redeemAmount').value);
+  const res = $('redeemResult');
+
+  if (!merchantId || !original || !amount || amount <= 0) {
+    res.style.color = '#ef4444';
+    res.innerText = '❌ املأ كل البيانات';
+    return;
+  }
+
+  try {
+    const r = await redeemCashback({ merchantId, amount, originalAmount: original });
+    res.style.color = '#10b981';
+    res.innerText = `✅ تم الخصم! المطلوب ${(original - amount).toFixed(2)} ج`;
+    $('redeemOriginal').value = '';
+    $('redeemAmount').value = '';
+    setTimeout(() => renderInvoiceTab(), 1200);
+  } catch (e) {
+    res.style.color = '#ef4444';
+    res.innerText = '❌ ' + (e.message || 'فشل الاستخدام');
+  }
 }
 
 // ============================================================
@@ -413,16 +514,16 @@ async function showMainScreen(profile) {
   currentProfile = profile;
   $('authScreen').style.display = 'none';
   $('mainScreen').style.display = 'block';
-
   $('userRole').innerText = getRoleName(profile.role);
   $('userRole').className = 'role-badge role-' + profile.role;
   $('userName').innerText = profile.name || 'مستخدم';
 
   if (profile.role === 'merchant') {
+    currentMerchant = await getMyMerchant();
     $('merchantBanner').style.display = 'block';
-    const m = await getMyMerchant();
-    $('merchantName').innerText = m ? m.name : 'غير مرتبط';
+    $('merchantName').innerText = currentMerchant ? currentMerchant.name : 'غير مرتبط';
   } else {
+    currentMerchant = null;
     $('merchantBanner').style.display = 'none';
   }
 
@@ -440,15 +541,11 @@ async function refreshData() {
   renderOffersGrid();
 }
 
-// ============================================================
-// Auth handlers
-// ============================================================
 async function handleLogin(e) {
   e.preventDefault();
   const phone = $('loginPhone').value.trim();
   const password = $('loginPassword').value;
   if (!phone || !password) return showMessage('❌ املأ البيانات');
-
   const btn = $('loginBtn');
   btn.disabled = true; btn.innerText = '⏳ جاري الدخول...';
   try {
@@ -468,11 +565,9 @@ async function handleSignup(e) {
   const password = $('signupPassword').value;
   const role = $('signupRole').value;
   const bankCode = $('signupBankCode').value.trim();
-
   if (!name || !phone || !password) return showMessage('❌ املأ كل الحقول');
   if (password.length < 6) return showMessage('❌ الباسورد 6 أحرف على الأقل');
   if (role === 'merchant' && !bankCode) return showMessage('❌ لازم البنكود');
-
   const btn = $('signupBtn');
   btn.disabled = true; btn.innerText = '⏳ جاري التسجيل...';
   try {
@@ -505,8 +600,7 @@ function translateError(msg) {
 
 function showAuthTab(tab) {
   document.querySelectorAll('.auth-tab').forEach(t =>
-    t.classList.toggle('active', t.dataset.tab === tab)
-  );
+    t.classList.toggle('active', t.dataset.tab === tab));
   $('loginForm').style.display = tab === 'login' ? 'block' : 'none';
   $('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
   $('authMessage').innerText = '';
@@ -514,8 +608,7 @@ function showAuthTab(tab) {
 }
 
 function updateBankCodeVisibility() {
-  $('bankCodeGroup').style.display =
-    $('signupRole').value === 'merchant' ? 'block' : 'none';
+  $('bankCodeGroup').style.display = $('signupRole').value === 'merchant' ? 'block' : 'none';
 }
 
 // ============================================================
@@ -526,6 +619,8 @@ function bindEvents() {
   $('signupForm').addEventListener('submit', handleSignup);
   $('logoutBtn').addEventListener('click', handleLogout);
   $('signupRole').addEventListener('change', updateBankCodeVisibility);
+  $('submitInvoiceBtn').addEventListener('click', handleSubmitInvoice);
+  $('redeemBtn').addEventListener('click', handleRedeem);
 
   document.querySelectorAll('.auth-tab').forEach(tab => {
     tab.addEventListener('click', () => showAuthTab(tab.dataset.tab));
@@ -542,7 +637,6 @@ function bindEvents() {
     renderMerchantsList();
   });
 
-  // HOME
   $('homeRadiusSlider').addEventListener('input', (e) => {
     homeRadius = parseFloat(e.target.value);
     $('homeRadiusValue').innerText = homeRadius;
@@ -551,8 +645,7 @@ function bindEvents() {
 
   document.querySelectorAll('#homeSortOptions .category-chip').forEach(chip => {
     chip.addEventListener('click', () => {
-      document.querySelectorAll('#homeSortOptions .category-chip').forEach(c =>
-        c.classList.remove('active'));
+      document.querySelectorAll('#homeSortOptions .category-chip').forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
       homeSort = chip.dataset.sort;
       renderMerchantsList();
@@ -562,32 +655,21 @@ function bindEvents() {
   document.querySelectorAll('#homeCategories .category-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       toggleCategoryGeneric({
-        cat: chip.dataset.cat,
-        chip,
-        categories: homeCategories,
-        subs: homeSubCategories,
+        cat: chip.dataset.cat, chip,
+        categories: homeCategories, subs: homeSubCategories,
         containerId: 'homeCategories',
-        onUpdate: () => {
-          renderHomeSubCategories();
-          renderMerchantsList();
-        }
+        onUpdate: () => { renderHomeSubCategories(); renderMerchantsList(); }
       });
     });
   });
 
-  // OFFERS
   document.querySelectorAll('#offersCategories .category-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       toggleCategoryGeneric({
-        cat: chip.dataset.cat,
-        chip,
-        categories: offersCategories,
-        subs: offersSubCategories,
+        cat: chip.dataset.cat, chip,
+        categories: offersCategories, subs: offersSubCategories,
         containerId: 'offersCategories',
-        onUpdate: () => {
-          renderOffersSubCategories();
-          renderOffersGrid();
-        }
+        onUpdate: () => { renderOffersSubCategories(); renderOffersGrid(); }
       });
     });
   });
@@ -605,9 +687,6 @@ onAuthChange(async (event, session) => {
   }
 });
 
-// ============================================================
-// Init
-// ============================================================
 window.addEventListener('load', async () => {
   bindEvents();
   showAuthTab('login');
