@@ -1,5 +1,5 @@
 ﻿// ============================================================
-// PAMIGO - Main Entry (Stage 4-C: Full Filters on Both Tabs)
+// PAMIGO - Main Entry (Stage 4-C)
 // ============================================================
 import { supabase } from './supabase.js';
 import { SUB_CATEGORIES } from './config.js';
@@ -18,22 +18,20 @@ let allMerchants = [];
 let userLat = null, userLng = null;
 let searchQuery = '';
 
-// Home tab state
+// Home
 let homeRadius = 2;
 let homeCategories = ['all'];
 let homeSubCategories = [];
 let homeSort = 'nearest';
 
-// Offers tab state
-let offersRadius = 2;
+// Offers
 let offersCategories = ['all'];
 let offersSubCategories = [];
-let offersSort = 'nearest';
 
 let currentModalMerchant = null;
 
 // ============================================================
-// Load merchants
+// Load
 // ============================================================
 async function loadMerchants() {
   const { data, error } = await supabase
@@ -87,7 +85,7 @@ function getRoleName(role) {
 }
 
 // ============================================================
-// Geolocation
+// Geo
 // ============================================================
 function getUserLocation() {
   return new Promise((resolve) => {
@@ -110,13 +108,26 @@ async function updateLocation() {
     $('locationText').innerText = '❌ تعذر تحديد الموقع';
   }
   renderMerchantsList();
-  renderOffersGrid();
 }
 
 // ============================================================
-// Filter logic (shared)
+// Filters
 // ============================================================
-function filterMerchants({ cats, subs, radius, sort }) {
+function matchesCatSubs(m, cats, subs) {
+  if (!cats.includes('all')) {
+    if (!cats.includes(m.category)) return false;
+  }
+  if (subs.length) {
+    if (!m.sub_categories || !m.sub_categories.length) return false;
+    if (!m.sub_categories.some(s => subs.includes(s))) return false;
+  }
+  return true;
+}
+
+// ============================================================
+// Render: merchants list (Home)
+// ============================================================
+function renderMerchantsList() {
   let list = [...allMerchants];
 
   if (searchQuery) {
@@ -127,45 +138,22 @@ function filterMerchants({ cats, subs, radius, sort }) {
     );
   }
 
-  if (!cats.includes('all')) {
-    list = list.filter(m => cats.includes(m.category));
-  }
-
-  if (subs.length) {
-    list = list.filter(m => {
-      if (!m.sub_categories || !m.sub_categories.length) return false;
-      return m.sub_categories.some(s => subs.includes(s));
-    });
-  }
+  list = list.filter(m => matchesCatSubs(m, homeCategories, homeSubCategories));
 
   if (userLat !== null && userLng !== null) {
     list = list.filter(m => {
       m._dist = calcDistance(userLat, userLng, m.lat, m.lng);
-      return m._dist <= radius;
+      return m._dist <= homeRadius;
     });
   }
 
-  if (sort === 'nearest' && userLat !== null) {
+  if (homeSort === 'nearest' && userLat !== null) {
     list.sort((a, b) => (a._dist || 0) - (b._dist || 0));
-  } else if (sort === 'cashback') {
+  } else if (homeSort === 'cashback') {
     list.sort((a, b) => (b.cashback_rate || 0) - (a.cashback_rate || 0));
-  } else if (sort === 'discount') {
+  } else if (homeSort === 'discount') {
     list.sort((a, b) => getMaxDiscount(b) - getMaxDiscount(a));
   }
-
-  return list;
-}
-
-// ============================================================
-// Render: merchants list (Home)
-// ============================================================
-function renderMerchantsList() {
-  const list = filterMerchants({
-    cats: homeCategories,
-    subs: homeSubCategories,
-    radius: homeRadius,
-    sort: homeSort
-  });
 
   const el = $('merchantsList');
   if (!list.length) {
@@ -182,9 +170,9 @@ function renderMerchantsList() {
 
     let subNames = '';
     if (m.sub_categories && m.sub_categories.length) {
-      const list = SUB_CATEGORIES[m.category] || [];
+      const l = SUB_CATEGORIES[m.category] || [];
       subNames = m.sub_categories
-        .map(id => (list.find(x => x.id === id) || {}).name || id)
+        .map(id => (l.find(x => x.id === id) || {}).name || id)
         .join(', ');
     }
 
@@ -208,7 +196,7 @@ function renderMerchantsList() {
 }
 
 // ============================================================
-// Render: top deals
+// Top deals
 // ============================================================
 function renderTopDeals() {
   const sorted = [...allMerchants]
@@ -235,15 +223,11 @@ function renderTopDeals() {
 }
 
 // ============================================================
-// Render: offers grid
+// Offers grid (بدون فلتر مكان / ترتيب — شبكة كاملة)
 // ============================================================
 function renderOffersGrid() {
-  const list = filterMerchants({
-    cats: offersCategories,
-    subs: offersSubCategories,
-    radius: offersRadius,
-    sort: offersSort
-  }).filter(m => (m.offers || []).length > 0);
+  let list = [...allMerchants].filter(m => (m.offers || []).length > 0);
+  list = list.filter(m => matchesCatSubs(m, offersCategories, offersSubCategories));
 
   const el = $('offersGrid');
   if (!list.length) {
@@ -268,7 +252,7 @@ function renderOffersGrid() {
 }
 
 // ============================================================
-// Sub-categories renderer (generic)
+// Sub-categories renderer
 // ============================================================
 function renderSubCategoriesGeneric({ categories, subs, wrapperEl, containerEl, onToggle }) {
   const singleCat = categories.length === 1 && categories[0] !== 'all'
@@ -288,25 +272,21 @@ function renderSubCategoriesGeneric({ categories, subs, wrapperEl, containerEl, 
   `).join('');
 
   containerEl.querySelectorAll('.category-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      onToggle(btn.dataset.sub, btn);
-    });
+    btn.addEventListener('click', () => onToggle(btn.dataset.sub, btn));
   });
 }
 
 // ============================================================
-// Category toggle (multi) — generic
+// Category toggle (multi)
 // ============================================================
 function toggleCategoryGeneric({ cat, chip, categories, subs, containerId, onUpdate }) {
   if (cat === 'all') {
-    categories.length = 0;
-    categories.push('all');
+    categories.length = 0; categories.push('all');
     subs.length = 0;
     document.querySelectorAll(`#${containerId} .category-chip`).forEach(c => {
       c.classList.toggle('active', c.dataset.cat === 'all');
     });
   } else {
-    // شيل all
     const ai = categories.indexOf('all');
     if (ai > -1) categories.splice(ai, 1);
     document.querySelector(`#${containerId} .category-chip[data-cat="all"]`)
@@ -328,6 +308,39 @@ function toggleCategoryGeneric({ cat, chip, categories, subs, containerId, onUpd
     }
   }
   onUpdate();
+}
+
+// ============================================================
+// Sub-category wrappers
+// ============================================================
+function renderHomeSubCategories() {
+  renderSubCategoriesGeneric({
+    categories: homeCategories,
+    subs: homeSubCategories,
+    wrapperEl: $('homeSubWrapper'),
+    containerEl: $('homeSubCategories'),
+    onToggle: (id, btn) => {
+      const i = homeSubCategories.indexOf(id);
+      if (i > -1) { homeSubCategories.splice(i, 1); btn.classList.remove('active'); }
+      else { homeSubCategories.push(id); btn.classList.add('active'); }
+      renderMerchantsList();
+    }
+  });
+}
+
+function renderOffersSubCategories() {
+  renderSubCategoriesGeneric({
+    categories: offersCategories,
+    subs: offersSubCategories,
+    wrapperEl: $('offersSubWrapper'),
+    containerEl: $('offersSubCategories'),
+    onToggle: (id, btn) => {
+      const i = offersSubCategories.indexOf(id);
+      if (i > -1) { offersSubCategories.splice(i, 1); btn.classList.remove('active'); }
+      else { offersSubCategories.push(id); btn.classList.add('active'); }
+      renderOffersGrid();
+    }
+  });
 }
 
 // ============================================================
@@ -428,39 +441,6 @@ async function refreshData() {
 }
 
 // ============================================================
-// Sub-categories wrappers
-// ============================================================
-function renderHomeSubCategories() {
-  renderSubCategoriesGeneric({
-    categories: homeCategories,
-    subs: homeSubCategories,
-    wrapperEl: $('homeSubWrapper'),
-    containerEl: $('homeSubCategories'),
-    onToggle: (id, btn) => {
-      const i = homeSubCategories.indexOf(id);
-      if (i > -1) { homeSubCategories.splice(i, 1); btn.classList.remove('active'); }
-      else { homeSubCategories.push(id); btn.classList.add('active'); }
-      renderMerchantsList();
-    }
-  });
-}
-
-function renderOffersSubCategories() {
-  renderSubCategoriesGeneric({
-    categories: offersCategories,
-    subs: offersSubCategories,
-    wrapperEl: $('offersSubWrapper'),
-    containerEl: $('offersSubCategories'),
-    onToggle: (id, btn) => {
-      const i = offersSubCategories.indexOf(id);
-      if (i > -1) { offersSubCategories.splice(i, 1); btn.classList.remove('active'); }
-      else { offersSubCategories.push(id); btn.classList.add('active'); }
-      renderOffersGrid();
-    }
-  });
-}
-
-// ============================================================
 // Auth handlers
 // ============================================================
 async function handleLogin(e) {
@@ -539,7 +519,7 @@ function updateBankCodeVisibility() {
 }
 
 // ============================================================
-// Bind events
+// Bind
 // ============================================================
 function bindEvents() {
   $('loginForm').addEventListener('submit', handleLogin);
@@ -562,7 +542,7 @@ function bindEvents() {
     renderMerchantsList();
   });
 
-  // ============ HOME ============
+  // HOME
   $('homeRadiusSlider').addEventListener('input', (e) => {
     homeRadius = parseFloat(e.target.value);
     $('homeRadiusValue').innerText = homeRadius;
@@ -595,23 +575,7 @@ function bindEvents() {
     });
   });
 
-  // ============ OFFERS ============
-  $('offersRadiusSlider').addEventListener('input', (e) => {
-    offersRadius = parseFloat(e.target.value);
-    $('offersRadiusValue').innerText = offersRadius;
-    renderOffersGrid();
-  });
-
-  document.querySelectorAll('#offersSortOptions .category-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      document.querySelectorAll('#offersSortOptions .category-chip').forEach(c =>
-        c.classList.remove('active'));
-      chip.classList.add('active');
-      offersSort = chip.dataset.sort;
-      renderOffersGrid();
-    });
-  });
-
+  // OFFERS
   document.querySelectorAll('#offersCategories .category-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       toggleCategoryGeneric({

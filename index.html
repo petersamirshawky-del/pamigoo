@@ -25,7 +25,6 @@
     <button class="location" id="refreshLocation">🔄 تحديث الموقع</button>
   </div>
 
-  <!-- شاشة الدخول -->
   <div id="authScreen" style="display:none">
     <div class="card login-box">
       <div class="auth-tabs">
@@ -57,9 +56,7 @@
         </select>
         <div id="bankCodeGroup" style="display:none">
           <input type="text" id="signupBankCode" placeholder="🔑 البنكود (مثال: MERCH-MNS01)" autocomplete="off" style="text-transform:uppercase">
-          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">
-            💡 البنكود بتستلمه من إدارة PAMIGO.
-          </p>
+          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">💡 البنكود بتستلمه من إدارة PAMIGO.</p>
         </div>
         <button type="submit" id="signupBtn" style="margin-top:10px">📝 إنشاء الحساب</button>
       </form>
@@ -68,7 +65,6 @@
     </div>
   </div>
 
-  <!-- الشاشة الرئيسية -->
   <div id="mainScreen" style="display:none">
 
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 18px">
@@ -146,23 +142,11 @@
       </div>
     </div>
 
-    <!-- ========== تبويب العروض ========== -->
+    <!-- ========== تبويب العروض (مبسط) ========== -->
     <div class="tab-content" id="tab-offers">
 
       <div class="radius-control">
-        <label>🔍 نطاق البحث: <span id="offersRadiusValue">2</span> كم</label>
-        <input type="range" id="offersRadiusSlider" min="0.5" max="10" step="0.5" value="2">
-
-        <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
-          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📊 ترتيب النتائج حسب:</label>
-          <div class="categories" id="offersSortOptions" style="margin-bottom:0">
-            <button class="category-chip active" data-sort="nearest">📍 الأقرب</button>
-            <button class="category-chip" data-sort="cashback">💰 أعلى كاش باك</button>
-            <button class="category-chip" data-sort="discount">🔥 أعلى خصم</button>
-          </div>
-        </div>
-
-        <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
+        <div>
           <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">
             🏷️ نوع الخدمة:
             <span style="font-size:11px;color:var(--text-muted);font-weight:400">(اختيار متعدد)</span>
@@ -183,19 +167,18 @@
           </div>
         </div>
 
-        <div id="offersSubWrapper" style="margin-top:12px;border-top:1px solid #eee;padding-top:12px;display:none">
+        <div id="offersSubWrapper" style="margin-top:14px;border-top:1px solid #eee;padding-top:12px;display:none">
           <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📂 تصنيفات فرعية:</label>
           <div class="categories" id="offersSubCategories" style="margin-bottom:0"></div>
         </div>
       </div>
 
-      <div class="section-title"><h3>🎁 عروض حصرية</h3></div>
+      <div class="section-title"><h3>🎁 كل العروض</h3></div>
       <div class="offers-grid" id="offersGrid"></div>
     </div>
 
   </div>
 
-  <!-- Modal -->
   <div class="modal-overlay" id="merchantModal" onclick="closeModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
       <button class="close-btn" onclick="closeMerchantModal()">✕</button>
