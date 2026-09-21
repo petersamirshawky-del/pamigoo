@@ -25,9 +25,7 @@
     <button class="location" id="refreshLocation">🔄 تحديث الموقع</button>
   </div>
 
-  <!-- ============================================================
-       شاشة الدخول
-  ============================================================ -->
+  <!-- شاشة الدخول -->
   <div id="authScreen" style="display:none">
     <div class="card login-box">
       <div class="auth-tabs">
@@ -70,12 +68,9 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       الشاشة الرئيسية
-  ============================================================ -->
+  <!-- الشاشة الرئيسية -->
   <div id="mainScreen" style="display:none">
 
-    <!-- بيانات المستخدم + خروج -->
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 18px">
       <div style="display:flex;align-items:center;gap:10px">
         <span id="userRole" class="role-badge">-</span>
@@ -84,14 +79,11 @@
       <button id="logoutBtn" style="width:auto;padding:8px 16px;font-size:13px;background:var(--danger);border-radius:30px">🚪 خروج</button>
     </div>
 
-    <!-- تنبيه التاجر -->
     <div id="merchantBanner" class="card" style="display:none;background:#d1fae5;border-right:4px solid var(--success);padding:12px 16px">
       <strong style="color:#065f46">🏪 متجرك:</strong>
       <span id="merchantName" style="color:#065f46;font-weight:600">-</span>
-      <div style="font-size:12px;color:#065f46;margin-top:4px">لوحة التاجر الكاملة هتكون متاحة في المرحلة الجاية.</div>
     </div>
 
-    <!-- التبويبات -->
     <div class="tabs">
       <button class="tab-btn active" data-tab="home">🏠 الرئيسية</button>
       <button class="tab-btn" data-tab="offers">🎁 العروض</button>
@@ -100,14 +92,13 @@
     <!-- ========== تبويب الرئيسية ========== -->
     <div class="tab-content active" id="tab-home">
 
-      <!-- نطاق البحث -->
       <div class="radius-control">
-        <label>🔍 نطاق البحث: <span id="radiusValue">2</span> كم</label>
-        <input type="range" id="radiusSlider" min="0.5" max="10" step="0.5" value="2">
+        <label>🔍 نطاق البحث: <span id="homeRadiusValue">2</span> كم</label>
+        <input type="range" id="homeRadiusSlider" min="0.5" max="10" step="0.5" value="2">
 
         <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
           <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📊 ترتيب النتائج حسب:</label>
-          <div class="categories" id="sortOptions" style="margin-bottom:0">
+          <div class="categories" id="homeSortOptions" style="margin-bottom:0">
             <button class="category-chip active" data-sort="nearest">📍 الأقرب</button>
             <button class="category-chip" data-sort="cashback">💰 أعلى كاش باك</button>
             <button class="category-chip" data-sort="discount">🔥 أعلى خصم</button>
@@ -115,7 +106,10 @@
         </div>
 
         <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
-          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">🏷️ نوع الخدمة:</label>
+          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">
+            🏷️ نوع الخدمة:
+            <span style="font-size:11px;color:var(--text-muted);font-weight:400">(اختيار متعدد)</span>
+          </label>
           <div class="categories" id="homeCategories" style="margin-bottom:0">
             <button class="category-chip active" data-cat="all">🌟 الكل</button>
             <button class="category-chip" data-cat="fashion">👗 ملابس</button>
@@ -131,43 +125,71 @@
             <button class="category-chip" data-cat="hospitals">🏨 مستشفيات</button>
           </div>
         </div>
+
+        <div id="homeSubWrapper" style="margin-top:12px;border-top:1px solid #eee;padding-top:12px;display:none">
+          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📂 تصنيفات فرعية:</label>
+          <div class="categories" id="homeSubCategories" style="margin-bottom:0"></div>
+        </div>
       </div>
 
-      <!-- البحث -->
       <div class="search-bar">
         <i class="fas fa-search"></i>
         <input type="text" id="searchInput" placeholder="ابحث عن عروض أو متاجر...">
       </div>
 
-      <!-- أفضل العروض -->
       <div class="section-title"><h3>🔥 أفضل العروض</h3></div>
       <div class="deals-scroll" id="dealsScroll"></div>
 
-      <!-- قائمة المتاجر -->
       <div class="section-title"><h3>📍 المتاجر القريبة</h3></div>
       <div id="merchantsList">
         <div class="no-requests">⏳ جاري التحميل...</div>
       </div>
-
     </div>
 
     <!-- ========== تبويب العروض ========== -->
     <div class="tab-content" id="tab-offers">
-      <div class="section-title"><h3>🎁 عروض حصرية</h3></div>
-      <div class="categories" id="offersCategories">
-        <button class="category-chip active" data-cat="all">🌟 الكل</button>
-        <button class="category-chip" data-cat="restaurants">🍕 مطاعم</button>
-        <button class="category-chip" data-cat="bigfood">🍔 وجبات</button>
-        <button class="category-chip" data-cat="fashion">👗 ملابس</button>
-        <button class="category-chip" data-cat="electronics">📱 إلكترونيات</button>
-        <button class="category-chip" data-cat="car_parts">🛞 قطع غيار</button>
-        <button class="category-chip" data-cat="car_accessories">🪞 كماليات</button>
-        <button class="category-chip" data-cat="car_repair">🔧 صيانة</button>
-        <button class="category-chip" data-cat="clinics">🩺 عيادات</button>
-        <button class="category-chip" data-cat="labs">🧪 معامل</button>
-        <button class="category-chip" data-cat="radiology">📡 أشعة</button>
-        <button class="category-chip" data-cat="hospitals">🏨 مستشفيات</button>
+
+      <div class="radius-control">
+        <label>🔍 نطاق البحث: <span id="offersRadiusValue">2</span> كم</label>
+        <input type="range" id="offersRadiusSlider" min="0.5" max="10" step="0.5" value="2">
+
+        <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
+          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📊 ترتيب النتائج حسب:</label>
+          <div class="categories" id="offersSortOptions" style="margin-bottom:0">
+            <button class="category-chip active" data-sort="nearest">📍 الأقرب</button>
+            <button class="category-chip" data-sort="cashback">💰 أعلى كاش باك</button>
+            <button class="category-chip" data-sort="discount">🔥 أعلى خصم</button>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
+          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">
+            🏷️ نوع الخدمة:
+            <span style="font-size:11px;color:var(--text-muted);font-weight:400">(اختيار متعدد)</span>
+          </label>
+          <div class="categories" id="offersCategories" style="margin-bottom:0">
+            <button class="category-chip active" data-cat="all">🌟 الكل</button>
+            <button class="category-chip" data-cat="fashion">👗 ملابس</button>
+            <button class="category-chip" data-cat="restaurants">🍕 مطاعم</button>
+            <button class="category-chip" data-cat="bigfood">🍔 وجبات</button>
+            <button class="category-chip" data-cat="electronics">📱 إلكترونيات</button>
+            <button class="category-chip" data-cat="car_parts">🛞 قطع غيار</button>
+            <button class="category-chip" data-cat="car_accessories">🪞 كماليات</button>
+            <button class="category-chip" data-cat="car_repair">🔧 صيانة</button>
+            <button class="category-chip" data-cat="clinics">🩺 عيادات</button>
+            <button class="category-chip" data-cat="labs">🧪 معامل</button>
+            <button class="category-chip" data-cat="radiology">📡 أشعة</button>
+            <button class="category-chip" data-cat="hospitals">🏨 مستشفيات</button>
+          </div>
+        </div>
+
+        <div id="offersSubWrapper" style="margin-top:12px;border-top:1px solid #eee;padding-top:12px;display:none">
+          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📂 تصنيفات فرعية:</label>
+          <div class="categories" id="offersSubCategories" style="margin-bottom:0"></div>
+        </div>
       </div>
+
+      <div class="section-title"><h3>🎁 عروض حصرية</h3></div>
       <div class="offers-grid" id="offersGrid"></div>
     </div>
 
@@ -183,10 +205,9 @@
     </div>
   </div>
 
-  <div class="footer">PAMIGO v37.0 — Stage 4-B</div>
+  <div class="footer">PAMIGO v37.0 — Stage 4-C</div>
 
   <script type="module" src="app.js"></script>
-
   <script>
     window.togglePass = function(inputId, btn) {
       const input = document.getElementById(inputId);
