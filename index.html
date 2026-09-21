@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes">
   <meta name="theme-color" content="#1a2a6c">
   <title>PAMIGO</title>
-
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
@@ -13,26 +12,18 @@
 </head>
 <body>
 
-  <!-- ============================================================
-       Header
-  ============================================================ -->
   <div class="header">
     <div class="header-left">
       <div>
         <h2>PAMIGO</h2>
-        <p>🔐 المرحلة 3 — تسجيل الدخول</p>
+        <p>🔐 المرحلة 4 — الأدوار</p>
       </div>
     </div>
   </div>
 
-  <!-- ============================================================
-       شاشة تسجيل الدخول / التسجيل
-  ============================================================ -->
+  <!-- شاشة الدخول -->
   <div id="authScreen" style="display:none">
-
     <div class="card login-box">
-
-      <!-- التبويبات -->
       <div class="auth-tabs">
         <button class="auth-tab active" data-tab="login">🔐 دخول</button>
         <button class="auth-tab" data-tab="signup">📝 حساب جديد</button>
@@ -40,23 +31,15 @@
 
       <!-- نموذج الدخول -->
       <form id="loginForm">
-        <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">
-          تسجيل الدخول
-        </h4>
-
+        <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">تسجيل الدخول</h4>
         <input type="tel" id="loginPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
         <input type="password" id="loginPassword" placeholder="🔑 كلمة المرور" autocomplete="current-password">
-
-        <button type="submit" id="loginBtn" style="margin-top:10px">
-          🚀 دخول
-        </button>
+        <button type="submit" id="loginBtn" style="margin-top:10px">🚀 دخول</button>
       </form>
 
       <!-- نموذج التسجيل -->
       <form id="signupForm" style="display:none">
-        <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">
-          حساب جديد
-        </h4>
+        <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">حساب جديد</h4>
 
         <input type="text" id="signupName" placeholder="👤 الاسم" autocomplete="name">
         <input type="tel" id="signupPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
@@ -67,61 +50,66 @@
           <option value="merchant">🏪 تاجر</option>
         </select>
 
-        <button type="submit" id="signupBtn" style="margin-top:10px">
-          📝 إنشاء الحساب
-        </button>
+        <!-- حقل البنكود (بيظهر لو اختار تاجر) -->
+        <div id="bankCodeGroup" style="display:none">
+          <input type="text" id="signupBankCode" placeholder="🔑 البنكود (مثال: MERCH-MNS01)" autocomplete="off" style="text-transform:uppercase">
+          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">
+            💡 البنكود بتاعك بتستلمه من إدارة PAMIGO بعد ما يتم تسجيل متجرك.
+          </p>
+        </div>
+
+        <button type="submit" id="signupBtn" style="margin-top:10px">📝 إنشاء الحساب</button>
       </form>
 
-      <!-- رسالة المستخدم -->
       <div id="authMessage" class="auth-message"></div>
-
     </div>
-
   </div>
 
-  <!-- ============================================================
-       الشاشة الرئيسية (بعد تسجيل الدخول)
-  ============================================================ -->
+  <!-- الشاشة الرئيسية -->
   <div id="mainScreen" style="display:none">
-
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:15px">
         <h3 style="margin:0">👋 أهلاً بك</h3>
         <span id="userRole" class="role-badge">-</span>
       </div>
+      <div class="info-row"><span>👤 الاسم</span><strong id="userName">-</strong></div>
+      <div class="info-row"><span>📱 الموبايل</span><strong id="userPhone">-</strong></div>
+      <div class="info-row"><span>📅 تاريخ التسجيل</span><strong id="userSince">-</strong></div>
+    </div>
 
+    <!-- كارت التاجر (بيظهر لو تاجر) -->
+    <div class="card" id="merchantCard" style="display:none;background:#d1fae5;border-right:4px solid var(--success)">
+      <h4 style="margin-bottom:10px;color:#065f46">🏪 متجرك</h4>
       <div class="info-row">
-        <span>👤 الاسم</span>
-        <strong id="userName">-</strong>
+        <span>🏪 الاسم</span>
+        <strong id="merchantName">-</strong>
       </div>
       <div class="info-row">
-        <span>📱 الموبايل</span>
-        <strong id="userPhone">-</strong>
+        <span>🔑 البنكود</span>
+        <strong id="merchantBankCode">-</strong>
       </div>
       <div class="info-row">
-        <span>📅 تاريخ التسجيل</span>
-        <strong id="userSince">-</strong>
+        <span>📂 التصنيف</span>
+        <strong id="merchantCategory">-</strong>
+      </div>
+      <div class="info-row">
+        <span>💰 نسبة الكاش باك</span>
+        <strong id="merchantRate">-</strong>
       </div>
     </div>
 
-    <div class="card" style="background:#dbeafe;border-right:4px solid var(--primary)">
-      <h4 style="margin-bottom:8px">✅ تسجيل الدخول شغّال</h4>
+    <!-- كارت العميل -->
+    <div class="card" id="customerCard" style="display:none;background:#dbeafe;border-right:4px solid var(--primary)">
+      <h4 style="margin-bottom:8px;color:#1e40af">👤 حسابك جاهز</h4>
       <p style="font-size:14px;color:#1e40af;line-height:1.7">
-        الجلسة محفوظة، تقدر تعمل Refresh وهتفضل مسجل دخول.<br>
-        <strong>المرحلة اللي بعدها:</strong> الصفحة الرئيسية (التجار + العروض + الخريطة).
+        تقدر تشوف العروض القريبة منك والتفاعل مع التجار.
       </p>
     </div>
 
-    <button id="logoutBtn" class="btn-danger">
-      🚪 تسجيل الخروج
-    </button>
-
+    <button id="logoutBtn" class="btn-danger">🚪 تسجيل الخروج</button>
   </div>
 
-  <!-- ============================================================
-       Footer
-  ============================================================ -->
-  <div class="footer">PAMIGO v37.0 — Stage 3</div>
+  <div class="footer">PAMIGO v37.0 — Stage 4-A</div>
 
   <script type="module" src="app.js"></script>
 </body>
