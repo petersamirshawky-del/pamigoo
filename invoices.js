@@ -3,9 +3,18 @@
 // ============================================================
 import { supabase } from './supabase.js';
 
-// ============================================================
-// التاجر: رفع فاتورة
-// ============================================================
+export async function createInvoiceByBankCode({ number, customerPhone, amount, bankCode }) {
+  const { data, error } = await supabase.rpc('create_invoice_by_bankcode', {
+    p_number: number.trim(),
+    p_customer_phone: customerPhone.trim(),
+    p_amount: parseFloat(amount),
+    p_bank_code: bankCode.trim()
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error || 'فشل رفع الفاتورة');
+  return data;
+}
+
 export async function createInvoice({ number, customerPhone, amount, merchantId }) {
   const { data, error } = await supabase
     .from('invoices')
@@ -17,14 +26,10 @@ export async function createInvoice({ number, customerPhone, amount, merchantId 
     })
     .select()
     .single();
-
   if (error) throw error;
   return data;
 }
 
-// ============================================================
-// فواتير التاجر
-// ============================================================
 export async function getMerchantInvoices(merchantId) {
   const { data, error } = await supabase
     .from('invoices')
@@ -32,102 +37,41 @@ export async function getMerchantInvoices(merchantId) {
     .eq('merchant_id', merchantId)
     .order('created_at', { ascending: false })
     .limit(50);
-
   if (error) throw error;
   return data || [];
 }
 
-// ============================================================
-// فواتير العميل
-// ============================================================
 export async function getMyInvoices(phone) {
   const { data, error } = await supabase
     .from('invoices')
     .select('*, merchants(name, icon)')
-    .or(`customer_phone.eq.${phone}`)
+    .eq('customer_phone', phone)
     .order('created_at', { ascending: false })
     .limit(50);
-
   if (error) throw error;
   return data || [];
 }
 
-// ============================================================
-// محفظة العميل (كل التجار)
-// ============================================================
 export async function getMyWallets(customerId) {
   const { data, error } = await supabase
     .from('wallets')
     .select('*, merchants(name, icon, bank_code)')
     .eq('customer_id', customerId);
-
   if (error) throw error;
   return data || [];
 }
 
-// ============================================================
-// رصيد العميل عند تاجر معين (للتاجر)
-// ============================================================
-export async function getWalletByPhone(phone, merchantId) {
-  // 1) دور على profile بالـ phone
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('phone', phone)
-    .maybeSingle();
-
-  if (!prof) return null;
-
-  // 2) هات المحفظة
-  const { data, error } = await supabase
-    .from('wallets')
-    .select('*')
-    .eq('customer_id', prof.id)
-    .eq('merchant_id', merchantId)
-    .maybeSingle();
-
-  if (error) return null;
-  return data;
-}
-
-// ============================================================
-// استخدام رصيد (redemption)
-// ============================================================
 export async function redeemCashback({ merchantId, amount, originalAmount }) {
   const { data, error } = await supabase.rpc('redeem_cashback', {
     p_merchant_id: merchantId,
     p_amount: amount,
     p_original: originalAmount
   });
-
   if (error) throw error;
   if (!data.ok) throw new Error(data.error || 'فشل الاستخدام');
   return data;
 }
 
-// ============================================================
-// تقييم تاجر
-// ============================================================
-export async function rateMerchant({ merchantId, stars, comment }) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('مش مسجل دخول');
-
-  const { error } = await supabase
-    .from('ratings')
-    .insert({
-      merchant_id: merchantId,
-      customer_id: user.id,
-      stars: parseInt(stars),
-      comment: comment || ''
-    });
-
-  if (error) throw error;
-  return true;
-}
-
-// ============================================================
-// أرصدة عملاء التاجر
-// ============================================================
 export async function getMerchantCustomerWallets(merchantId) {
   const { data, error } = await supabase
     .from('wallets')
@@ -135,14 +79,10 @@ export async function getMerchantCustomerWallets(merchantId) {
     .eq('merchant_id', merchantId)
     .order('balance', { ascending: false })
     .limit(50);
-
   if (error) throw error;
   return data || [];
 }
 
-// ============================================================
-// ملخص كاش باك للتاجر
-// ============================================================
 export async function getMerchantCashbackSummary(merchantId) {
   const { data: invoices } = await supabase
     .from('invoices')

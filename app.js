@@ -8,14 +8,14 @@ import {
   getProfile, getMyMerchant, onAuthChange
 } from './auth.js';
 import {
-  createInvoice, getMerchantInvoices, getMyInvoices,
+  createInvoice, createInvoiceByBankCode,
+  getMerchantInvoices, getMyInvoices,
   getMyWallets, redeemCashback, getMerchantCustomerWallets,
   getMerchantCashbackSummary
 } from './invoices.js';
 
 const $ = (id) => document.getElementById(id);
 
-// State
 let currentProfile = null;
 let currentMerchant = null;
 let allMerchants = [];
@@ -25,9 +25,6 @@ let homeRadius = 2, homeCategories = ['all'], homeSubCategories = [], homeSort =
 let offersCategories = ['all'], offersSubCategories = [];
 let currentModalMerchant = null;
 
-// ============================================================
-// Load merchants
-// ============================================================
 async function loadMerchants() {
   const { data, error } = await supabase
     .from('merchants')
@@ -42,7 +39,6 @@ async function loadMerchants() {
   return data || [];
 }
 
-// Helpers
 function calcDistance(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -77,7 +73,6 @@ function getRoleName(role) {
   return { customer: '👤 عميل', merchant: '🏪 تاجر', admin: '👑 أدمن' }[role] || role;
 }
 
-// Geo
 function getUserLocation() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(null);
@@ -101,11 +96,8 @@ async function updateLocation() {
   renderMerchantsList();
 }
 
-// Filter
 function matchesCatSubs(m, cats, subs) {
-  if (!cats.includes('all')) {
-    if (!cats.includes(m.category)) return false;
-  }
+  if (!cats.includes('all') && !cats.includes(m.category)) return false;
   if (subs.length) {
     if (!m.sub_categories || !m.sub_categories.length) return false;
     if (!m.sub_categories.some(s => subs.includes(s))) return false;
@@ -113,7 +105,6 @@ function matchesCatSubs(m, cats, subs) {
   return true;
 }
 
-// Render merchants
 function renderMerchantsList() {
   let list = [...allMerchants];
   if (searchQuery) {
@@ -124,14 +115,12 @@ function renderMerchantsList() {
     );
   }
   list = list.filter(m => matchesCatSubs(m, homeCategories, homeSubCategories));
-
   if (userLat !== null && userLng !== null) {
     list = list.filter(m => {
       m._dist = calcDistance(userLat, userLng, m.lat, m.lng);
       return m._dist <= homeRadius;
     });
   }
-
   if (homeSort === 'nearest' && userLat !== null) {
     list.sort((a, b) => (a._dist || 0) - (b._dist || 0));
   } else if (homeSort === 'cashback') {
@@ -210,7 +199,6 @@ function renderOffersGrid() {
   }).join('');
 }
 
-// Sub-cats
 function renderSubCategoriesGeneric({ categories, subs, wrapperEl, containerEl, onToggle }) {
   const singleCat = categories.length === 1 && categories[0] !== 'all' ? categories[0] : null;
   if (!singleCat || !SUB_CATEGORIES[singleCat]) { wrapperEl.style.display = 'none'; return; }
@@ -272,7 +260,6 @@ function renderOffersSubCategories() {
   });
 }
 
-// Modal
 window.openMerchant = function (bankCode) {
   const m = allMerchants.find(x => x.bank_code === bankCode);
   if (!m) return;
@@ -304,7 +291,6 @@ window.closeModal = function (e) {
   if (e.target.classList.contains('modal-overlay')) closeMerchantModal();
 };
 
-// Tabs
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === name));
@@ -313,31 +299,31 @@ function switchTab(name) {
   if (name === 'invoice') renderInvoiceTab();
 }
 
-// ============================================================
-// Invoice Tab
-// ============================================================
 async function renderInvoiceTab() {
   if (!currentProfile) return;
 
-  // إخفاء كل الكروت الأول
-  ['merchantInvoiceForm', 'merchantCashbackCard', 'merchantWalletsCard', 'merchantInvoicesCard',
-   'customerBalanceBanner', 'customerWalletsCard', 'customerRedeemCard', 'customerInvoicesCard']
-   .forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
+  if (currentProfile.role === 'merchant' && currentMerchant) {
+    $('invBankCodeGroup').style.display = 'none';
+  } else {
+    $('invBankCodeGroup').style.display = 'block';
+  }
 
   if (currentProfile.role === 'merchant' && currentMerchant) {
-    await renderMerchantInvoiceTab();
-  } else if (currentProfile.role === 'customer') {
-    await renderCustomerInvoiceTab();
+    await renderMerchantExtras();
+  } else {
+    $('merchantCashbackCard').style.display = 'none';
+    $('merchantWalletsCard').style.display = 'none';
+    $('merchantInvoicesCard').style.display = 'none';
   }
+
+  await renderMyWalletAndInvoices();
 }
 
-async function renderMerchantInvoiceTab() {
-  $('merchantInvoiceForm').style.display = 'block';
+async function renderMerchantExtras() {
   $('merchantCashbackCard').style.display = 'block';
   $('merchantWalletsCard').style.display = 'block';
   $('merchantInvoicesCard').style.display = 'block';
 
-  // ملخص الكاش باك
   try {
     const s = await getMerchantCashbackSummary(currentMerchant.id);
     $('merCbGiven').innerText = s.cashbackGiven.toFixed(2) + ' ج';
@@ -346,7 +332,6 @@ async function renderMerchantInvoiceTab() {
     $('merNetSales').innerText = s.netSales.toFixed(2) + ' ج';
   } catch (e) { console.error(e); }
 
-  // أرصدة العملاء
   try {
     const wallets = await getMerchantCustomerWallets(currentMerchant.id);
     const el = $('merchantWalletsList');
@@ -365,7 +350,6 @@ async function renderMerchantInvoiceTab() {
     }
   } catch (e) { console.error(e); }
 
-  // آخر الفواتير
   try {
     const invoices = await getMerchantInvoices(currentMerchant.id);
     const el = $('merchantInvoicesList');
@@ -382,51 +366,52 @@ async function renderMerchantInvoiceTab() {
   } catch (e) { console.error(e); }
 }
 
-async function renderCustomerInvoiceTab() {
-  $('customerBalanceBanner').style.display = 'block';
-  $('customerWalletsCard').style.display = 'block';
-  $('customerRedeemCard').style.display = 'block';
-  $('customerInvoicesCard').style.display = 'block';
-
-  // محافظ العميل
+async function renderMyWalletAndInvoices() {
   try {
     const wallets = await getMyWallets(currentProfile.id);
     const total = wallets.reduce((s, w) => s + parseFloat(w.balance || 0), 0);
     const shops = wallets.filter(w => parseFloat(w.balance) > 0).length;
-    $('totalBalanceValue').innerText = total.toFixed(2) + ' ج';
-    $('balanceShopsCount').innerText = shops;
 
-    const el = $('customerWalletsList');
-    const active = wallets.filter(w => parseFloat(w.balance) > 0 || parseFloat(w.earned) > 0);
-    if (!active.length) {
-      el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد أرصدة</p>';
+    if (total > 0 || wallets.length > 0) {
+      $('customerBalanceBanner').style.display = 'block';
+      $('customerWalletsCard').style.display = 'block';
+      $('customerRedeemCard').style.display = 'block';
+      $('totalBalanceValue').innerText = total.toFixed(2) + ' ج';
+      $('balanceShopsCount').innerText = shops;
+
+      const el = $('customerWalletsList');
+      const active = wallets.filter(w => parseFloat(w.balance) > 0 || parseFloat(w.earned) > 0);
+      if (!active.length) {
+        el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد أرصدة</p>';
+      } else {
+        el.innerHTML = active.map(w => {
+          const m = w.merchants || {};
+          return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
+            <div style="font-weight:600">${m.icon || '🏪'} ${m.name || 'متجر'}</div>
+            <div style="font-size:14px;color:#10b981;font-weight:700;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
+            <div style="font-size:11px;color:#6b7280">كسب: ${parseFloat(w.earned||0).toFixed(2)} | صرف: ${parseFloat(w.spent||0).toFixed(2)}</div>
+          </div>`;
+        }).join('');
+      }
+
+      const sel = $('redeemMerchant');
+      sel.innerHTML = '<option value="">اختار المتجر</option>' +
+        active.filter(w => parseFloat(w.balance) > 0).map(w => {
+          const m = w.merchants || {};
+          return `<option value="${w.merchant_id}">${m.icon || '🏪'} ${m.name || ''} - ${parseFloat(w.balance).toFixed(2)} ج</option>`;
+        }).join('');
     } else {
-      el.innerHTML = active.map(w => {
-        const m = w.merchants || {};
-        return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
-          <div style="font-weight:600">${m.icon || '🏪'} ${m.name || 'متجر'}</div>
-          <div style="font-size:14px;color:#10b981;font-weight:700;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
-          <div style="font-size:11px;color:#6b7280">كسب: ${parseFloat(w.earned||0).toFixed(2)} | صرف: ${parseFloat(w.spent||0).toFixed(2)}</div>
-        </div>`;
-      }).join('');
+      $('customerBalanceBanner').style.display = 'none';
+      $('customerWalletsCard').style.display = 'none';
+      $('customerRedeemCard').style.display = 'none';
     }
-
-    // املأ قائمة المتاجر في redeem
-    const sel = $('redeemMerchant');
-    sel.innerHTML = '<option value="">اختار المتجر</option>' +
-      active.filter(w => parseFloat(w.balance) > 0).map(w => {
-        const m = w.merchants || {};
-        return `<option value="${w.merchant_id}">${m.icon || '🏪'} ${m.name || ''} - ${parseFloat(w.balance).toFixed(2)} ج</option>`;
-      }).join('');
   } catch (e) { console.error(e); }
 
-  // فواتير العميل
   try {
     const invoices = await getMyInvoices(currentProfile.phone);
-    const el = $('customerInvoicesList');
-    if (!invoices.length) {
-      el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد فواتير</p>';
-    } else {
+    if (invoices.length) {
+      $('customerInvoicesCard').style.display = 'block';
+      const el = $('customerInvoicesList');
       el.innerHTML = invoices.map(inv => {
         const m = inv.merchants || {};
         return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
@@ -434,17 +419,17 @@ async function renderCustomerInvoiceTab() {
           <div style="color:#6b7280;margin-top:2px">💰 ${parseFloat(inv.amount).toFixed(2)} ج • كاش باك ${parseFloat(inv.cashback).toFixed(2)} ج</div>
         </div>`;
       }).join('');
+    } else {
+      $('customerInvoicesCard').style.display = 'none';
     }
   } catch (e) { console.error(e); }
 }
 
-// ============================================================
-// Handlers
-// ============================================================
 async function handleSubmitInvoice() {
   const num = $('invNumber').value.trim();
   const phone = $('invCustomerPhone').value.trim();
   const amount = parseFloat($('invAmount').value);
+  const bankCode = $('invBankCode') ? $('invBankCode').value.trim() : '';
   const res = $('invoiceResult');
 
   if (!num || !phone || !amount || amount <= 0) {
@@ -453,17 +438,39 @@ async function handleSubmitInvoice() {
     return;
   }
 
+  const isMerchant = currentProfile.role === 'merchant' && currentMerchant;
+
+  if (!isMerchant && !bankCode) {
+    res.style.color = '#ef4444';
+    res.innerText = '❌ ادخل البنكود';
+    return;
+  }
+
   try {
-    const inv = await createInvoice({
-      number: num, customerPhone: phone, amount,
-      merchantId: currentMerchant.id
-    });
-    res.style.color = '#10b981';
-    res.innerText = `✅ تم الرفع! كاش باك ${parseFloat(inv.cashback).toFixed(2)} ج (${inv.cashback_rate}%)`;
+    if (isMerchant) {
+      const r = await createInvoice({
+        number: num, customerPhone: phone, amount,
+        merchantId: currentMerchant.id
+      });
+      res.style.color = '#10b981';
+      res.innerText = `✅ تم الرفع! كاش باك ${parseFloat(r.cashback).toFixed(2)} ج (${r.cashback_rate}%)`;
+    } else {
+      const r = await createInvoiceByBankCode({
+        number: num, customerPhone: phone, amount, bankCode
+      });
+      res.style.color = '#10b981';
+      res.innerText = `✅ تم الرفع! كاش باك ${parseFloat(r.cashback).toFixed(2)} ج (${r.rate}%)`;
+    }
+
     $('invNumber').value = '';
     $('invCustomerPhone').value = '';
     $('invAmount').value = '';
-    setTimeout(() => renderInvoiceTab(), 1000);
+    if ($('invBankCode')) {
+      $('invBankCode').value = '';
+      $('invBankCode').dataset.realValue = '';
+    }
+
+    setTimeout(() => renderInvoiceTab(), 1200);
   } catch (e) {
     res.style.color = '#ef4444';
     res.innerText = '❌ ' + (e.message || 'فشل الرفع');
@@ -483,7 +490,7 @@ async function handleRedeem() {
   }
 
   try {
-    const r = await redeemCashback({ merchantId, amount, originalAmount: original });
+    await redeemCashback({ merchantId, amount, originalAmount: original });
     res.style.color = '#10b981';
     res.innerText = `✅ تم الخصم! المطلوب ${(original - amount).toFixed(2)} ج`;
     $('redeemOriginal').value = '';
@@ -495,9 +502,6 @@ async function handleRedeem() {
   }
 }
 
-// ============================================================
-// Auth
-// ============================================================
 function showMessage(text, type = 'error') {
   const el = $('authMessage');
   if (!el) return;
@@ -611,9 +615,6 @@ function updateBankCodeVisibility() {
   $('bankCodeGroup').style.display = $('signupRole').value === 'merchant' ? 'block' : 'none';
 }
 
-// ============================================================
-// Bind
-// ============================================================
 function bindEvents() {
   $('loginForm').addEventListener('submit', handleLogin);
   $('signupForm').addEventListener('submit', handleSignup);
@@ -675,9 +676,6 @@ function bindEvents() {
   });
 }
 
-// ============================================================
-// Auth state
-// ============================================================
 onAuthChange(async (event, session) => {
   if (session?.user) {
     const profile = await getProfile();

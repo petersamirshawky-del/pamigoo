@@ -16,10 +16,7 @@
     <div class="header-left">
       <div>
         <h2>PAMIGO</h2>
-        <p>
-          <i class="fas fa-map-pin" style="color:#ff6b35"></i>
-          <span id="locationText">جاري تحديد الموقع...</span>
-        </p>
+        <p><i class="fas fa-map-pin" style="color:#ff6b35"></i> <span id="locationText">جاري تحديد الموقع...</span></p>
       </div>
     </div>
     <button class="location" id="refreshLocation">🔄 تحديث الموقع</button>
@@ -31,7 +28,6 @@
         <button class="auth-tab active" data-tab="login">🔐 دخول</button>
         <button class="auth-tab" data-tab="signup">📝 حساب جديد</button>
       </div>
-
       <form id="loginForm">
         <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">تسجيل الدخول</h4>
         <input type="tel" id="loginPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
@@ -41,7 +37,6 @@
         </div>
         <button type="submit" id="loginBtn" style="margin-top:10px">🚀 دخول</button>
       </form>
-
       <form id="signupForm" style="display:none">
         <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">حساب جديد</h4>
         <input type="text" id="signupName" placeholder="👤 الاسم" autocomplete="name">
@@ -60,7 +55,6 @@
         </div>
         <button type="submit" id="signupBtn" style="margin-top:10px">📝 إنشاء الحساب</button>
       </form>
-
       <div id="authMessage" class="auth-message"></div>
     </div>
   </div>
@@ -84,14 +78,13 @@
       <button class="tab-btn active" data-tab="home">🏠 الرئيسية</button>
       <button class="tab-btn" data-tab="offers">🎁 العروض</button>
       <button class="tab-btn" data-tab="invoice">🧾 الفاتورة</button>
+      <button class="tab-btn" data-tab="requests">📋 طلباتي</button>
     </div>
 
-    <!-- الرئيسية -->
     <div class="tab-content active" id="tab-home">
       <div class="radius-control">
         <label>🔍 نطاق البحث: <span id="homeRadiusValue">2</span> كم</label>
         <input type="range" id="homeRadiusSlider" min="0.5" max="10" step="0.5" value="2">
-
         <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
           <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📊 ترتيب النتائج:</label>
           <div class="categories" id="homeSortOptions" style="margin-bottom:0">
@@ -100,7 +93,6 @@
             <button class="category-chip" data-sort="discount">🔥 أعلى خصم</button>
           </div>
         </div>
-
         <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
           <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">🏷️ نوع الخدمة:</label>
           <div class="categories" id="homeCategories" style="margin-bottom:0">
@@ -118,26 +110,21 @@
             <button class="category-chip" data-cat="hospitals">🏨 مستشفيات</button>
           </div>
         </div>
-
         <div id="homeSubWrapper" style="margin-top:12px;border-top:1px solid #eee;padding-top:12px;display:none">
           <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📂 تصنيفات فرعية:</label>
           <div class="categories" id="homeSubCategories" style="margin-bottom:0"></div>
         </div>
       </div>
-
       <div class="search-bar">
         <i class="fas fa-search"></i>
         <input type="text" id="searchInput" placeholder="ابحث عن عروض أو متاجر...">
       </div>
-
       <div class="section-title"><h3>🔥 أفضل العروض</h3></div>
       <div class="deals-scroll" id="dealsScroll"></div>
-
       <div class="section-title"><h3>📍 المتاجر القريبة</h3></div>
       <div id="merchantsList"><div class="no-requests">⏳ جاري التحميل...</div></div>
     </div>
 
-    <!-- العروض -->
     <div class="tab-content" id="tab-offers">
       <div class="radius-control">
         <div>
@@ -162,25 +149,27 @@
           <div class="categories" id="offersSubCategories" style="margin-bottom:0"></div>
         </div>
       </div>
-
       <div class="section-title"><h3>🎁 كل العروض</h3></div>
       <div class="offers-grid" id="offersGrid"></div>
     </div>
 
-    <!-- الفاتورة -->
     <div class="tab-content" id="tab-invoice">
-
-      <!-- ===== للتاجر: نموذج رفع فاتورة ===== -->
-      <div class="card" id="merchantInvoiceForm" style="display:none">
+      <div class="card">
         <h4 style="margin-bottom:10px">🧾 رفع فاتورة</h4>
         <input type="text" id="invNumber" placeholder="رقم الفاتورة">
         <input type="tel" id="invCustomerPhone" placeholder="📱 رقم موبايل العميل">
         <input type="number" id="invAmount" placeholder="💰 المبلغ (جنيه)" min="1" step="0.01">
+        <div id="invBankCodeGroup">
+          <div class="password-wrap">
+            <input type="password" id="invBankCode" placeholder="🔑 البنكود" autocomplete="off" style="text-transform:uppercase">
+            <button type="button" class="eye-btn" onclick="togglePass('invBankCode', this)" tabindex="-1">👁️</button>
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">💡 ادّي الموبايل للكاشير يدخل البنكود.</p>
+        </div>
         <button id="submitInvoiceBtn" style="margin-top:10px">✅ رفع الفاتورة</button>
         <div id="invoiceResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
       </div>
 
-      <!-- ===== للتاجر: ملخص الكاش باك ===== -->
       <div class="card" id="merchantCashbackCard" style="display:none">
         <h4 style="margin-bottom:12px">💵 ملخص الكاش باك</h4>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -203,49 +192,49 @@
         </div>
       </div>
 
-      <!-- ===== للتاجر: أرصدة العملاء ===== -->
       <div class="card" id="merchantWalletsCard" style="display:none">
         <h4 style="margin-bottom:10px">👥 أرصدة عملائي</h4>
         <div id="merchantWalletsList"><p style="color:#6b7280;font-size:14px">لا يوجد أرصدة</p></div>
       </div>
 
-      <!-- ===== للتاجر: آخر الفواتير ===== -->
       <div class="card" id="merchantInvoicesCard" style="display:none">
-        <h4 style="margin-bottom:10px">📄 آخر الفواتير</h4>
+        <h4 style="margin-bottom:10px">📄 آخر فواتير متجري</h4>
         <div id="merchantInvoicesList"><p style="color:#6b7280;font-size:14px">لا توجد فواتير</p></div>
       </div>
 
-      <!-- ===== للعميل: إجمالي الرصيد ===== -->
       <div id="customerBalanceBanner" class="my-balance-banner" style="display:none">
         <div class="lbl">💰 رصيدك الكلي من الكاش باك</div>
         <div class="val" id="totalBalanceValue">0 ج</div>
         <div class="sub">من <span id="balanceShopsCount">0</span> متجر</div>
       </div>
 
-      <!-- ===== للعميل: تفصيل المحافظ ===== -->
       <div class="card" id="customerWalletsCard" style="display:none">
         <h4 style="margin-bottom:10px">🏪 رصيدك في كل متجر</h4>
         <div id="customerWalletsList"></div>
       </div>
 
-      <!-- ===== للعميل: استخدام رصيد ===== -->
       <div class="card" id="customerRedeemCard" style="display:none">
         <h4 style="margin-bottom:10px">💵 استخدام رصيد الكاش باك</h4>
-        <select id="redeemMerchant">
-          <option value="">اختار المتجر</option>
-        </select>
+        <select id="redeemMerchant"><option value="">اختار المتجر</option></select>
         <input type="number" id="redeemOriginal" placeholder="💰 مبلغ الفاتورة الجديدة" min="1" step="0.01">
         <input type="number" id="redeemAmount" placeholder="💵 المبلغ المراد استخدامه" min="1" step="0.01">
         <button id="redeemBtn" style="margin-top:10px">✅ تطبيق الخصم</button>
         <div id="redeemResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
       </div>
 
-      <!-- ===== للعميل: آخر الفواتير ===== -->
       <div class="card" id="customerInvoicesCard" style="display:none">
         <h4 style="margin-bottom:10px">📄 فواتيري</h4>
         <div id="customerInvoicesList"><p style="color:#6b7280;font-size:14px">لا توجد فواتير</p></div>
       </div>
+    </div>
 
+    <div class="tab-content" id="tab-requests">
+      <div class="card" style="text-align:center;padding:40px 20px">
+        <div style="font-size:60px;margin-bottom:10px">📋</div>
+        <h3 style="color:var(--primary);margin-bottom:10px">طلباتي</h3>
+        <p style="color:#6b7280;line-height:1.8">الطلبات الخاصة هتكون متاحة قريبًا.<br>هتقدر تطلب أي حاجة، والتجار هيردّوا عليك بعروضهم.</p>
+        <p style="font-size:12px;color:#9ca3af;margin-top:10px">🛠️ قيد الإنشاء — المرحلة 6</p>
+      </div>
     </div>
 
   </div>
