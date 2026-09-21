@@ -1,4 +1,4 @@
-// ============================================================
+ï»¿// ============================================================
 // PAMIGO - Merchant Dashboard / Reports / Analytics
 // ============================================================
 import { supabase } from './supabase.js';
@@ -157,14 +157,14 @@ export async function getReportData(merchantId, period) {
     cbRemaining: cbGiven - cbSpent,
     uniqueCustomers,
     avgInvoice,
-    periodLabel: period === 'daily' ? 'ÇáäåÇÑÏÉ' :
-                 period === 'weekly' ? 'ÂÎÑ 7 ÃíÇã' :
-                 period === 'monthly' ? 'ÇáÔåÑ' : 'Çáßá'
+    periodLabel: period === 'daily' ? 'Ø§Ù„Ù†Ù‡Ø§Ø±Ø¯Ø©' :
+                 period === 'weekly' ? 'Ø¢Ø®Ø± 7 Ø£ÙŠØ§Ù…' :
+                 period === 'monthly' ? 'Ø§Ù„Ø´Ù‡Ø±' : 'Ø§Ù„ÙƒÙ„'
   };
 }
 
 // ============================================================
-// Analytics — ? äÓÈÉ Çáäãæ ÍŞíŞíÉ
+// Analytics â€” âœ… Ù†Ø³Ø¨Ø© Ø§Ù„Ù†Ù…Ùˆ Ø­Ù‚ÙŠÙ‚ÙŠØ©
 // ============================================================
 export async function getAnalytics(merchantId, merchantName, offers) {
   const { data: invoices } = await supabase
@@ -198,7 +198,7 @@ export async function getAnalytics(merchantId, merchantName, offers) {
 
   const topOffer = offers && offers.length ? offers[0].title : '-';
 
-  // ÍÓÇÈ äÓÈÉ Çáäãæ ÇáÍŞíŞíÉ (ÇáÔåÑ ÇáÍÇáí ãŞÇÈá ÇáÔåÑ ÇáãÇÖí)
+  // Ø­Ø³Ø§Ø¨ Ù†Ø³Ø¨Ø© Ø§Ù„Ù†Ù…Ùˆ Ø§Ù„Ø­Ù‚ÙŠÙ‚ÙŠØ© (Ø§Ù„Ø´Ù‡Ø± Ø§Ù„Ø­Ø§Ù„ÙŠ Ù…Ù‚Ø§Ø¨Ù„ Ø§Ù„Ø´Ù‡Ø± Ø§Ù„Ù…Ø§Ø¶ÙŠ)
   const now = new Date();
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -212,14 +212,14 @@ export async function getAnalytics(merchantId, merchantName, offers) {
     else if (d >= lastMonthStart && d < thisMonthStart) lastMonthSales += amt;
   });
 
-  let growthLabel = '—';
+  let growthLabel = 'â€”';
   if (lastMonthSales > 0) {
     const growth = ((thisMonthSales - lastMonthSales) / lastMonthSales) * 100;
     growthLabel = (growth > 0 ? '+' : '') + growth.toFixed(1) + '%';
   } else if (thisMonthSales > 0) {
     growthLabel = '+100%';
   } else {
-    growthLabel = 'ãİíÔ ÈíÇäÇÊ';
+    growthLabel = 'Ù…ÙÙŠØ´ Ø¨ÙŠØ§Ù†Ø§Øª';
   }
 
   return {
