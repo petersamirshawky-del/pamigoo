@@ -1,4 +1,4 @@
-Ôªø// ============================================================
+// ============================================================
 // PAMIGO - Merchant Dashboard / Reports / Analytics
 // ============================================================
 import { supabase } from './supabase.js';
@@ -157,14 +157,14 @@ export async function getReportData(merchantId, period) {
     cbRemaining: cbGiven - cbSpent,
     uniqueCustomers,
     avgInvoice,
-    periodLabel: period === 'daily' ? 'ÿßŸÑŸÜŸáÿßÿ±ÿØÿ©' :
-                 period === 'weekly' ? 'ÿ¢ÿÆÿ± 7 ÿ£ŸäÿßŸÖ' :
-                 period === 'monthly' ? 'ÿßŸÑÿ¥Ÿáÿ±' : 'ÿßŸÑŸÉŸÑ'
+    periodLabel: period === 'daily' ? '«·‰Â«—œ…' :
+                 period === 'weekly' ? '¬Œ— 7 √Ì«„' :
+                 period === 'monthly' ? '«·‘Â—' : '«·ﬂ·'
   };
 }
 
 // ============================================================
-// Analytics
+// Analytics ó ? ‰”»… «·‰„Ê ÕﬁÌﬁÌ…
 // ============================================================
 export async function getAnalytics(merchantId, merchantName, offers) {
   const { data: invoices } = await supabase
@@ -198,6 +198,30 @@ export async function getAnalytics(merchantId, merchantName, offers) {
 
   const topOffer = offers && offers.length ? offers[0].title : '-';
 
+  // Õ”«» ‰”»… «·‰„Ê «·ÕﬁÌﬁÌ… («·‘Â— «·Õ«·Ì „ﬁ«»· «·‘Â— «·„«÷Ì)
+  const now = new Date();
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+  let thisMonthSales = 0, lastMonthSales = 0;
+  inv.forEach(i => {
+    if (i.status === 'returned') return;
+    const d = new Date(i.created_at);
+    const amt = parseFloat(i.amount || 0) - parseFloat(i.return_amount || 0);
+    if (d >= thisMonthStart) thisMonthSales += amt;
+    else if (d >= lastMonthStart && d < thisMonthStart) lastMonthSales += amt;
+  });
+
+  let growthLabel = 'ó';
+  if (lastMonthSales > 0) {
+    const growth = ((thisMonthSales - lastMonthSales) / lastMonthSales) * 100;
+    growthLabel = (growth > 0 ? '+' : '') + growth.toFixed(1) + '%';
+  } else if (thisMonthSales > 0) {
+    growthLabel = '+100%';
+  } else {
+    growthLabel = '„›Ì‘ »Ì«‰« ';
+  }
+
   return {
     totalCustomers,
     avgSpend,
@@ -205,6 +229,7 @@ export async function getAnalytics(merchantId, merchantName, offers) {
     topHour,
     topOffer,
     avgRating,
-    repeatCount
+    repeatCount,
+    growth: growthLabel
   };
 }

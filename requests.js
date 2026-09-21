@@ -1,11 +1,11 @@
-ï»¿// ============================================================
+// ============================================================
 // PAMIGO - Special Requests
 // ============================================================
 import { supabase } from './supabase.js';
 
 export async function sendRequest({ category, product, details, imageBase64 }) {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Ù…Ø´ Ù…Ø³Ø¬Ù„ Ø¯Ø®ÙˆÙ„');
+  if (!user) throw new Error('ãÔ ãÓÌá ÏÎæá');
 
   const { data, error } = await supabase
     .from('special_requests')
@@ -13,7 +13,7 @@ export async function sendRequest({ category, product, details, imageBase64 }) {
       customer_id: user.id,
       category,
       product: product.trim(),
-      details: details.trim() || 'Ù„Ø§ ØªÙØ§ØµÙŠÙ„',
+      details: details.trim() || 'áÇ ÊİÇÕíá',
       image_url: imageBase64 || null,
       status: 'pending'
     })
@@ -70,7 +70,7 @@ export async function replyToRequest({ requestId, merchantId, price, message, im
       request_id: requestId,
       merchant_id: merchantId,
       price: parseFloat(price),
-      message: message || 'Ù…ØªÙˆÙØ± Ø¨Ø³Ø¹Ø± Ù…Ù…ØªØ§Ø²',
+      message: message || 'ãÊæİÑ ÈÓÚÑ ããÊÇÒ',
       image_url: imageBase64 || null
     });
   if (error) throw error;
@@ -81,13 +81,13 @@ export async function replyToRequest({ requestId, merchantId, price, message, im
     .eq('id', requestId);
 }
 
-// Ø§Ù„ØªØ§Ø¬Ø± ÙŠØ¨Ø¹Øª ØµÙˆØ±Ø© Ø¥Ø¶Ø§ÙÙŠØ©
+// ÇáÊÇÌÑ íÈÚÊ ÕæÑÉ ÅÖÇİíÉ
 export async function merchantSendExtraImage({ responseId, imageBase64, message }) {
   const { error } = await supabase
     .from('request_responses')
     .update({
       image_url: imageBase64,
-      merchant_reply: message || 'Ø¯ÙŠ ØµÙˆØ±Ø© Ø¥Ø¶Ø§ÙÙŠØ©'
+      merchant_reply: message || 'Ïí ÕæÑÉ ÅÖÇİíÉ'
     })
     .eq('id', responseId);
   if (error) throw error;
@@ -114,16 +114,15 @@ export async function deleteRequest(requestId) {
   if (error) throw error;
 }
 
+// ? ÇáÊÇÌÑ íÎİí ØáÈ ãä ÚäÏå (Úä ØÑíŞ ÏÇáÉ SQL)
 export async function hideRequestForMerchant(requestId, merchantId) {
-  const { data: req } = await supabase
-    .from('special_requests').select('hidden_by').eq('id', requestId).single();
-  const current = req?.hidden_by || [];
-  if (current.includes(merchantId)) return;
-  const { error } = await supabase
-    .from('special_requests')
-    .update({ hidden_by: [...current, merchantId] })
-    .eq('id', requestId);
+  const { data, error } = await supabase.rpc('hide_request_for_merchant', {
+    p_request_id: requestId,
+    p_merchant_id: merchantId
+  });
   if (error) throw error;
+  if (!data.ok) throw new Error(data.error || 'İÔá ÇáãÓÍ');
+  return data;
 }
 
 export async function askMerchantForImage({ responseId, message, existingMessages }) {
