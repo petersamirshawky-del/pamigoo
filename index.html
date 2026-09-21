@@ -33,7 +33,12 @@
       <form id="loginForm">
         <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">تسجيل الدخول</h4>
         <input type="tel" id="loginPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
-        <input type="password" id="loginPassword" placeholder="🔑 كلمة المرور" autocomplete="current-password">
+
+        <div class="password-wrap">
+          <input type="password" id="loginPassword" placeholder="🔑 كلمة المرور" autocomplete="current-password">
+          <button type="button" class="eye-btn" onclick="togglePass('loginPassword', this)" tabindex="-1">👁️</button>
+        </div>
+
         <button type="submit" id="loginBtn" style="margin-top:10px">🚀 دخول</button>
       </form>
 
@@ -43,7 +48,11 @@
 
         <input type="text" id="signupName" placeholder="👤 الاسم" autocomplete="name">
         <input type="tel" id="signupPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
-        <input type="password" id="signupPassword" placeholder="🔑 كلمة المرور (6 أحرف على الأقل)" autocomplete="new-password">
+
+        <div class="password-wrap">
+          <input type="password" id="signupPassword" placeholder="🔑 كلمة المرور (6 أحرف على الأقل)" autocomplete="new-password">
+          <button type="button" class="eye-btn" onclick="togglePass('signupPassword', this)" tabindex="-1">👁️</button>
+        </div>
 
         <select id="signupRole">
           <option value="customer">👤 عميل</option>
@@ -77,25 +86,13 @@
       <div class="info-row"><span>📅 تاريخ التسجيل</span><strong id="userSince">-</strong></div>
     </div>
 
-    <!-- كارت التاجر (بيظهر لو تاجر) -->
+    <!-- كارت التاجر -->
     <div class="card" id="merchantCard" style="display:none;background:#d1fae5;border-right:4px solid var(--success)">
       <h4 style="margin-bottom:10px;color:#065f46">🏪 متجرك</h4>
-      <div class="info-row">
-        <span>🏪 الاسم</span>
-        <strong id="merchantName">-</strong>
-      </div>
-      <div class="info-row">
-        <span>🔑 البنكود</span>
-        <strong id="merchantBankCode">-</strong>
-      </div>
-      <div class="info-row">
-        <span>📂 التصنيف</span>
-        <strong id="merchantCategory">-</strong>
-      </div>
-      <div class="info-row">
-        <span>💰 نسبة الكاش باك</span>
-        <strong id="merchantRate">-</strong>
-      </div>
+      <div class="info-row"><span>🏪 الاسم</span><strong id="merchantName">-</strong></div>
+      <div class="info-row"><span>🔑 البنكود</span><strong id="merchantBankCode">-</strong></div>
+      <div class="info-row"><span>📂 التصنيف</span><strong id="merchantCategory">-</strong></div>
+      <div class="info-row"><span>💰 نسبة الكاش باك</span><strong id="merchantRate">-</strong></div>
     </div>
 
     <!-- كارت العميل -->
@@ -112,5 +109,16 @@
   <div class="footer">PAMIGO v37.0 — Stage 4-A</div>
 
   <script type="module" src="app.js"></script>
+
+  <script>
+    // زرار إظهار/إخفاء الباسورد
+    window.togglePass = function(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      const isHidden = input.type === 'password';
+      input.type = isHidden ? 'text' : 'password';
+      btn.innerText = isHidden ? '🙈' : '👁️';
+    };
+  </script>
 </body>
 </html>
