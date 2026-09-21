@@ -1,10 +1,10 @@
 ﻿// ============================================================
-// PAMIGO - Main Entry (Stage 7: Full Features)
+// PAMIGO - Main Entry (Stage 8: Admin Signup)
 // ============================================================
 import { supabase } from './supabase.js';
 import { SUB_CATEGORIES, CATEGORY_ICONS } from './config.js';
 import {
-  signUpCustomer, signUpMerchant, signIn, signOut,
+  signUpCustomer, signUpMerchant, signUpAdmin, signIn, signOut,
   getProfile, getMyMerchant, onAuthChange
 } from './auth.js';
 import {
@@ -330,7 +330,7 @@ window.closeModal = function (e) {
 };
 
 // ============================================================
-// Tabs
+// Tabs visibility (حسب الدور)
 // ============================================================
 function updateTabsVisibility() {
   if (!currentProfile) return;
@@ -338,6 +338,7 @@ function updateTabsVisibility() {
   document.querySelectorAll('#mainTabs .tab-btn').forEach(btn => {
     const r = btn.dataset.role;
     if (r === 'all') btn.style.display = 'block';
+    else if (r === 'customer') btn.style.display = role === 'customer' ? 'block' : 'none';
     else if (r === 'merchant') btn.style.display = role === 'merchant' ? 'block' : 'none';
     else if (r === 'admin') btn.style.display = role === 'admin' ? 'block' : 'none';
   });
@@ -721,9 +722,7 @@ window.replyToReq = async function (reqId) {
 
   const hasImage = confirm('تحب ترفق صورة؟');
   let imageBase64 = null;
-  if (hasImage) {
-    imageBase64 = await pickImage();
-  }
+  if (hasImage) imageBase64 = await pickImage();
 
   try {
     await replyToRequest({ requestId: reqId, merchantId: currentMerchant.id, price: p, message, imageBase64 });
@@ -953,7 +952,7 @@ async function renderAnalyticsTab() {
     $('anaTopOffer').innerText = a.topOffer;
     $('anaAvgRating').innerText = a.avgRating;
     $('anaRepeatCustomers').innerText = a.repeatCount;
-    $('anaGrowth').innerText = (Math.floor(Math.random() * 20) + 5) + '%';
+    $('anaGrowth').innerText = a.growth;
   } catch (e) { console.error(e); }
 }
 
@@ -1340,14 +1339,23 @@ async function handleSignup(e) {
   const password = $('signupPassword').value;
   const role = $('signupRole').value;
   const bankCode = $('signupBankCode').value.trim();
+  const adminCode = $('signupAdminCode') ? $('signupAdminCode').value.trim() : '';
+
   if (!name || !phone || !password) return showMessage('❌ املأ الحقول');
-  if (password.length < 6) return showMessage('❌ الباسورد 6 أحرف');
+  if (password.length < 6) return showMessage('❌ الباسورد 6 أحرف على الأقل');
   if (role === 'merchant' && !bankCode) return showMessage('❌ لازم البنكود');
+  if (role === 'admin' && !adminCode) return showMessage('❌ لازم بنكود الأدمن');
+
   const btn = $('signupBtn');
   btn.disabled = true; btn.innerText = '⏳...';
   try {
-    if (role === 'merchant') await signUpMerchant({ phone, password, name, bankCode });
-    else await signUpCustomer({ phone, password, name });
+    if (role === 'merchant') {
+      await signUpMerchant({ phone, password, name, bankCode });
+    } else if (role === 'admin') {
+      await signUpAdmin({ phone, password, name, adminCode });
+    } else {
+      await signUpCustomer({ phone, password, name });
+    }
     showMessage('✅ تم', 'success');
     await signIn({ phone, password });
   } catch (err) { showMessage('❌ ' + translateError(err.message)); }
@@ -1366,6 +1374,7 @@ function translateError(msg) {
   if (msg.includes('Unable to validate email')) return 'رقم غير صالح';
   if (msg.includes('البنكود غير موجود')) return 'البنكود غير موجود';
   if (msg.includes('مرتبط بحساب')) return 'البنكود مستخدم';
+  if (msg.includes('بنكود الأدمن غير صحيح')) return 'بنكود الأدمن غير صحيح';
   if (msg.includes('rate limit')) return 'حاول تاني';
   return msg;
 }
@@ -1379,7 +1388,9 @@ function showAuthTab(tab) {
 }
 
 function updateBankCodeVisibility() {
-  $('bankCodeGroup').style.display = $('signupRole').value === 'merchant' ? 'block' : 'none';
+  const role = $('signupRole').value;
+  $('bankCodeGroup').style.display = role === 'merchant' ? 'block' : 'none';
+  $('adminCodeGroup').style.display = role === 'admin' ? 'block' : 'none';
 }
 
 // ============================================================
