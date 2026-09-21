@@ -1,11 +1,14 @@
 ﻿// ============================================================
-// PAMIGO - Main Entry (Stage 8: Admin Signup)
+// PAMIGO - Main Entry (Stage 10: Full Features)
 // ============================================================
 import { supabase } from './supabase.js';
 import { SUB_CATEGORIES, CATEGORY_ICONS } from './config.js';
 import {
   signUpCustomer, signUpMerchant, signUpAdmin, signIn, signOut,
-  getProfile, getMyMerchant, onAuthChange
+  getProfile, getMyMerchant, onAuthChange,
+  applyPeekEffect, getRealValue,
+  changeMyPassword, adminChangePassword,
+  sendPasswordReset, updateMyEmail
 } from './auth.js';
 import {
   createInvoice, createInvoiceByBankCode,
@@ -29,7 +32,8 @@ import {
   addTrader, freezeMerchant, updateMerchantRate, deleteMerchant,
   adjustCustomerBalance, resetCustomerBalance, deleteCustomer,
   editInvoiceAdmin, returnInvoiceAdmin, deleteInvoice,
-  sendNotification, getNotifications
+  sendNotification, getNotifications,
+  adminUpdateMerchant, adminUpdateCustomer, adminGetAllRequests
 } from './admin.js';
 import {
   getUserWalletsBreakdown, initAccountMap, getMarkerPosition,
@@ -53,9 +57,10 @@ let uploadedReqImage = null;
 let currentReqFilter = 'all';
 let myRequestsCache = [];
 let adminData = { merchants: [], customers: [], invoices: [] };
+let expectedLogin = null;
 
 // ============================================================
-// Load
+// Load merchants
 // ============================================================
 async function loadMerchants() {
   const { data, error } = await supabase
@@ -330,7 +335,7 @@ window.closeModal = function (e) {
 };
 
 // ============================================================
-// Tabs visibility (حسب الدور)
+// Tabs
 // ============================================================
 function updateTabsVisibility() {
   if (!currentProfile) return;
@@ -360,7 +365,7 @@ function switchTab(name) {
 }
 
 // ============================================================
-// INVOICE TAB
+// INVOICE
 // ============================================================
 async function renderInvoiceTab() {
   if (!currentProfile) return;
@@ -464,7 +469,7 @@ async function handleSubmitInvoice() {
   const num = $('invNumber').value.trim();
   const phone = $('invCustomerPhone').value.trim();
   const amount = parseFloat($('invAmount').value);
-  const bankCode = $('invBankCode') ? $('invBankCode').value.trim() : '';
+  const bankCode = $('invBankCode') ? getRealValue('invBankCode') : '';
   const res = $('invoiceResult');
   if (!num || !phone || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
   const isMerchant = currentProfile.role === 'merchant' && currentMerchant;
@@ -498,7 +503,7 @@ async function handleRedeem() {
 }
 
 // ============================================================
-// REQUESTS TAB
+// REQUESTS
 // ============================================================
 function handleReqImage(e) {
   const file = e.target.files[0];
@@ -764,7 +769,7 @@ window.hideReq = async function (reqId) {
 };
 
 // ============================================================
-// DASHBOARD TAB
+// DASHBOARD
 // ============================================================
 async function renderDashboard() {
   if (!currentMerchant) return;
@@ -899,7 +904,7 @@ function updateRateDisplay() {
 }
 
 // ============================================================
-// REPORTS TAB
+// REPORTS
 // ============================================================
 async function renderReports(period) {
   if (!currentMerchant) return;
@@ -938,7 +943,7 @@ function exportReportPDF() {
 }
 
 // ============================================================
-// ANALYTICS TAB
+// ANALYTICS
 // ============================================================
 async function renderAnalyticsTab() {
   if (!currentMerchant) return;
@@ -957,7 +962,7 @@ async function renderAnalyticsTab() {
 }
 
 // ============================================================
-// ADMIN TAB
+// ADMIN
 // ============================================================
 async function renderAdminSection(section) {
   document.querySelectorAll('.admin-subtab').forEach(b =>
@@ -970,6 +975,7 @@ async function renderAdminSection(section) {
   if (section === 'traders') await renderAdminTraders();
   if (section === 'customers') await renderAdminCustomers();
   if (section === 'invoices') await renderAdminInvoices();
+  if (section === 'requests') await renderAdminRequests();
   if (section === 'notifications') await renderAdminNotifHistory();
 }
 
@@ -997,16 +1003,61 @@ async function renderAdminTraders() {
         <span class="title">${m.icon || '🏪'} ${m.name}</span>
         ${m.frozen ? '<span class="frozen-badge">❄️ موقوف</span>' : '<span class="active-badge">✅ نشط</span>'}
       </div>
-      <div class="info">🔑 ${m.bank_code} | 📱 ${m.phone || '-'} | 💰 ${rate}% <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></div>
+      <div class="info">🔑 ${m.bank_code} | 📱 ${m.phone || '-'} | 💰 ${rate}%</div>
+      <div class="info">📍 ${m.lat?.toFixed(4) || '-'} , ${m.lng?.toFixed(4) || '-'}</div>
       <div class="info">📂 ${m.category} | 🎁 ${(m.offers || []).length} عرض</div>
       <div class="actions">
+        <button class="admin-btn primary" onclick="adminEditMerchantFull('${m.id}')">✏️ تعديل كامل</button>
         <button class="admin-btn ${m.frozen ? 'success' : 'warning'}" onclick="toggleFreeze('${m.id}')">${m.frozen ? '✅ إلغاء' : '❄️ إيقاف'}</button>
-        <button class="admin-btn primary" onclick="editRate('${m.id}')">💰 النسبة</button>
+        <button class="admin-btn purple" onclick="adminChangePassMerchant('${m.id}')">🔒 كلمة المرور</button>
         <button class="admin-btn danger" onclick="delTrader('${m.id}')">🗑️ حذف</button>
       </div>
     </div>`;
   }).join('');
 }
+
+window.adminEditMerchantFull = async function (id) {
+  const m = adminData.merchants.find(x => x.id === id);
+  if (!m) return;
+
+  const newName = prompt(`اسم التاجر الحالي: ${m.name}\nالجديد:`, m.name);
+  if (newName === null) return;
+
+  const newPhone = prompt(`الموبايل الحالي: ${m.phone}\nالجديد:`, m.phone || '');
+  if (newPhone === null) return;
+
+  const newLat = prompt(`Latitude الحالي: ${m.lat}\nالجديد:`, m.lat);
+  if (newLat === null) return;
+
+  const newLng = prompt(`Longitude الحالي: ${m.lng}\nالجديد:`, m.lng);
+  if (newLng === null) return;
+
+  const newRate = prompt(`النسبة الحالية: ${m.cashback_rate}%\nالجديدة (1-50):`, m.cashback_rate);
+  if (newRate === null) return;
+
+  try {
+    await adminUpdateMerchant(id, {
+      name: newName.trim() || m.name,
+      phone: newPhone.trim() || m.phone,
+      lat: parseFloat(newLat),
+      lng: parseFloat(newLng),
+      rate: parseInt(newRate)
+    });
+    alert('✅ تم التعديل');
+    renderAdminTraders();
+  } catch (e) { alert('❌ ' + e.message); }
+};
+
+window.adminChangePassMerchant = async function (merchantId) {
+  const m = adminData.merchants.find(x => x.id === merchantId);
+  if (!m || !m.owner_id) { alert('❌ التاجر ده مش مرتبط بحساب'); return; }
+  const newPass = prompt('اكتب كلمة المرور الجديدة (6+ أحرف):');
+  if (!newPass || newPass.length < 6) { alert('❌ قصيرة'); return; }
+  try {
+    await adminChangePassword(m.owner_id, newPass);
+    alert('✅ تم تغيير كلمة المرور');
+  } catch (e) { alert('❌ ' + e.message); }
+};
 
 window.toggleFreeze = async function (id) {
   const m = adminData.merchants.find(x => x.id === id);
@@ -1015,62 +1066,11 @@ window.toggleFreeze = async function (id) {
   catch (e) { alert('❌ ' + e.message); }
 };
 
-window.editRate = async function (id) {
-  const m = adminData.merchants.find(x => x.id === id);
-  const newRate = prompt(`النسبة الحالية: ${m.cashback_rate}%\nالجديدة (1-50):`, m.cashback_rate);
-  if (newRate === null) return;
-  const r = parseInt(newRate);
-  if (isNaN(r) || r < 1 || r > 50) { alert('❌ غير صحيح'); return; }
-  try { await updateMerchantRate(id, r); renderAdminTraders(); }
-  catch (e) { alert('❌ ' + e.message); }
-};
-
 window.delTrader = async function (id) {
   if (!confirm('متأكد من الحذف؟')) return;
   try { await deleteMerchant(id); renderAdminTraders(); }
   catch (e) { alert('❌ ' + e.message); }
 };
-
-function renderNewTraderSubs() {
-  const cat = $('newTraderCategory').value;
-  const subs = SUB_CATEGORIES[cat] || [];
-  $('newTraderSubs').innerHTML = subs.map(s =>
-    `<button type="button" class="category-chip" data-sub="${s.id}">${s.name}</button>`
-  ).join('');
-  $('newTraderSubs').querySelectorAll('.category-chip').forEach(btn => {
-    btn.onclick = () => btn.classList.toggle('active');
-  });
-}
-
-async function handleAddTrader() {
-  const name = $('newTraderName').value.trim();
-  const bankCode = $('newTraderBankCode').value.trim();
-  const phone = $('newTraderPhone').value.trim();
-  const category = $('newTraderCategory').value;
-  const lat = parseFloat($('newTraderLat').value);
-  const lng = parseFloat($('newTraderLng').value);
-  const rate = parseInt($('newTraderRate').value);
-  const res = $('addTraderResult');
-
-  if (!name || !bankCode || !phone) { res.style.color = 'red'; res.innerText = '❌ املأ الحقول'; return; }
-  if (isNaN(lat) || isNaN(lng)) { res.style.color = 'red'; res.innerText = '❌ إحداثيات'; return; }
-  if (isNaN(rate) || rate < 1 || rate > 50) { res.style.color = 'red'; res.innerText = '❌ نسبة غير صحيحة'; return; }
-
-  const subs = [];
-  $('newTraderSubs').querySelectorAll('.category-chip.active').forEach(b => subs.push(b.dataset.sub));
-  if (!subs.length) { res.style.color = 'red'; res.innerText = '❌ اختار تصنيف فرعي'; return; }
-
-  try {
-    await addTrader({
-      bankCode, name, phone, category,
-      subCategories: subs,
-      icon: CATEGORY_ICONS[category] || '🏪',
-      lat, lng, rate
-    });
-    res.style.color = 'green'; res.innerText = `✅ تم إضافة ${name}`;
-    setTimeout(() => { $('addTraderForm').style.display = 'none'; res.innerText = ''; renderAdminTraders(); }, 1500);
-  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
-}
 
 async function renderAdminCustomers() {
   adminData.customers = await getAllCustomers();
@@ -1083,17 +1083,46 @@ async function renderAdminCustomers() {
         <span class="active-badge">✅ نشط</span>
       </div>
       <div class="info">🏪 ${c.shops} تاجر | 💰 كسب: ${c.earned.toFixed(2)} | 💵 صرف: ${c.spent.toFixed(2)}</div>
-      <div class="info">📊 الرصيد: <strong>${c.balance.toFixed(2)} ج</strong></div>
+      <div class="info">📊 الرصيد: <strong>${c.balance.toFixed(2)} ج</strong> ${c.email ? '| 📧 ' + c.email : ''}</div>
       <div class="actions">
-        <button class="admin-btn primary" onclick="adminAdjustBal('${c.phone}')">💰 تعديل رصيد</button>
+        <button class="admin-btn primary" onclick="adminEditCustomerFull('${c.phone}')">✏️ تعديل بيانات</button>
+        <button class="admin-btn purple" onclick="adminChangePassCustomer('${c.id}')">🔒 كلمة المرور</button>
+        <button class="admin-btn success" onclick="adminAdjustBal('${c.phone}')">💰 رصيد</button>
         <button class="admin-btn warning" onclick="adminResetBal('${c.phone}')">🔄 تصفير</button>
+        <button class="admin-btn danger" onclick="adminDelCustomer('${c.phone}')">🗑️ حذف</button>
       </div>
     </div>`).join('');
 }
 
+window.adminEditCustomerFull = async function (phone) {
+  const c = adminData.customers.find(x => x.phone === phone);
+  if (!c) return;
+
+  const newName = prompt(`الاسم الحالي: ${c.name || 'مش محدد'}\nالجديد:`, c.name || '');
+  if (newName === null) return;
+
+  const newPhone = prompt(`الموبايل الحالي: ${c.phone}\nالجديد:`, c.phone);
+  if (newPhone === null) return;
+
+  try {
+    await adminUpdateCustomer(phone, newName.trim(), newPhone.trim());
+    alert('✅ تم التعديل');
+    renderAdminCustomers();
+  } catch (e) { alert('❌ ' + e.message); }
+};
+
+window.adminChangePassCustomer = async function (userId) {
+  const newPass = prompt('اكتب كلمة المرور الجديدة (6+):');
+  if (!newPass || newPass.length < 6) { alert('❌ قصيرة'); return; }
+  try {
+    await adminChangePassword(userId, newPass);
+    alert('✅ تم');
+  } catch (e) { alert('❌ ' + e.message); }
+};
+
 window.adminAdjustBal = async function (phone) {
   const merchants = adminData.merchants.length ? adminData.merchants : await getAllMerchants();
-  const list = merchants.map((m, i) => `${i + 1} - ${m.name} (${m.bank_code})`).join('\n');
+  const list = merchants.map((m, i) => `${i + 1} - ${m.name}`).join('\n');
   const idx = prompt(`اختار التاجر (رقم):\n${list}`);
   if (!idx) return;
   const m = merchants[parseInt(idx) - 1];
@@ -1109,6 +1138,12 @@ window.adminAdjustBal = async function (phone) {
 window.adminResetBal = async function (phone) {
   if (!confirm('تصفير كل الرصيد؟')) return;
   try { await resetCustomerBalance(phone); alert('✅ تم'); renderAdminCustomers(); }
+  catch (e) { alert('❌ ' + e.message); }
+};
+
+window.adminDelCustomer = async function (phone) {
+  if (!confirm(`حذف حساب العميل ${phone}؟`)) return;
+  try { await deleteCustomer(phone); alert('✅ تم'); renderAdminCustomers(); }
   catch (e) { alert('❌ ' + e.message); }
 };
 
@@ -1169,6 +1204,33 @@ window.adminDelInv = async function (id) {
   catch (e) { alert('❌ ' + e.message); }
 };
 
+async function renderAdminRequests() {
+  const el = $('adminRequestsList');
+  try {
+    const reqs = await adminGetAllRequests();
+    if (!reqs.length) { el.innerHTML = '<p style="color:#6b7280">لا توجد طلبات</p>'; return; }
+    el.innerHTML = reqs.map(r => {
+      const responses = r.request_responses || [];
+      const respHtml = responses.map(resp => {
+        const m = resp.merchants || {};
+        return `<div style="background:#f9fafb;padding:8px;border-radius:8px;margin-top:6px;border-right:3px solid var(--primary);font-size:12px">
+          <strong>🏪 ${m.name || ''}</strong> • 💰 ${parseFloat(resp.price||0).toFixed(0)} ج
+          <div style="color:#6b7280">${resp.message || ''}</div>
+        </div>`;
+      }).join('');
+      return `<div class="admin-item">
+        <div class="head">
+          <span class="title">📦 ${r.product}</span>
+          ${getStatusBadge(r.status)}
+        </div>
+        <div class="info">${r.details || ''}</div>
+        <div class="info" style="font-size:12px">🕒 ${new Date(r.created_at).toLocaleString('ar-EG')}</div>
+        ${respHtml}
+      </div>`;
+    }).join('');
+  } catch (e) { el.innerHTML = '<p style="color:#ef4444">' + e.message + '</p>'; }
+}
+
 async function renderAdminNotifHistory() {
   const notifs = await getNotifications();
   const el = $('adminNotifHistory');
@@ -1195,13 +1257,55 @@ async function handleSendNotif() {
   } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
 }
 
+function renderNewTraderSubs() {
+  const cat = $('newTraderCategory').value;
+  const subs = SUB_CATEGORIES[cat] || [];
+  $('newTraderSubs').innerHTML = subs.map(s =>
+    `<button type="button" class="category-chip" data-sub="${s.id}">${s.name}</button>`
+  ).join('');
+  $('newTraderSubs').querySelectorAll('.category-chip').forEach(btn => {
+    btn.onclick = () => btn.classList.toggle('active');
+  });
+}
+
+async function handleAddTrader() {
+  const name = $('newTraderName').value.trim();
+  const bankCode = $('newTraderBankCode').value.trim();
+  const phone = $('newTraderPhone').value.trim();
+  const category = $('newTraderCategory').value;
+  const lat = parseFloat($('newTraderLat').value);
+  const lng = parseFloat($('newTraderLng').value);
+  const rate = parseInt($('newTraderRate').value);
+  const res = $('addTraderResult');
+
+  if (!name || !bankCode || !phone) { res.style.color = 'red'; res.innerText = '❌ املأ الحقول'; return; }
+  if (isNaN(lat) || isNaN(lng)) { res.style.color = 'red'; res.innerText = '❌ إحداثيات'; return; }
+  if (isNaN(rate) || rate < 1 || rate > 50) { res.style.color = 'red'; res.innerText = '❌ نسبة غير صحيحة'; return; }
+
+  const subs = [];
+  $('newTraderSubs').querySelectorAll('.category-chip.active').forEach(b => subs.push(b.dataset.sub));
+  if (!subs.length) { res.style.color = 'red'; res.innerText = '❌ اختار تصنيف فرعي'; return; }
+
+  try {
+    await addTrader({
+      bankCode, name, phone, category,
+      subCategories: subs,
+      icon: CATEGORY_ICONS[category] || '🏪',
+      lat, lng, rate
+    });
+    res.style.color = 'green'; res.innerText = `✅ تم إضافة ${name}`;
+    setTimeout(() => { $('addTraderForm').style.display = 'none'; res.innerText = ''; renderAdminTraders(); }, 1500);
+  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
+}
+
 // ============================================================
-// ACCOUNT TAB
+// ACCOUNT
 // ============================================================
 async function initAccountMapUI() {
   if (!currentProfile) return;
   $('accName').innerText = currentProfile.name || '-';
   $('accPhone').innerText = currentProfile.phone || '-';
+  $('myEmail').value = currentProfile.email || '';
 
   try {
     const wallets = await getUserWalletsBreakdown(currentProfile.id);
@@ -1270,6 +1374,64 @@ async function handleSaveLocation() {
   } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
 }
 
+async function handleChangePassword() {
+  const currentPass = $('currentPass').value;
+  const newPass = $('newPass').value;
+  const confirmPass = $('newPassConfirm').value;
+  const res = $('changePassResult');
+
+  if (!currentPass || !newPass || !confirmPass) {
+    res.style.color = '#ef4444'; res.innerText = '❌ املأ كل الحقول'; return;
+  }
+  if (newPass !== confirmPass) {
+    res.style.color = '#ef4444'; res.innerText = '❌ كلمتين المرور مش متطابقتين'; return;
+  }
+  if (newPass.length < 6) {
+    res.style.color = '#ef4444'; res.innerText = '❌ كلمة المرور 6 أحرف على الأقل'; return;
+  }
+
+  try {
+    const email = currentProfile.phone.replace(/\D/g, '') + '@pamigo.local';
+    await changeMyPassword({ currentPassword: currentPass, newPassword: newPass, email });
+    res.style.color = '#10b981'; res.innerText = '✅ تم تغيير كلمة المرور';
+    $('currentPass').value = ''; $('newPass').value = ''; $('newPassConfirm').value = '';
+    setTimeout(() => { res.innerText = ''; $('changePassForm').style.display = 'none'; }, 2000);
+  } catch (e) {
+    res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
+  }
+}
+
+async function handleSaveEmail() {
+  const email = $('myEmail').value.trim();
+  const res = $('emailResult');
+  if (!email || !email.includes('@')) {
+    res.style.color = '#ef4444'; res.innerText = '❌ إيميل غير صحيح'; return;
+  }
+  try {
+    await updateMyEmail(email);
+    currentProfile.email = email;
+    res.style.color = '#10b981'; res.innerText = '✅ تم حفظ الإيميل';
+    setTimeout(() => res.innerText = '', 2000);
+  } catch (e) {
+    res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
+  }
+}
+
+async function handleSendReset() {
+  const email = $('forgotEmail').value.trim();
+  const res = $('forgotResult');
+  if (!email || !email.includes('@')) {
+    res.style.color = '#ef4444'; res.innerText = '❌ إيميل غير صحيح'; return;
+  }
+  try {
+    await sendPasswordReset(email);
+    res.style.color = '#10b981';
+    res.innerText = '✅ تم الإرسال — شوف إيميلك';
+  } catch (e) {
+    res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
+  }
+}
+
 // ============================================================
 // AUTH
 // ============================================================
@@ -1319,17 +1481,28 @@ async function refreshData() {
 
 async function handleLogin(e) {
   e.preventDefault();
+  const role = $('loginRole').value;
   const phone = $('loginPhone').value.trim();
   const password = $('loginPassword').value;
+  const bankCode = $('loginBankCode') ? getRealValue('loginBankCode') : '';
+  const adminCode = $('loginAdminCode') ? getRealValue('loginAdminCode') : '';
+
   if (!phone || !password) return showMessage('❌ املأ البيانات');
+  if (role === 'merchant' && !bankCode) return showMessage('❌ لازم بنكود التاجر');
+  if (role === 'admin' && !adminCode) return showMessage('❌ لازم بنكود الأدمن');
+
   const btn = $('loginBtn');
-  btn.disabled = true; btn.innerText = '⏳...';
+  btn.disabled = true; btn.innerText = '⏳ جاري الدخول...';
+
+  expectedLogin = { role, bankCode, adminCode };
+
   try {
     await signIn({ phone, password });
-    showMessage('✅ تم', 'success');
   } catch (err) {
+    expectedLogin = null;
     showMessage('❌ ' + translateError(err.message));
-  } finally { btn.disabled = false; btn.innerText = '🚀 دخول'; }
+    btn.disabled = false; btn.innerText = '🚀 دخول';
+  }
 }
 
 async function handleSignup(e) {
@@ -1338,8 +1511,8 @@ async function handleSignup(e) {
   const phone = $('signupPhone').value.trim();
   const password = $('signupPassword').value;
   const role = $('signupRole').value;
-  const bankCode = $('signupBankCode').value.trim();
-  const adminCode = $('signupAdminCode') ? $('signupAdminCode').value.trim() : '';
+  const bankCode = getRealValue('signupBankCode');
+  const adminCode = getRealValue('signupAdminCode');
 
   if (!name || !phone || !password) return showMessage('❌ املأ الحقول');
   if (password.length < 6) return showMessage('❌ الباسورد 6 أحرف على الأقل');
@@ -1347,16 +1520,13 @@ async function handleSignup(e) {
   if (role === 'admin' && !adminCode) return showMessage('❌ لازم بنكود الأدمن');
 
   const btn = $('signupBtn');
-  btn.disabled = true; btn.innerText = '⏳...';
+  btn.disabled = true; btn.innerText = '⏳ جاري التسجيل...';
   try {
-    if (role === 'merchant') {
-      await signUpMerchant({ phone, password, name, bankCode });
-    } else if (role === 'admin') {
-      await signUpAdmin({ phone, password, name, adminCode });
-    } else {
-      await signUpCustomer({ phone, password, name });
-    }
-    showMessage('✅ تم', 'success');
+    if (role === 'merchant') await signUpMerchant({ phone, password, name, bankCode });
+    else if (role === 'admin') await signUpAdmin({ phone, password, name, adminCode });
+    else await signUpCustomer({ phone, password, name });
+
+    showMessage('✅ تم إنشاء الحساب', 'success');
     await signIn({ phone, password });
   } catch (err) { showMessage('❌ ' + translateError(err.message)); }
   finally { btn.disabled = false; btn.innerText = '📝 إنشاء الحساب'; }
@@ -1364,6 +1534,7 @@ async function handleSignup(e) {
 
 async function handleLogout() {
   if (!confirm('متأكد؟')) return;
+  expectedLogin = null;
   await signOut();
 }
 
@@ -1393,6 +1564,12 @@ function updateBankCodeVisibility() {
   $('adminCodeGroup').style.display = role === 'admin' ? 'block' : 'none';
 }
 
+function updateLoginVisibility() {
+  const role = $('loginRole').value;
+  $('loginBankCodeGroup').style.display = role === 'merchant' ? 'block' : 'none';
+  $('loginAdminCodeGroup').style.display = role === 'admin' ? 'block' : 'none';
+}
+
 // ============================================================
 // BIND
 // ============================================================
@@ -1401,6 +1578,7 @@ function bindEvents() {
   $('signupForm').addEventListener('submit', handleSignup);
   $('logoutBtn').addEventListener('click', handleLogout);
   $('signupRole').addEventListener('change', updateBankCodeVisibility);
+  $('loginRole').addEventListener('change', updateLoginVisibility);
   $('submitInvoiceBtn').addEventListener('click', handleSubmitInvoice);
   $('redeemBtn').addEventListener('click', handleRedeem);
   $('reqImage').addEventListener('change', handleReqImage);
@@ -1432,6 +1610,26 @@ function bindEvents() {
 
   $('searchAddrBtn').addEventListener('click', handleSearchAddress);
   $('saveLocationBtn').addEventListener('click', handleSaveLocation);
+
+  // Forgot password
+  $('forgotPassLink').addEventListener('click', (e) => {
+    e.preventDefault();
+    $('forgotModal').classList.add('active');
+  });
+  $('sendResetBtn').addEventListener('click', handleSendReset);
+
+  // Account settings
+  $('openChangePassBtn').addEventListener('click', () => {
+    $('changePassForm').style.display = 'block';
+    $('emailForm').style.display = 'none';
+  });
+  $('openEmailBtn').addEventListener('click', () => {
+    $('emailForm').style.display = 'block';
+    $('changePassForm').style.display = 'none';
+    $('myEmail').value = currentProfile?.email || '';
+  });
+  $('saveNewPassBtn').addEventListener('click', handleChangePassword);
+  $('saveEmailBtn').addEventListener('click', handleSaveEmail);
 
   document.querySelectorAll('.auth-tab').forEach(tab => {
     tab.addEventListener('click', () => showAuthTab(tab.dataset.tab));
@@ -1496,21 +1694,60 @@ function bindEvents() {
 }
 
 // ============================================================
-// INIT
+// AUTH STATE
 // ============================================================
 onAuthChange(async (event, session) => {
   if (session?.user) {
     const profile = await getProfile();
-    if (profile) await showMainScreen(profile);
+    if (!profile) return;
+
+    if (expectedLogin) {
+      const exp = expectedLogin;
+      expectedLogin = null;
+
+      if (profile.role !== exp.role) {
+        await signOut();
+        setTimeout(() => showMessage(`❌ الدور مش متطابق — حسابك ${getRoleName(profile.role)}`), 300);
+        return;
+      }
+
+      if (exp.role === 'admin' && exp.adminCode !== 'PETAD-12321') {
+        await signOut();
+        setTimeout(() => showMessage('❌ بنكود الأدمن غير صحيح'), 300);
+        return;
+      }
+
+      if (exp.role === 'merchant') {
+        const m = await getMyMerchant();
+        if (!m || (m.bank_code || '').toUpperCase() !== exp.bankCode.toUpperCase()) {
+          await signOut();
+          setTimeout(() => showMessage('❌ البنكود مش بتاع حسابك'), 300);
+          return;
+        }
+      }
+    }
+
+    await showMainScreen(profile);
   } else {
     showAuthScreen();
   }
 });
 
+// ============================================================
+// INIT
+// ============================================================
 window.addEventListener('load', async () => {
   bindEvents();
   showAuthTab('login');
   updateBankCodeVisibility();
+  updateLoginVisibility();
+
+  // Peek effect على حقول البنكود
+  applyPeekEffect('signupBankCode');
+  applyPeekEffect('signupAdminCode');
+  applyPeekEffect('loginBankCode');
+  applyPeekEffect('loginAdminCode');
+  applyPeekEffect('invBankCode');
 
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.user) {

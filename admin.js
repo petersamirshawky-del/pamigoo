@@ -34,8 +34,7 @@ export async function getAdminStats() {
 
 export async function getAllMerchants() {
   const { data } = await supabase
-    .from('merchants')
-    .select('*, offers(id)')
+    .from('merchants').select('*, offers(id)')
     .order('created_at', { ascending: false });
   return data || [];
 }
@@ -44,22 +43,22 @@ export async function getAllCustomers() {
   const { data: profiles } = await supabase.from('profiles').select('*').eq('role', 'customer');
   const { data: wallets } = await supabase.from('wallets').select('*');
 
-  const result = (profiles || []).map(p => {
+  return (profiles || []).map(p => {
     const w = (wallets || []).filter(x => x.customer_id === p.id);
-    const balance = w.reduce((s, x) => s + parseFloat(x.balance || 0), 0);
-    const earned = w.reduce((s, x) => s + parseFloat(x.earned || 0), 0);
-    const spent = w.reduce((s, x) => s + parseFloat(x.spent || 0), 0);
-    return { ...p, balance, earned, spent, shops: w.length };
+    return {
+      ...p,
+      balance: w.reduce((s, x) => s + parseFloat(x.balance || 0), 0),
+      earned: w.reduce((s, x) => s + parseFloat(x.earned || 0), 0),
+      spent: w.reduce((s, x) => s + parseFloat(x.spent || 0), 0),
+      shops: w.length
+    };
   });
-  return result;
 }
 
 export async function getAllInvoices(search) {
-  let q = supabase.from('invoices')
+  const { data } = await supabase.from('invoices')
     .select('*, merchants(name, icon)')
-    .order('created_at', { ascending: false })
-    .limit(200);
-  const { data } = await q;
+    .order('created_at', { ascending: false }).limit(200);
   let list = data || [];
   if (search) {
     const s = search.toLowerCase();
@@ -91,8 +90,7 @@ export async function addTrader(data) {
 
 export async function freezeMerchant(merchantId, frozen) {
   const { data, error } = await supabase.rpc('admin_freeze_merchant', {
-    p_merchant_id: merchantId,
-    p_frozen: frozen
+    p_merchant_id: merchantId, p_frozen: frozen
   });
   if (error) throw error;
   if (!data.ok) throw new Error(data.error);
@@ -100,8 +98,7 @@ export async function freezeMerchant(merchantId, frozen) {
 }
 
 export async function updateMerchantRate(merchantId, rate) {
-  const { error } = await supabase
-    .from('merchants').update({ cashback_rate: rate }).eq('id', merchantId);
+  const { error } = await supabase.from('merchants').update({ cashback_rate: rate }).eq('id', merchantId);
   if (error) throw error;
 }
 
@@ -110,11 +107,37 @@ export async function deleteMerchant(merchantId) {
   if (error) throw error;
 }
 
+// ✅ جديد: تعديل بيانات تاجر
+export async function adminUpdateMerchant(merchantId, data) {
+  const { data: res, error } = await supabase.rpc('admin_update_merchant', {
+    p_merchant_id: merchantId,
+    p_new_name: data.name || null,
+    p_new_phone: data.phone || null,
+    p_new_lat: data.lat ?? null,
+    p_new_lng: data.lng ?? null,
+    p_new_rate: data.rate ?? null,
+    p_new_sub_categories: data.subCategories || null
+  });
+  if (error) throw error;
+  if (!res.ok) throw new Error(res.error);
+  return res;
+}
+
+// ✅ جديد: تعديل بيانات عميل
+export async function adminUpdateCustomer(phone, newName, newPhone) {
+  const { data, error } = await supabase.rpc('admin_update_customer', {
+    p_phone: phone,
+    p_new_name: newName || null,
+    p_new_phone: newPhone || null
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data;
+}
+
 export async function adjustCustomerBalance(phone, merchantId, amount) {
   const { data, error } = await supabase.rpc('admin_adjust_balance', {
-    p_customer_phone: phone,
-    p_merchant_id: merchantId,
-    p_amount: amount
+    p_customer_phone: phone, p_merchant_id: merchantId, p_amount: amount
   });
   if (error) throw error;
   if (!data.ok) throw new Error(data.error);
@@ -138,9 +161,7 @@ export async function deleteCustomer(phone) {
 
 export async function editInvoiceAdmin(invoiceId, newAmount, newPhone) {
   const { data, error } = await supabase.rpc('edit_invoice', {
-    p_invoice_id: invoiceId,
-    p_new_amount: newAmount,
-    p_new_phone: newPhone
+    p_invoice_id: invoiceId, p_new_amount: newAmount, p_new_phone: newPhone
   });
   if (error) throw error;
   if (!data.ok) throw new Error(data.error);
@@ -149,8 +170,7 @@ export async function editInvoiceAdmin(invoiceId, newAmount, newPhone) {
 
 export async function returnInvoiceAdmin(invoiceId, returnAmount) {
   const { data, error } = await supabase.rpc('process_return', {
-    p_invoice_id: invoiceId,
-    p_return_amount: returnAmount
+    p_invoice_id: invoiceId, p_return_amount: returnAmount
   });
   if (error) throw error;
   if (!data.ok) throw new Error(data.error);
@@ -168,7 +188,38 @@ export async function sendNotification({ title, message, target }) {
 }
 
 export async function getNotifications() {
-  const { data } = await supabase
-    .from('notifications').select('*').order('created_at', { ascending: false }).limit(50);
+  const { data } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(50);
   return data || [];
+}
+
+// ✅ جديد: كل الطلبات للأدمن
+export async function adminGetAllRequests() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from('special_requests')
+    .select(`
+      *,
+      request_responses (
+        id, price, message, image_url, merchant_id,
+        customer_messages, merchant_reply, created_at,
+        merchants ( name, icon )
+      )
+    `)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) { console.error(error); return []; }
+  return data || [];
+}
+
+// ✅ جديد: الأدمن يغيّر باسورد أي حد
+export async function adminResetUserPassword(userId, newPassword) {
+  const { data, error } = await supabase.rpc('admin_change_password', {
+    p_user_id: userId, p_new_password: newPassword
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data;
 }

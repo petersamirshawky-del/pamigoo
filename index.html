@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes">
   <meta name="theme-color" content="#1a2a6c">
   <title>PAMIGO</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="css/base.css">
@@ -30,15 +31,44 @@
         <button class="auth-tab active" data-tab="login">🔐 دخول</button>
         <button class="auth-tab" data-tab="signup">📝 حساب جديد</button>
       </div>
+
       <form id="loginForm">
         <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">تسجيل الدخول</h4>
+
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">👤 حسابي:</label>
+        <select id="loginRole">
+          <option value="customer">👤 عميل</option>
+          <option value="merchant">🏪 تاجر</option>
+          <option value="admin">👑 أدمن</option>
+        </select>
+
         <input type="tel" id="loginPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
         <div class="password-wrap">
           <input type="password" id="loginPassword" placeholder="🔑 كلمة المرور" autocomplete="current-password">
           <button type="button" class="eye-btn" onclick="togglePass('loginPassword', this)" tabindex="-1">👁️</button>
         </div>
+
+        <div id="loginBankCodeGroup" style="display:none">
+          <div class="password-wrap">
+            <input type="password" id="loginBankCode" placeholder="🔑 بنكود التاجر" autocomplete="off" style="text-transform:uppercase">
+            <button type="button" class="eye-btn" onclick="togglePass('loginBankCode', this)" tabindex="-1">👁️</button>
+          </div>
+        </div>
+
+        <div id="loginAdminCodeGroup" style="display:none">
+          <div class="password-wrap">
+            <input type="password" id="loginAdminCode" placeholder="🔑 بنكود الأدمن" autocomplete="off">
+            <button type="button" class="eye-btn" onclick="togglePass('loginAdminCode', this)" tabindex="-1">👁️</button>
+          </div>
+        </div>
+
         <button type="submit" id="loginBtn" style="margin-top:10px">🚀 دخول</button>
+
+        <p style="text-align:center;margin-top:12px;font-size:13px">
+          <a href="#" id="forgotPassLink" style="color:var(--primary);text-decoration:underline">نسيت كلمة المرور؟</a>
+        </p>
       </form>
+
       <form id="signupForm" style="display:none">
         <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">حساب جديد</h4>
         <input type="text" id="signupName" placeholder="👤 الاسم" autocomplete="name">
@@ -61,12 +91,11 @@
             <input type="password" id="signupAdminCode" placeholder="🔑 بنكود الأدمن" autocomplete="off">
             <button type="button" class="eye-btn" onclick="togglePass('signupAdminCode', this)" tabindex="-1">👁️</button>
           </div>
-          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">
-            💡 خاص بصاحب المنصة فقط.
-          </p>
+          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">💡 خاص بصاحب المنصة فقط.</p>
         </div>
         <button type="submit" id="signupBtn" style="margin-top:10px">📝 إنشاء الحساب</button>
       </form>
+
       <div id="authMessage" class="auth-message"></div>
     </div>
   </div>
@@ -87,7 +116,6 @@
       <span id="merchantName" style="color:#065f46;font-weight:600">-</span>
     </div>
 
-    <!-- Tabs -->
     <div class="tabs" id="mainTabs">
       <button class="tab-btn active" data-tab="home" data-role="customer">🏠 الرئيسية</button>
       <button class="tab-btn" data-tab="offers" data-role="customer">🎁 العروض</button>
@@ -100,7 +128,7 @@
       <button class="tab-btn" data-tab="account" data-role="all">👤 حسابي</button>
     </div>
 
-    <!-- ============ الرئيسية ============ -->
+    <!-- الرئيسية -->
     <div class="tab-content active" id="tab-home">
       <div class="radius-control">
         <label>🔍 نطاق البحث: <span id="homeRadiusValue">2</span> كم</label>
@@ -145,7 +173,7 @@
       <div id="merchantsList"><div class="no-requests">⏳ جاري التحميل...</div></div>
     </div>
 
-    <!-- ============ العروض ============ -->
+    <!-- العروض -->
     <div class="tab-content" id="tab-offers">
       <div class="radius-control">
         <div>
@@ -174,7 +202,7 @@
       <div class="offers-grid" id="offersGrid"></div>
     </div>
 
-    <!-- ============ الفاتورة ============ -->
+    <!-- الفاتورة -->
     <div class="tab-content" id="tab-invoice">
       <div class="card">
         <h4 style="margin-bottom:10px">🧾 رفع فاتورة</h4>
@@ -231,7 +259,7 @@
       </div>
     </div>
 
-    <!-- ============ طلباتي ============ -->
+    <!-- طلباتي -->
     <div class="tab-content" id="tab-requests">
       <div class="card" id="requestFormCard" style="display:none">
         <h4 style="margin-bottom:10px">📝 طلب خاص</h4>
@@ -285,7 +313,7 @@
       </div>
     </div>
 
-    <!-- ============ لوحتي ============ -->
+    <!-- لوحتي -->
     <div class="tab-content" id="tab-dashboard">
       <div class="card">
         <h4 style="margin-bottom:12px">📊 إحصائيات متجري</h4>
@@ -336,7 +364,7 @@
       </div>
     </div>
 
-    <!-- ============ تقاريري ============ -->
+    <!-- تقاريري -->
     <div class="tab-content" id="tab-reports">
       <div class="card" id="reportContent">
         <h4 style="margin-bottom:15px">📈 تقارير متجري</h4>
@@ -358,7 +386,7 @@
       </div>
     </div>
 
-    <!-- ============ تحليلاتي ============ -->
+    <!-- تحليلاتي -->
     <div class="tab-content" id="tab-analytics">
       <div class="card">
         <h4 style="margin-bottom:15px">📉 تحليلات متجري</h4>
@@ -375,7 +403,7 @@
       </div>
     </div>
 
-    <!-- ============ الأدمن ============ -->
+    <!-- الأدمن -->
     <div class="tab-content" id="tab-admin">
       <div class="admin-header">
         <h3>👑 لوحة الأدمن</h3>
@@ -386,6 +414,7 @@
         <button class="admin-subtab" data-admin="traders">🏪 التجار</button>
         <button class="admin-subtab" data-admin="customers">👥 العملاء</button>
         <button class="admin-subtab" data-admin="invoices">🧾 الفواتير</button>
+        <button class="admin-subtab" data-admin="requests">📋 الطلبات</button>
         <button class="admin-subtab" data-admin="notifications">📢 إشعارات</button>
       </div>
 
@@ -459,6 +488,13 @@
         </div>
       </div>
 
+      <div class="admin-section" id="admin-requests">
+        <div class="card">
+          <h4 style="margin-bottom:15px">📋 كل الطلبات</h4>
+          <div id="adminRequestsList"><p style="color:#6b7280;font-size:14px">جاري التحميل...</p></div>
+        </div>
+      </div>
+
       <div class="admin-section" id="admin-notifications">
         <div class="card">
           <h4 style="margin-bottom:15px">📢 إرسال إشعار</h4>
@@ -479,7 +515,7 @@
       </div>
     </div>
 
-    <!-- ============ حسابي ============ -->
+    <!-- حسابي -->
     <div class="tab-content" id="tab-account">
       <div class="card">
         <h4 style="margin-bottom:15px">👤 حسابي</h4>
@@ -493,6 +529,43 @@
         <h4 style="margin-bottom:15px">💰 تفصيل رصيدي</h4>
         <div id="customerWalletsBreakdown"></div>
       </div>
+
+      <!-- ⚙️ إعدادات الحساب -->
+      <div class="card" style="border-right:4px solid var(--warning)">
+        <h4 style="margin-bottom:15px">⚙️ إعدادات الحساب</h4>
+
+        <button id="openChangePassBtn" style="background:var(--warning);margin-bottom:10px">🔒 تغيير كلمة المرور</button>
+        <button id="openEmailBtn" style="background:var(--primary)">📧 إضافة / تحديث الإيميل</button>
+
+        <div id="changePassForm" style="display:none;margin-top:15px;padding-top:15px;border-top:1px solid #eee">
+          <h5 style="margin-bottom:10px;color:var(--primary)">🔒 تغيير كلمة المرور</h5>
+          <div class="password-wrap">
+            <input type="password" id="currentPass" placeholder="🔑 كلمة المرور الحالية">
+            <button type="button" class="eye-btn" onclick="togglePass('currentPass', this)" tabindex="-1">👁️</button>
+          </div>
+          <div class="password-wrap">
+            <input type="password" id="newPass" placeholder="🔑 كلمة المرور الجديدة (6+)">
+            <button type="button" class="eye-btn" onclick="togglePass('newPass', this)" tabindex="-1">👁️</button>
+          </div>
+          <div class="password-wrap">
+            <input type="password" id="newPassConfirm" placeholder="🔑 تأكيد كلمة المرور">
+            <button type="button" class="eye-btn" onclick="togglePass('newPassConfirm', this)" tabindex="-1">👁️</button>
+          </div>
+          <button id="saveNewPassBtn" style="background:var(--success);margin-top:10px">💾 حفظ</button>
+          <div id="changePassResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
+        </div>
+
+        <div id="emailForm" style="display:none;margin-top:15px;padding-top:15px;border-top:1px solid #eee">
+          <h5 style="margin-bottom:10px;color:var(--primary)">📧 الإيميل</h5>
+          <input type="email" id="myEmail" placeholder="example@mail.com">
+          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">
+            💡 الإيميل بيستخدم في استرجاع كلمة المرور لو نسيتها.
+          </p>
+          <button id="saveEmailBtn" style="background:var(--primary)">💾 حفظ</button>
+          <div id="emailResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
+        </div>
+      </div>
+
       <div class="card">
         <h4 id="pickerTitle" style="margin-bottom:8px">📍 حدد موقعك</h4>
         <p id="pickerHint" style="font-size:13px;color:#6b7280;margin-bottom:8px">اضغط على الخريطة أو ابحث بالعنوان</p>
@@ -509,6 +582,7 @@
 
   </div>
 
+  <!-- Modal -->
   <div class="modal-overlay" id="merchantModal" onclick="closeModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
       <button class="close-btn" onclick="closeMerchantModal()">✕</button>
@@ -518,7 +592,21 @@
     </div>
   </div>
 
-  <div class="footer">PAMIGO v38.0 — Stage 8</div>
+  <!-- Modal: نسيت كلمة المرور -->
+  <div class="modal-overlay" id="forgotModal" onclick="closeForgotModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <button class="close-btn" onclick="closeForgotModal()">✕</button>
+      <h3 style="padding-left:0">🔑 نسيت كلمة المرور</h3>
+      <p style="font-size:13px;color:#6b7280;margin-bottom:14px">
+        اكتب الإيميل اللي ربطته بحسابك، وهيوصلك لينك لتصفير كلمة المرور.
+      </p>
+      <input type="email" id="forgotEmail" placeholder="example@mail.com">
+      <button id="sendResetBtn" style="margin-top:10px">📧 إرسال لينك</button>
+      <div id="forgotResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
+    </div>
+  </div>
+
+  <div class="footer">PAMIGO v40.0 — Stage 10</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -530,6 +618,10 @@
       const isHidden = input.type === 'password';
       input.type = isHidden ? 'text' : 'password';
       btn.innerText = isHidden ? '🙈' : '👁️';
+    };
+    window.closeForgotModal = function(e) {
+      if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
+      document.getElementById('forgotModal').classList.remove('active');
     };
   </script>
 </body>
