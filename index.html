@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes">
   <meta name="theme-color" content="#1a2a6c">
-  <title>PAMIGO — اختبار الاتصال</title>
+  <title>PAMIGO</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="stylesheet" href="css/base.css">
@@ -13,32 +13,115 @@
 </head>
 <body>
 
+  <!-- ============================================================
+       Header
+  ============================================================ -->
   <div class="header">
-    <div>
-      <h2>PAMIGO</h2>
-      <p>🔌 اختبار الاتصال بـ Supabase</p>
+    <div class="header-left">
+      <div>
+        <h2>PAMIGO</h2>
+        <p>🔐 المرحلة 3 — تسجيل الدخول</p>
+      </div>
     </div>
   </div>
 
-  <div class="card">
-    <h3 style="margin-bottom:12px">1) الاتصال</h3>
-    <div id="connStatus" class="status-box">⏳ جاري الاختبار...</div>
+  <!-- ============================================================
+       شاشة تسجيل الدخول / التسجيل
+  ============================================================ -->
+  <div id="authScreen" style="display:none">
+
+    <div class="card login-box">
+
+      <!-- التبويبات -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">🔐 دخول</button>
+        <button class="auth-tab" data-tab="signup">📝 حساب جديد</button>
+      </div>
+
+      <!-- نموذج الدخول -->
+      <form id="loginForm">
+        <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">
+          تسجيل الدخول
+        </h4>
+
+        <input type="tel" id="loginPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
+        <input type="password" id="loginPassword" placeholder="🔑 كلمة المرور" autocomplete="current-password">
+
+        <button type="submit" id="loginBtn" style="margin-top:10px">
+          🚀 دخول
+        </button>
+      </form>
+
+      <!-- نموذج التسجيل -->
+      <form id="signupForm" style="display:none">
+        <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">
+          حساب جديد
+        </h4>
+
+        <input type="text" id="signupName" placeholder="👤 الاسم" autocomplete="name">
+        <input type="tel" id="signupPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
+        <input type="password" id="signupPassword" placeholder="🔑 كلمة المرور (6 أحرف على الأقل)" autocomplete="new-password">
+
+        <select id="signupRole">
+          <option value="customer">👤 عميل</option>
+          <option value="merchant">🏪 تاجر</option>
+        </select>
+
+        <button type="submit" id="signupBtn" style="margin-top:10px">
+          📝 إنشاء الحساب
+        </button>
+      </form>
+
+      <!-- رسالة المستخدم -->
+      <div id="authMessage" class="auth-message"></div>
+
+    </div>
+
   </div>
 
-  <div class="card">
-    <h3 style="margin-bottom:12px">2) الجداول</h3>
-    <div id="tablesStatus">⏳ جاري الفحص...</div>
+  <!-- ============================================================
+       الشاشة الرئيسية (بعد تسجيل الدخول)
+  ============================================================ -->
+  <div id="mainScreen" style="display:none">
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:15px">
+        <h3 style="margin:0">👋 أهلاً بك</h3>
+        <span id="userRole" class="role-badge">-</span>
+      </div>
+
+      <div class="info-row">
+        <span>👤 الاسم</span>
+        <strong id="userName">-</strong>
+      </div>
+      <div class="info-row">
+        <span>📱 الموبايل</span>
+        <strong id="userPhone">-</strong>
+      </div>
+      <div class="info-row">
+        <span>📅 تاريخ التسجيل</span>
+        <strong id="userSince">-</strong>
+      </div>
+    </div>
+
+    <div class="card" style="background:#dbeafe;border-right:4px solid var(--primary)">
+      <h4 style="margin-bottom:8px">✅ تسجيل الدخول شغّال</h4>
+      <p style="font-size:14px;color:#1e40af;line-height:1.7">
+        الجلسة محفوظة، تقدر تعمل Refresh وهتفضل مسجل دخول.<br>
+        <strong>المرحلة اللي بعدها:</strong> الصفحة الرئيسية (التجار + العروض + الخريطة).
+      </p>
+    </div>
+
+    <button id="logoutBtn" class="btn-danger">
+      🚪 تسجيل الخروج
+    </button>
+
   </div>
 
-  <div class="card">
-    <h3 style="margin-bottom:12px">📋 خطواتك التالية</h3>
-    <p style="line-height:1.8;color:#4b5563">
-      لو كل الجداول طلعت ✅، معنى كده إن المشروع اتربط بنجاح.<br>
-      بعدها هنضيف <strong>تسجيل الدخول</strong> وهنبدأ نبني الواجهة الحقيقية.
-    </p>
-  </div>
-
-  <div class="footer">PAMIGO v37.0 — Skeleton</div>
+  <!-- ============================================================
+       Footer
+  ============================================================ -->
+  <div class="footer">PAMIGO v37.0 — Stage 3</div>
 
   <script type="module" src="app.js"></script>
 </body>
