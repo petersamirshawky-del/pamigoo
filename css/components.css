@@ -576,3 +576,32 @@ html { scroll-behavior: smooth; }
   font-size: 15.5px;
   padding: 14px;
 }
+/* ============================================================
+   Font Awesome Icons in Chips
+   ============================================================ */
+.category-chip i {
+  margin-left: 6px;
+  font-size: 13px;
+  transition: transform .2s;
+}
+
+.category-chip:hover i {
+  transform: scale(1.15);
+}
+
+.category-chip.active i {
+  color: #fff;
+}
+
+/* Icons في التبويبات */
+.tab-btn i {
+  margin-left: 5px;
+  font-size: 13px;
+}
+
+/* Icons في الأزرار الكبيرة */
+.card button i,
+.admin-btn i,
+.btn-danger i {
+  margin-left: 6px;
+}
