@@ -451,18 +451,26 @@
 .card button { font-size: 15.5px; padding: 14px; }
 
 /* ============================================================
-   Ratings Stars ⭐ NEW
+   Ratings Stars ⭐ (using Unicode ★)
    ============================================================ */
-.stars i {
-  font-size: 32px;
+.stars .star {
+  font-size: 42px;
   cursor: pointer;
-  color: #e5e7eb;
+  color: #d1d5db;
   transition: all .15s;
+  user-select: none;
+  line-height: 1;
+  -webkit-user-select: none;
 }
-.stars i:hover { transform: scale(1.15); }
-.stars i.active {
+
+.stars .star:hover {
+  transform: scale(1.2);
+  color: #fbbf24;
+}
+
+.stars .star.active {
   color: #f59e0b;
-  text-shadow: 0 2px 6px rgba(245, 158, 11, 0.4);
+  text-shadow: 0 2px 8px rgba(245, 158, 11, 0.5);
 }
 
 .rating-mini {
