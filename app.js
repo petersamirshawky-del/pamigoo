@@ -1,10 +1,11 @@
 ﻿// ============================================================
-// PAMIGO - Main Entry (Stage 10: Full Features)
+// PAMIGO - Main Entry (Stage 11: Real Email + Fixes)
 // ============================================================
 import { supabase } from './supabase.js';
 import { SUB_CATEGORIES, CATEGORY_ICONS } from './config.js';
 import {
-  signUpCustomer, signUpMerchant, signUpAdmin, signIn, signOut,
+  signUpCustomer, signUpMerchant, signUpAdmin, signOut,
+  findEmailByPhone, signInWithEmail,
   getProfile, getMyMerchant, onAuthChange,
   applyPeekEffect, getRealValue,
   changeMyPassword, adminChangePassword,
@@ -1020,6 +1021,9 @@ window.adminEditMerchantFull = async function (id) {
   const m = adminData.merchants.find(x => x.id === id);
   if (!m) return;
 
+  const newBankCode = prompt(`البنكود الحالي: ${m.bank_code}\nالجديد:`, m.bank_code);
+  if (newBankCode === null) return;
+
   const newName = prompt(`اسم التاجر الحالي: ${m.name}\nالجديد:`, m.name);
   if (newName === null) return;
 
@@ -1037,6 +1041,7 @@ window.adminEditMerchantFull = async function (id) {
 
   try {
     await adminUpdateMerchant(id, {
+      bankCode: newBankCode.trim() || m.bank_code,
       name: newName.trim() || m.name,
       phone: newPhone.trim() || m.phone,
       lat: parseFloat(newLat),
@@ -1083,7 +1088,7 @@ async function renderAdminCustomers() {
         <span class="active-badge">✅ نشط</span>
       </div>
       <div class="info">🏪 ${c.shops} تاجر | 💰 كسب: ${c.earned.toFixed(2)} | 💵 صرف: ${c.spent.toFixed(2)}</div>
-      <div class="info">📊 الرصيد: <strong>${c.balance.toFixed(2)} ج</strong> ${c.email ? '| 📧 ' + c.email : ''}</div>
+      <div class="info">📊 الرصيد: <strong>${c.balance.toFixed(2)} ج</strong>${c.email ? ' | 📧 ' + c.email : ''}</div>
       <div class="actions">
         <button class="admin-btn primary" onclick="adminEditCustomerFull('${c.phone}')">✏️ تعديل بيانات</button>
         <button class="admin-btn purple" onclick="adminChangePassCustomer('${c.id}')">🔒 كلمة المرور</button>
@@ -1305,6 +1310,7 @@ async function initAccountMapUI() {
   if (!currentProfile) return;
   $('accName').innerText = currentProfile.name || '-';
   $('accPhone').innerText = currentProfile.phone || '-';
+  $('accEmail').innerText = currentProfile.email || 'لم يتم إضافة إيميل';
   $('myEmail').value = currentProfile.email || '';
 
   try {
@@ -1391,8 +1397,7 @@ async function handleChangePassword() {
   }
 
   try {
-    const email = currentProfile.phone.replace(/\D/g, '') + '@pamigo.local';
-    await changeMyPassword({ currentPassword: currentPass, newPassword: newPass, email });
+    await changeMyPassword({ currentPassword: currentPass, newPassword: newPass });
     res.style.color = '#10b981'; res.innerText = '✅ تم تغيير كلمة المرور';
     $('currentPass').value = ''; $('newPass').value = ''; $('newPassConfirm').value = '';
     setTimeout(() => { res.innerText = ''; $('changePassForm').style.display = 'none'; }, 2000);
@@ -1410,8 +1415,8 @@ async function handleSaveEmail() {
   try {
     await updateMyEmail(email);
     currentProfile.email = email;
-    res.style.color = '#10b981'; res.innerText = '✅ تم حفظ الإيميل';
-    setTimeout(() => res.innerText = '', 2000);
+    res.style.color = '#10b981'; res.innerText = '✅ تم حفظ الإيميل — شوف بريدك للتفعيل';
+    setTimeout(() => res.innerText = '', 3000);
   } catch (e) {
     res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
   }
@@ -1497,7 +1502,9 @@ async function handleLogin(e) {
   expectedLogin = { role, bankCode, adminCode };
 
   try {
-    await signIn({ phone, password });
+    const email = await findEmailByPhone(phone);
+    if (!email) throw new Error('الموبايل مش مسجل');
+    await signInWithEmail({ email, password });
   } catch (err) {
     expectedLogin = null;
     showMessage('❌ ' + translateError(err.message));
@@ -1509,12 +1516,14 @@ async function handleSignup(e) {
   e.preventDefault();
   const name = $('signupName').value.trim();
   const phone = $('signupPhone').value.trim();
+  const email = $('signupEmail').value.trim().toLowerCase();
   const password = $('signupPassword').value;
   const role = $('signupRole').value;
   const bankCode = getRealValue('signupBankCode');
   const adminCode = getRealValue('signupAdminCode');
 
-  if (!name || !phone || !password) return showMessage('❌ املأ الحقول');
+  if (!name || !phone || !password || !email) return showMessage('❌ املأ الحقول');
+  if (!email.includes('@') || email.length < 5) return showMessage('❌ إيميل غير صحيح');
   if (password.length < 6) return showMessage('❌ الباسورد 6 أحرف على الأقل');
   if (role === 'merchant' && !bankCode) return showMessage('❌ لازم البنكود');
   if (role === 'admin' && !adminCode) return showMessage('❌ لازم بنكود الأدمن');
@@ -1522,14 +1531,21 @@ async function handleSignup(e) {
   const btn = $('signupBtn');
   btn.disabled = true; btn.innerText = '⏳ جاري التسجيل...';
   try {
-    if (role === 'merchant') await signUpMerchant({ phone, password, name, bankCode });
-    else if (role === 'admin') await signUpAdmin({ phone, password, name, adminCode });
-    else await signUpCustomer({ phone, password, name });
+    if (role === 'merchant') {
+      await signUpMerchant({ phone, email, password, name, bankCode });
+    } else if (role === 'admin') {
+      await signUpAdmin({ phone, email, password, name, adminCode });
+    } else {
+      await signUpCustomer({ phone, email, password, name });
+    }
 
     showMessage('✅ تم إنشاء الحساب', 'success');
-    await signIn({ phone, password });
-  } catch (err) { showMessage('❌ ' + translateError(err.message)); }
-  finally { btn.disabled = false; btn.innerText = '📝 إنشاء الحساب'; }
+    await signInWithEmail({ email, password });
+  } catch (err) {
+    showMessage('❌ ' + translateError(err.message));
+  } finally {
+    btn.disabled = false; btn.innerText = '📝 إنشاء الحساب';
+  }
 }
 
 async function handleLogout() {
@@ -1540,12 +1556,14 @@ async function handleLogout() {
 
 function translateError(msg) {
   if (msg.includes('Invalid login credentials')) return 'بيانات غير صحيحة';
-  if (msg.includes('User already registered')) return 'الرقم مسجل';
+  if (msg.includes('User already registered')) return 'الإيميل أو الموبايل مسجل بالفعل';
   if (msg.includes('Password should be at least')) return 'كلمة المرور قصيرة';
-  if (msg.includes('Unable to validate email')) return 'رقم غير صالح';
+  if (msg.includes('Unable to validate email')) return 'إيميل غير صحيح';
+  if (msg.includes('already been registered')) return 'الإيميل مسجل بالفعل';
   if (msg.includes('البنكود غير موجود')) return 'البنكود غير موجود';
   if (msg.includes('مرتبط بحساب')) return 'البنكود مستخدم';
   if (msg.includes('بنكود الأدمن غير صحيح')) return 'بنكود الأدمن غير صحيح';
+  if (msg.includes('الموبايل مش مسجل')) return 'الموبايل مش مسجل';
   if (msg.includes('rate limit')) return 'حاول تاني';
   return msg;
 }
@@ -1611,14 +1629,12 @@ function bindEvents() {
   $('searchAddrBtn').addEventListener('click', handleSearchAddress);
   $('saveLocationBtn').addEventListener('click', handleSaveLocation);
 
-  // Forgot password
   $('forgotPassLink').addEventListener('click', (e) => {
     e.preventDefault();
     $('forgotModal').classList.add('active');
   });
   $('sendResetBtn').addEventListener('click', handleSendReset);
 
-  // Account settings
   $('openChangePassBtn').addEventListener('click', () => {
     $('changePassForm').style.display = 'block';
     $('emailForm').style.display = 'none';
@@ -1742,7 +1758,6 @@ window.addEventListener('load', async () => {
   updateBankCodeVisibility();
   updateLoginVisibility();
 
-  // Peek effect على حقول البنكود
   applyPeekEffect('signupBankCode');
   applyPeekEffect('signupAdminCode');
   applyPeekEffect('loginBankCode');

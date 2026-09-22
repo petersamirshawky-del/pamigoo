@@ -73,6 +73,7 @@
         <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">حساب جديد</h4>
         <input type="text" id="signupName" placeholder="👤 الاسم" autocomplete="name">
         <input type="tel" id="signupPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
+        <input type="email" id="signupEmail" placeholder="📧 الإيميل الحقيقي" autocomplete="email">
         <div class="password-wrap">
           <input type="password" id="signupPassword" placeholder="🔑 كلمة المرور (6 أحرف على الأقل)" autocomplete="new-password">
           <button type="button" class="eye-btn" onclick="togglePass('signupPassword', this)" tabindex="-1">👁️</button>
@@ -521,6 +522,7 @@
         <h4 style="margin-bottom:15px">👤 حسابي</h4>
         <div class="info-row"><span>الاسم</span><strong id="accName">-</strong></div>
         <div class="info-row"><span>رقم الهاتف</span><strong id="accPhone">-</strong></div>
+        <div class="info-row"><span>الإيميل</span><strong id="accEmail">-</strong></div>
         <div class="info-row"><span>رصيد الكاش باك</span><strong id="accBalance">-</strong></div>
         <div class="info-row"><span>عدد الفواتير</span><strong id="accInvoicesCount">-</strong></div>
         <div class="info-row"><span>📍 الموقع</span><strong id="accLocation">غير محدد</strong></div>
@@ -530,12 +532,11 @@
         <div id="customerWalletsBreakdown"></div>
       </div>
 
-      <!-- ⚙️ إعدادات الحساب -->
       <div class="card" style="border-right:4px solid var(--warning)">
         <h4 style="margin-bottom:15px">⚙️ إعدادات الحساب</h4>
 
         <button id="openChangePassBtn" style="background:var(--warning);margin-bottom:10px">🔒 تغيير كلمة المرور</button>
-        <button id="openEmailBtn" style="background:var(--primary)">📧 إضافة / تحديث الإيميل</button>
+        <button id="openEmailBtn" style="background:var(--primary)">📧 تحديث الإيميل</button>
 
         <div id="changePassForm" style="display:none;margin-top:15px;padding-top:15px;border-top:1px solid #eee">
           <h5 style="margin-bottom:10px;color:var(--primary)">🔒 تغيير كلمة المرور</h5>
@@ -582,8 +583,8 @@
 
   </div>
 
-  <!-- Modal -->
-  <div class="modal-overlay" id="merchantModal" onclick="closeModal(event)">
+  <!-- Modal: Merchant -->
+  <div class="modal-overlay" id="merchantModal" style="display:none" onclick="closeModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
       <button class="close-btn" onclick="closeMerchantModal()">✕</button>
       <h3 id="modalMerchantName">اسم التاجر</h3>
@@ -592,8 +593,8 @@
     </div>
   </div>
 
-  <!-- Modal: نسيت كلمة المرور -->
-  <div class="modal-overlay" id="forgotModal" onclick="closeForgotModal(event)">
+  <!-- Modal: Forgot Password -->
+  <div class="modal-overlay" id="forgotModal" style="display:none" onclick="closeForgotModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
       <button class="close-btn" onclick="closeForgotModal()">✕</button>
       <h3 style="padding-left:0">🔑 نسيت كلمة المرور</h3>
@@ -606,7 +607,7 @@
     </div>
   </div>
 
-  <div class="footer">PAMIGO v40.0 — Stage 10</div>
+  <div class="footer">PAMIGO v41.0 — Stage 11</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
