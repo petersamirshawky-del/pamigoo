@@ -38,7 +38,6 @@
     </div>
   </div>
 
-  <!-- Auth -->
   <div id="authScreen" style="display:none">
     <div class="card login-box">
       <div class="auth-tabs">
@@ -115,7 +114,6 @@
     </div>
   </div>
 
-  <!-- Main -->
   <div id="mainScreen" style="display:none">
 
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 18px">
@@ -143,7 +141,6 @@
       <button class="tab-btn" data-tab="account" data-role="all" data-i18n="tab.account">👤 حسابي</button>
     </div>
 
-    <!-- الرئيسية -->
     <div class="tab-content active" id="tab-home">
       <div class="radius-control">
         <label>🔍 نطاق البحث: <span id="homeRadiusValue">2</span> كم</label>
@@ -188,7 +185,6 @@
       <div id="merchantsList"><div class="no-requests">⏳ جاري التحميل...</div></div>
     </div>
 
-    <!-- العروض -->
     <div class="tab-content" id="tab-offers">
       <div class="radius-control">
         <div>
@@ -217,7 +213,6 @@
       <div class="offers-grid" id="offersGrid"></div>
     </div>
 
-    <!-- الفاتورة -->
     <div class="tab-content" id="tab-invoice">
       <div class="card">
         <h4 style="margin-bottom:10px">🧾 رفع فاتورة</h4>
@@ -295,7 +290,6 @@
       </div>
     </div>
 
-    <!-- طلباتي -->
     <div class="tab-content" id="tab-requests">
       <div class="card" id="requestFormCard" style="display:none">
         <h4 style="margin-bottom:10px">📝 طلب خاص</h4>
@@ -349,7 +343,6 @@
       </div>
     </div>
 
-    <!-- لوحتي -->
     <div class="tab-content" id="tab-dashboard">
 
       <div class="card" style="border-right:4px solid var(--primary)">
@@ -425,7 +418,6 @@
       </div>
     </div>
 
-    <!-- تقاريري -->
     <div class="tab-content" id="tab-reports">
       <div class="card" id="reportContent">
         <h4 style="margin-bottom:15px">📈 تقارير متجري</h4>
@@ -447,7 +439,6 @@
       </div>
     </div>
 
-    <!-- تحليلاتي -->
     <div class="tab-content" id="tab-analytics">
       <div class="card">
         <h4 style="margin-bottom:15px">📉 تحليلات متجري</h4>
@@ -464,7 +455,6 @@
       </div>
     </div>
 
-    <!-- الأدمن -->
     <div class="tab-content" id="tab-admin">
       <div class="admin-header">
         <h3>👑 لوحة الأدمن</h3>
@@ -578,7 +568,6 @@
       </div>
     </div>
 
-    <!-- حسابي -->
     <div class="tab-content" id="tab-account">
       <div class="card">
         <h4 style="margin-bottom:15px">👤 حسابي</h4>
@@ -642,7 +631,6 @@
 
   </div>
 
-  <!-- Modal: Merchant -->
   <div class="modal-overlay" id="merchantModal" style="display:none" onclick="closeModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
       <button class="close-btn" onclick="closeMerchantModal()">✕</button>
@@ -657,7 +645,6 @@
     </div>
   </div>
 
-  <!-- Modal: Forgot Password -->
   <div class="modal-overlay" id="forgotModal" style="display:none" onclick="closeForgotModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
       <button class="close-btn" onclick="closeForgotModal()">✕</button>
@@ -669,7 +656,7 @@
     </div>
   </div>
 
-  <div class="footer">PAMIGO v50.0</div>
+  <div class="footer">PAMIGO v51.0</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -688,14 +675,6 @@
       if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
       document.getElementById('forgotModal').classList.remove('active');
     };
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('service-worker.js?v=20260922')
-          .then(reg => console.log('✅ SW registered'))
-          .catch(err => console.log('❌ SW failed:', err));
-      });
-    }
   </script>
 </body>
 </html>
