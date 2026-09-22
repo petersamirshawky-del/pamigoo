@@ -230,7 +230,7 @@
         <div id="invoiceResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
       </div>
 
-      <!-- ⭐ قسم التقييم — يظهر بعد رفع فاتورة -->
+      <!-- ⭐ قسم التقييم -->
       <div class="card" id="ratingSection" style="display:none;border-right:4px solid #f59e0b">
         <h4 style="margin-bottom:8px">⭐ قيّم تجربتك</h4>
         <p style="font-size:14px;color:#6b7280;margin-bottom:10px">
@@ -238,11 +238,11 @@
         </p>
 
         <div class="stars" id="starContainer" style="display:flex;gap:8px;margin:12px 0;justify-content:center">
-          <i class="fas fa-star" data-value="1"></i>
-          <i class="fas fa-star" data-value="2"></i>
-          <i class="fas fa-star" data-value="3"></i>
-          <i class="fas fa-star" data-value="4"></i>
-          <i class="fas fa-star" data-value="5"></i>
+          <span class="star" data-value="1">★</span>
+          <span class="star" data-value="2">★</span>
+          <span class="star" data-value="3">★</span>
+          <span class="star" data-value="4">★</span>
+          <span class="star" data-value="5">★</span>
         </div>
 
         <textarea id="reviewComment" placeholder="اكتب تعليقك (اختياري)..." style="width:100%;padding:12px;margin:8px 0;border:1px solid #ddd;border-radius:10px;min-height:70px;font-family:inherit"></textarea>
@@ -496,6 +496,7 @@
       <div class="admin-section" id="admin-traders">
         <div class="card">
           <h4 style="margin-bottom:15px">🏪 إدارة التجار</h4>
+          <input type="text" id="adminTraderSearch" placeholder="🔍 ابحث باسم التاجر أو رقم الموبايل أو البنكود..." style="margin-bottom:12px">
           <button id="showAddTraderBtn" style="background:#27ae60;margin-bottom:15px">➕ إضافة تاجر جديد</button>
           <div id="addTraderForm" style="display:none;background:#f9fafb;padding:15px;border-radius:12px;margin-bottom:15px;border-right:4px solid #27ae60">
             <h5 style="margin-bottom:10px;color:var(--primary)">➕ إضافة تاجر جديد</h5>
@@ -533,6 +534,7 @@
       <div class="admin-section" id="admin-customers">
         <div class="card">
           <h4 style="margin-bottom:15px">👥 إدارة العملاء</h4>
+          <input type="text" id="adminCustomerSearch" placeholder="🔍 ابحث باسم العميل أو رقم الموبايل..." style="margin-bottom:12px">
           <div id="adminCustomersList"></div>
         </div>
       </div>
@@ -644,7 +646,6 @@
       <div class="merchant-info" id="modalMerchantInfo" style="color:#6b7280;font-size:14px;margin-bottom:14px"></div>
       <div id="modalOffersList"></div>
 
-      <!-- ⭐ تقييمات العملاء -->
       <div id="modalRatingsList" style="margin-top:16px;border-top:1px solid #eee;padding-top:12px">
         <h4 style="font-size:14px;color:var(--primary);margin-bottom:8px">⭐ تقييمات العملاء</h4>
         <div id="modalRatingsContent"><p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p></div>
@@ -664,7 +665,7 @@
     </div>
   </div>
 
-  <div class="footer">PAMIGO v47.0 — Ratings System</div>
+  <div class="footer">PAMIGO v48.0 — Search + Stars Fix</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>

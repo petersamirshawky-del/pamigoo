@@ -1,9 +1,9 @@
 ﻿// ============================================================
-// PAMIGO - Main Entry (Stage 12: Ratings)
+// PAMIGO - Main Entry (Stage 12: Ratings + Search)
 // ============================================================
 import { supabase } from './supabase.js';
 import { toast, showLoader, hideLoader } from './ui.js';
-import { initI18n, setLang } from './i18n.js';
+import { initI18n, setLang, currentLang, applyI18nToHTML } from './i18n.js';
 import { SUB_CATEGORIES, CATEGORY_ICONS } from './config.js';
 import {
   signUpCustomer, signUpMerchant, signUpAdmin, signOut,
@@ -556,7 +556,7 @@ async function handleSubmitInvoice() {
       $('ratingSection').style.display = 'block';
       $('ratingResult').innerText = '';
       $('reviewComment').value = '';
-      document.querySelectorAll('#starContainer i').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('#starContainer .star').forEach(el => el.classList.remove('active'));
     }
 
     $('invNumber').value = ''; $('invCustomerPhone').value = ''; $('invAmount').value = '';
@@ -607,7 +607,7 @@ async function handleSubmitRating() {
       $('ratingResult').innerText = '';
       $('reviewComment').value = '';
       selectedRating = 0;
-      document.querySelectorAll('#starContainer i').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('#starContainer .star').forEach(el => el.classList.remove('active'));
     }, 2000);
   } catch (e) {
     res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
@@ -1197,11 +1197,27 @@ async function renderAdminDashboard() {
   $('admOffers').innerText = s.offersCount;
 }
 
+// ✅ معدّل: مع فلترة البحث
 async function renderAdminTraders() {
   adminData.merchants = await getAllMerchants();
   const el = $('adminTradersList');
-  if (!adminData.merchants.length) { el.innerHTML = '<p style="color:#6b7280">لا يوجد تجار</p>'; return; }
-  el.innerHTML = adminData.merchants.map(m => {
+
+  const search = ($('adminTraderSearch')?.value || '').trim().toLowerCase();
+  let list = adminData.merchants;
+  if (search) {
+    list = list.filter(m =>
+      (m.name || '').toLowerCase().includes(search) ||
+      (m.phone || '').includes(search) ||
+      (m.bank_code || '').toLowerCase().includes(search)
+    );
+  }
+
+  if (!list.length) {
+    el.innerHTML = `<p style="color:#6b7280;text-align:center;padding:20px">${search ? '🔍 مفيش نتائج مطابقة' : 'لا يوجد تجار'}</p>`;
+    return;
+  }
+
+  el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
     const logo = m.logo_url
@@ -1285,11 +1301,27 @@ window.delTrader = async function (id) {
   catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
+// ✅ معدّل: مع فلترة البحث
 async function renderAdminCustomers() {
   adminData.customers = await getAllCustomers();
   const el = $('adminCustomersList');
-  if (!adminData.customers.length) { el.innerHTML = '<p style="color:#6b7280">لا يوجد عملاء</p>'; return; }
-  el.innerHTML = adminData.customers.map(c => `
+
+  const search = ($('adminCustomerSearch')?.value || '').trim().toLowerCase();
+  let list = adminData.customers;
+  if (search) {
+    list = list.filter(c =>
+      (c.name || '').toLowerCase().includes(search) ||
+      (c.phone || '').includes(search) ||
+      (c.email || '').toLowerCase().includes(search)
+    );
+  }
+
+  if (!list.length) {
+    el.innerHTML = `<p style="color:#6b7280;text-align:center;padding:20px">${search ? '🔍 مفيش نتائج مطابقة' : 'لا يوجد عملاء'}</p>`;
+    return;
+  }
+
+  el.innerHTML = list.map(c => `
     <div class="admin-item">
       <div class="head">
         <span class="title">📱 ${c.phone}${c.name ? ' - ' + c.name : ''}</span>
@@ -1814,12 +1846,12 @@ function bindEvents() {
   $('rateSlider').addEventListener('input', updateRateDisplay);
   $('exportPdfBtn').addEventListener('click', exportReportPDF);
 
-  // نجوم التقييم
-  document.querySelectorAll('#starContainer i').forEach(star => {
+  // ✅ نجوم التقييم (Unicode ★)
+  document.querySelectorAll('#starContainer .star').forEach(star => {
     star.addEventListener('click', function () {
       const val = parseInt(this.dataset.value);
       selectedRating = val;
-      document.querySelectorAll('#starContainer i').forEach(s =>
+      document.querySelectorAll('#starContainer .star').forEach(s =>
         s.classList.toggle('active', parseInt(s.dataset.value) <= val)
       );
     });
@@ -1855,6 +1887,13 @@ function bindEvents() {
   $('addTraderConfirmBtn').addEventListener('click', handleAddTrader);
   $('adminInvoiceSearch').addEventListener('input', () => renderAdminInvoices());
   $('sendNotifBtn').addEventListener('click', handleSendNotif);
+
+  // ✅ بحث الأدمن
+  const traderSearch = $('adminTraderSearch');
+  if (traderSearch) traderSearch.addEventListener('input', () => renderAdminTraders());
+
+  const customerSearch = $('adminCustomerSearch');
+  if (customerSearch) customerSearch.addEventListener('input', () => renderAdminCustomers());
 
   $('searchAddrBtn').addEventListener('click', handleSearchAddress);
   $('saveLocationBtn').addEventListener('click', handleSaveLocation);
