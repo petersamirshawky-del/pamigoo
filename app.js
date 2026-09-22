@@ -1,9 +1,9 @@
-﻿import { initI18n, setLang, t, currentLang, applyI18nToHTML } from './i18n.js';
-// ============================================================
-// PAMIGO - Main Entry (Stage 11-D: UI + Logo + Email)
+﻿// ============================================================
+// PAMIGO - Main Entry (Stage 12: Ratings)
 // ============================================================
 import { supabase } from './supabase.js';
 import { toast, showLoader, hideLoader } from './ui.js';
+import { initI18n, setLang } from './i18n.js';
 import { SUB_CATEGORIES, CATEGORY_ICONS } from './config.js';
 import {
   signUpCustomer, signUpMerchant, signUpAdmin, signOut,
@@ -44,6 +44,9 @@ import {
   getUserWalletsBreakdown, initAccountMap, getMarkerPosition,
   setMarkerPosition, searchAddress, updateMyMerchantLocation
 } from './account.js';
+import {
+  rateMerchant, getMerchantRatings
+} from './ratings.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -64,6 +67,9 @@ let myRequestsCache = [];
 let adminData = { merchants: [], customers: [], invoices: [] };
 let expectedLogin = null;
 let uploadedOfferImage = null;
+let selectedRating = 0;
+let lastRatedMerchantId = null;
+let lastRatedMerchantName = '';
 
 // ============================================================
 // Load merchants
@@ -151,9 +157,6 @@ function matchesCatSubs(m, cats, subs) {
   return true;
 }
 
-// ============================================================
-// Logo HTML helper
-// ============================================================
 function logoImgHtml(m) {
   if (m.logo_url) {
     return `<img src="${m.logo_url}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit" onerror="this.parentElement.innerHTML='${m.icon || '🏪'}'">`;
@@ -321,7 +324,7 @@ function renderOffersSubCategories() {
   });
 }
 
-window.openMerchant = function (bankCode) {
+window.openMerchant = async function (bankCode) {
   const m = allMerchants.find(x => x.bank_code === bankCode);
   if (!m) return;
   currentModalMerchant = m;
@@ -355,6 +358,27 @@ window.openMerchant = function (bankCode) {
     : '<p style="text-align:center;color:#6b7280;padding:20px">لا توجد عروض حالياً</p>';
 
   $('merchantModal').classList.add('active');
+
+  // تحميل التقييمات
+  $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
+  try {
+    const ratings = await getMerchantRatings(m.id);
+    if (!ratings.length) {
+      $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">لا توجد تقييمات بعد</p>';
+    } else {
+      $('modalRatingsContent').innerHTML = ratings.slice(0, 10).map(r => {
+        const name = r.profiles?.name || 'عميل';
+        return `<div class="rating-item">
+          <div class="name">👤 ${name}</div>
+          <div class="stars-row">${'⭐'.repeat(r.stars)}</div>
+          ${r.comment ? `<div class="comment">${r.comment}</div>` : ''}
+          <div class="date">${new Date(r.created_at).toLocaleDateString('ar-EG')}</div>
+        </div>`;
+      }).join('');
+    }
+  } catch (e) {
+    $('modalRatingsContent').innerHTML = '<p style="color:#ef4444;font-size:12px">تعذر تحميل التقييمات</p>';
+  }
 };
 
 window.closeMerchantModal = function () {
@@ -506,17 +530,38 @@ async function handleSubmitInvoice() {
   if (!num || !phone || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
   const isMerchant = currentProfile.role === 'merchant' && currentMerchant;
   if (!isMerchant && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ ادخل البنكود'; return; }
+
   try {
+    let merchantId = null;
+    let merchantName = '';
+
     if (isMerchant) {
       const r = await createInvoice({ number: num, customerPhone: phone, amount, merchantId: currentMerchant.id });
+      merchantId = currentMerchant.id;
+      merchantName = currentMerchant.name;
       res.style.color = '#10b981'; res.innerText = `✅ كاش باك ${parseFloat(r.cashback).toFixed(2)} ج`;
     } else {
       const r = await createInvoiceByBankCode({ number: num, customerPhone: phone, amount, bankCode });
       res.style.color = '#10b981'; res.innerText = `✅ كاش باك ${parseFloat(r.cashback).toFixed(2)} ج`;
+      const m = allMerchants.find(x => (x.bank_code || '').toUpperCase() === bankCode.toUpperCase());
+      if (m) { merchantId = m.id; merchantName = m.name; }
     }
+
+    // إظهار قسم التقييم للعميل
+    if (merchantId && currentProfile.role === 'customer') {
+      lastRatedMerchantId = merchantId;
+      lastRatedMerchantName = merchantName;
+      selectedRating = 0;
+      $('ratedMerchantName').innerText = merchantName;
+      $('ratingSection').style.display = 'block';
+      $('ratingResult').innerText = '';
+      $('reviewComment').value = '';
+      document.querySelectorAll('#starContainer i').forEach(el => el.classList.remove('active'));
+    }
+
     $('invNumber').value = ''; $('invCustomerPhone').value = ''; $('invAmount').value = '';
     if ($('invBankCode')) { $('invBankCode').value = ''; $('invBankCode').dataset.realValue = ''; }
-    setTimeout(() => renderInvoiceTab(), 1200);
+    setTimeout(() => renderInvoiceTab(), 1500);
   } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
 
@@ -532,6 +577,41 @@ async function handleRedeem() {
     $('redeemOriginal').value = ''; $('redeemAmount').value = '';
     setTimeout(() => renderInvoiceTab(), 1200);
   } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
+}
+
+// ============================================================
+// RATINGS
+// ============================================================
+async function handleSubmitRating() {
+  const res = $('ratingResult');
+
+  if (!selectedRating || selectedRating < 1) {
+    res.style.color = '#ef4444'; res.innerText = '⚠️ اختر عدد النجوم'; return;
+  }
+  if (!lastRatedMerchantId) {
+    res.style.color = '#ef4444'; res.innerText = '⚠️ التاجر غير معروف'; return;
+  }
+
+  const comment = $('reviewComment').value.trim();
+
+  try {
+    await rateMerchant({
+      merchantId: lastRatedMerchantId,
+      stars: selectedRating,
+      comment
+    });
+    res.style.color = '#10b981'; res.innerText = '✅ شكراً لتقييمك!';
+    await refreshData();
+    setTimeout(() => {
+      $('ratingSection').style.display = 'none';
+      $('ratingResult').innerText = '';
+      $('reviewComment').value = '';
+      selectedRating = 0;
+      document.querySelectorAll('#starContainer i').forEach(el => el.classList.remove('active'));
+    }, 2000);
+  } catch (e) {
+    res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
+  }
 }
 
 // ============================================================
@@ -1734,6 +1814,20 @@ function bindEvents() {
   $('rateSlider').addEventListener('input', updateRateDisplay);
   $('exportPdfBtn').addEventListener('click', exportReportPDF);
 
+  // نجوم التقييم
+  document.querySelectorAll('#starContainer i').forEach(star => {
+    star.addEventListener('click', function () {
+      const val = parseInt(this.dataset.value);
+      selectedRating = val;
+      document.querySelectorAll('#starContainer i').forEach(s =>
+        s.classList.toggle('active', parseInt(s.dataset.value) <= val)
+      );
+    });
+  });
+
+  const ratingBtn = $('submitRatingBtn');
+  if (ratingBtn) ratingBtn.addEventListener('click', handleSubmitRating);
+
   const upBtn = $('uploadLogoBtn');
   const delBtn = $('deleteLogoBtn');
   if (upBtn) upBtn.addEventListener('click', handleUploadLogo);
@@ -1894,6 +1988,19 @@ window.addEventListener('load', async () => {
   updateBankCodeVisibility();
   updateLoginVisibility();
 
+  initI18n();
+  window.__setLang = setLang;
+
+  window.addEventListener('langChanged', () => {
+    if (currentProfile) {
+      document.getElementById('userRole').innerText =
+        currentLang === 'ar'
+          ? ({ customer: '👤 عميل', merchant: '🏪 تاجر', admin: '👑 أدمن' })[currentProfile.role]
+          : ({ customer: '👤 Customer', merchant: '🏪 Merchant', admin: '👑 Admin' })[currentProfile.role];
+    }
+    applyI18nToHTML();
+  });
+
   applyPeekEffect('signupBankCode');
   applyPeekEffect('signupAdminCode');
   applyPeekEffect('loginBankCode');
@@ -1907,21 +2014,4 @@ window.addEventListener('load', async () => {
   } else {
     showAuthScreen();
   }
-});
-initI18n();
-window.__setLang = setLang;
-
-// لما اللغة تتغير، نعيد الرندر
-window.addEventListener('langChanged', () => {
-  // عيد رسم المحتوى اللي فيه لغة
-  if (currentProfile) {
-    document.getElementById('userRole').innerText =
-      currentLang === 'ar'
-        ? ({ customer: '👤 عميل', merchant: '🏪 تاجر', admin: '👑 أدمن' })[currentProfile.role]
-        : ({ customer: '👤 Customer', merchant: '🏪 Merchant', admin: '👑 Admin' })[currentProfile.role];
-  }
-  if (document.getElementById('merchantBanner').style.display !== 'none') {
-    document.getElementById('merchantName').dataset.i18n = 'merchant.yourShop';
-  }
-  applyI18nToHTML();
 });
