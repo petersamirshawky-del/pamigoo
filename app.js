@@ -52,6 +52,17 @@ const {
 
 const $ = (id) => document.getElementById(id);
 
+// === DEBUG ===
+window.supabase = supabase;
+window.addEventListener('unhandledrejection', e => {
+  console.error('❌ PROMISE ERROR:', e.reason?.message || e.reason);
+});
+window.addEventListener('error', e => {
+  console.error('❌ SCRIPT ERROR:', e.message, '@', e.filename, ':', e.lineno);
+});
+console.log('✅ DEBUG enabled');
+// === END DEBUG ===
+
 // ============================================================
 // State
 // ============================================================
