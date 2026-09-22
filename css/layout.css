@@ -1,5 +1,5 @@
 ﻿/* ============================================================
-   PAMIGO - Layout
+   PAMIGO - Layout (Redesigned - Mobile First)
    ============================================================ */
 
 /* ============================================================
@@ -11,44 +11,55 @@
   align-items: center;
   margin-bottom: 20px;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 1;
+  min-width: 0;
 }
 
 .header h2 {
   font-size: 22px;
   color: var(--text);
   margin: 0;
+  font-weight: 800;
+  letter-spacing: -0.5px;
 }
 
 .header p {
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: 13px;
   display: flex;
   align-items: center;
   gap: 5px;
   margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header .location {
   background: var(--bg-soft);
-  padding: 8px 14px;
+  padding: 8px 16px;
   border-radius: var(--radius-pill);
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   transition: all .2s;
   border: none;
   font-family: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text);
 }
 
 .header .location:hover {
   background: var(--primary);
   color: #fff;
+  transform: translateY(-1px);
 }
 
 /* ============================================================
@@ -67,7 +78,7 @@
    ============================================================ */
 .offers-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -76,7 +87,7 @@
    ============================================================ */
 .analytics-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -90,13 +101,13 @@
 .analytics-card .label {
   font-size: 12px;
   color: var(--text-muted);
+  margin-bottom: 4px;
 }
 
 .analytics-card .value {
   font-size: 20px;
   font-weight: 700;
   color: var(--text);
-  margin-top: 4px;
 }
 
 /* ============================================================
@@ -104,58 +115,85 @@
    ============================================================ */
 .deals-scroll {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   overflow-x: auto;
-  padding: 10px 0;
+  padding: 4px 4px 12px;
   scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
 }
 
 .deals-scroll::-webkit-scrollbar {
   height: 6px;
 }
 
+.deals-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.deals-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
 .deal-card {
-  min-width: 170px;
+  min-width: 160px;
+  max-width: 160px;
   background: #fff;
   border-radius: 20px;
-  padding: 18px;
+  padding: 16px;
   box-shadow: var(--card-shadow-lg);
   flex-shrink: 0;
   cursor: pointer;
   text-align: center;
   position: relative;
-  transition: transform .2s;
+  transition: transform .2s ease;
+  scroll-snap-align: start;
 }
 
 .deal-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-4px);
+}
+
+.deal-card:active {
+  transform: translateY(-2px) scale(0.98);
 }
 
 .deal-card .discount {
   font-size: 30px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--primary);
+  line-height: 1;
 }
 
 .deal-card .icon {
-  font-size: 48px;
-  margin: 8px 0;
+  font-size: 44px;
+  margin: 10px 0;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .deal-card .tag {
   background: var(--accent);
   color: #fff;
   font-size: 11px;
-  padding: 3px 12px;
+  padding: 4px 12px;
   border-radius: var(--radius-pill);
   display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
 }
 
 .tier-badge {
   position: absolute;
   top: 10px;
   left: 10px;
-  font-size: 16px;
+  font-size: 18px;
 }
 
 /* ============================================================
@@ -180,16 +218,21 @@
   box-shadow: var(--card-shadow-lg);
 }
 
+.store-item:active {
+  transform: scale(0.99);
+}
+
 .store-item .icon {
-  width: 60px;
-  height: 60px;
+  width: 64px;
+  height: 64px;
   background: var(--bg-soft);
-  border-radius: var(--radius);
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 32px;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .store-item .info {
@@ -198,18 +241,20 @@
 }
 
 .store-item .info h4 {
-  font-size: 16px;
+  font-size: 15px;
   color: var(--text);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+  font-weight: 700;
 }
 
 .store-item .info .desc {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-muted);
   margin-top: 4px;
+  line-height: 1.5;
 }
 
 /* ============================================================
@@ -218,15 +263,17 @@
 .admin-header {
   background: linear-gradient(135deg, #8b0000, #c0392b);
   color: #fff;
-  padding: 20px;
+  padding: 24px 20px;
   border-radius: var(--radius);
   text-align: center;
   margin-bottom: 20px;
+  box-shadow: 0 4px 16px rgba(192, 57, 43, 0.25);
 }
 
 .admin-header h3 {
   font-size: 24px;
   margin-bottom: 6px;
+  font-weight: 800;
 }
 
 .admin-header p {
@@ -247,14 +294,14 @@
 
 .admin-subtab {
   flex: 1;
-  padding: 10px;
+  padding: 10px 8px;
   border: none;
   border-radius: var(--radius-pill);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   background: transparent;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 12px;
   min-width: 70px;
   font-family: inherit;
   transition: all .2s;
@@ -299,12 +346,13 @@
   font-size: 13px;
   color: var(--text-muted);
   margin-top: 4px;
+  line-height: 1.6;
 }
 
 .admin-item .actions {
   display: flex;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 10px;
   flex-wrap: wrap;
 }
 
@@ -323,6 +371,7 @@
   width: 100%;
   margin: 8px 0;
   accent-color: var(--primary);
+  height: 6px;
 }
 
 /* ============================================================
@@ -331,11 +380,11 @@
 .my-balance-banner {
   background: linear-gradient(135deg, #10b981, #059669);
   color: #fff;
-  padding: 20px;
+  padding: 24px 20px;
   border-radius: var(--radius);
   margin-bottom: 16px;
   text-align: center;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
 }
 
 .my-balance-banner .lbl {
@@ -344,9 +393,10 @@
 }
 
 .my-balance-banner .val {
-  font-size: 36px;
-  font-weight: 700;
-  margin: 6px 0;
+  font-size: 38px;
+  font-weight: 800;
+  margin: 8px 0;
+  line-height: 1;
 }
 
 .my-balance-banner .sub {
@@ -358,7 +408,7 @@
    Login Box
    ============================================================ */
 .login-box {
-  max-width: 400px;
+  max-width: 420px;
   margin: 0 auto;
 }
 
@@ -370,7 +420,7 @@
 
 .login-box .role-switch button {
   flex: 1;
-  padding: 8px;
+  padding: 10px;
   border: none;
   border-radius: var(--radius-pill);
   background: var(--bg-soft);
@@ -391,7 +441,7 @@
    ============================================================ */
 #pickerMap {
   width: 100%;
-  height: 300px;
+  height: 320px;
   border-radius: 12px;
   margin: 10px 0;
   border: 2px solid #ddd;
@@ -407,7 +457,7 @@
 
 .location-search-box input {
   flex: 1;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid #ddd;
   border-radius: var(--radius-sm);
   font-size: 14px;
@@ -420,7 +470,7 @@
   color: #fff;
   border: none;
   border-radius: var(--radius-sm);
-  padding: 10px 16px;
+  padding: 12px 18px;
   cursor: pointer;
   font-weight: 600;
   width: auto;
@@ -428,26 +478,237 @@
 }
 
 /* ============================================================
-   Responsive
+   Requests Tab — تحسين عرض الطلبات
+   ============================================================ */
+#myRequestsList .card {
+  padding: 16px;
+}
+
+#myRequestsList .card h4 {
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+/* ============================================================
+   Responsive — Tablet (768px+)
+   ============================================================ */
+@media (min-width: 768px) {
+  body {
+    padding: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .header h2 { font-size: 26px; }
+
+  .offers-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+
+  .analytics-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+
+  .deal-card {
+    min-width: 180px;
+    max-width: 180px;
+  }
+}
+
+/* ============================================================
+   Responsive — Desktop (1024px+)
+   ============================================================ */
+@media (min-width: 1024px) {
+  body {
+    max-width: 1200px;
+    padding: 30px;
+  }
+
+  .offers-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+  }
+
+  .analytics-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .admin-subtabs {
+    flex-wrap: nowrap;
+  }
+}
+
+/* ============================================================
+   Responsive — Mobile (480px and below)
    ============================================================ */
 @media (max-width: 480px) {
   body {
     padding: 12px;
   }
 
-  .header h2 {
-    font-size: 18px;
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
   }
 
-  .deal-card {
-    min-width: 140px;
+  .header-left {
+    justify-content: space-between;
+  }
+
+  .header > div:last-child {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .header .location {
+    flex: 1;
+    text-align: center;
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+
+  .header h2 {
+    font-size: 20px;
+  }
+
+  .header p {
+    font-size: 12px;
   }
 
   .offers-grid {
     grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
 
   .analytics-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .deal-card {
+    min-width: 145px;
+    max-width: 145px;
+    padding: 14px;
+  }
+
+  .deal-card .discount {
+    font-size: 26px;
+  }
+
+  .deal-card .icon {
+    font-size: 38px;
+    height: 50px;
+  }
+
+  .store-item {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .store-item .icon {
+    width: 56px;
+    height: 56px;
+    font-size: 28px;
+  }
+
+  .store-item .info h4 {
+    font-size: 14px;
+  }
+
+  .my-balance-banner .val {
+    font-size: 32px;
+  }
+
+  .admin-header {
+    padding: 20px 16px;
+  }
+
+  .admin-header h3 {
+    font-size: 20px;
+  }
+
+  .admin-subtab {
+    font-size: 11px;
+    padding: 8px 6px;
+    min-width: 60px;
+  }
+
+  #pickerMap {
+    height: 260px;
+  }
+
+  .login-box {
+    max-width: 100%;
+  }
+}
+
+/* ============================================================
+   Very Small Mobile (360px and below)
+   ============================================================ */
+@media (max-width: 360px) {
+  .offers-grid {
     grid-template-columns: 1fr;
+  }
+
+  .deal-card {
+    min-width: 140px;
+    max-width: 140px;
+  }
+
+  .admin-subtab {
+    font-size: 10px;
+    padding: 6px 4px;
+    min-width: 55px;
+  }
+
+  .header h2 {
+    font-size: 18px;
+  }
+}
+
+/* ============================================================
+   Safe Area (iPhone notch)
+   ============================================================ */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+/* ============================================================
+   Touch Improvements
+   ============================================================ */
+@media (hover: none) {
+  .store-item:hover,
+  .deal-card:hover,
+  .header .location:hover {
+    transform: none;
+  }
+
+  .store-item:active,
+  .deal-card:active {
+    transform: scale(0.98);
+  }
+}
+
+/* ============================================================
+   Print
+   ============================================================ */
+@media print {
+  .header, .tabs, .footer, .admin-subtabs, button {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    padding: 0;
+  }
+
+  .card {
+    box-shadow: none;
+    border: 1px solid #ddd;
   }
 }
