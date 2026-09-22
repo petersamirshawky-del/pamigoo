@@ -1,4 +1,4 @@
-// ============================================================
+ï»¿// ============================================================
 // PAMIGO - Authentication
 // ============================================================
 import { supabase } from './supabase.js';
@@ -20,13 +20,13 @@ export function applyPeekEffect(inputId) {
     let newReal = realValue;
 
     if (currentValue.length > realValue.length) {
-      const added = currentValue.replace(/?/g, '');
+      const added = currentValue.replace(/â—/g, '');
       const lastChar = added[added.length - 1] || '';
       newReal = realValue + lastChar;
     } else if (currentValue.length < realValue.length) {
       newReal = realValue.slice(0, currentValue.length);
     } else {
-      newReal = currentValue.replace(/?/g, '');
+      newReal = currentValue.replace(/â—/g, '');
     }
 
     realValue = newReal;
@@ -34,13 +34,13 @@ export function applyPeekEffect(inputId) {
 
     if (realValue.length === 0) { this.value = ''; return; }
 
-    this.value = '?'.repeat(Math.max(0, realValue.length - 1)) + realValue[realValue.length - 1];
+    this.value = 'â—'.repeat(Math.max(0, realValue.length - 1)) + realValue[realValue.length - 1];
     try { this.setSelectionRange(this.value.length, this.value.length); } catch (_) {}
 
     clearTimeout(peekTimer);
     peekTimer = setTimeout(() => {
       if (realValue.length > 0) {
-        this.value = '?'.repeat(realValue.length);
+        this.value = 'â—'.repeat(realValue.length);
         try { this.setSelectionRange(this.value.length, this.value.length); } catch (_) {}
       }
     }, 700);
@@ -51,7 +51,7 @@ export function applyPeekEffect(inputId) {
     const pastedText = (e.clipboardData || window.clipboardData).getData('text');
     realValue = realValue + pastedText;
     this.dataset.realValue = realValue;
-    this.value = '?'.repeat(realValue.length);
+    this.value = 'â—'.repeat(realValue.length);
   });
 }
 
@@ -81,8 +81,8 @@ export async function signUpMerchant({ phone, email, password, name, bankCode })
     .from('merchants').select('id, owner_id, name')
     .eq('bank_code', code).single();
 
-  if (merr || !merchant) throw new Error('ÇáÈäßæÏ ÛíÑ ãæÌæÏ');
-  if (merchant.owner_id) throw new Error('ÇáÈäßæÏ Ïå ãÑÊÈØ ÈÍÓÇÈ ÊÇäí ÈÇáİÚá');
+  if (merr || !merchant) throw new Error('Ø§Ù„Ø¨Ù†ÙƒÙˆØ¯ ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯');
+  if (merchant.owner_id) throw new Error('Ø§Ù„Ø¨Ù†ÙƒÙˆØ¯ Ø¯Ù‡ Ù…Ø±ØªØ¨Ø· Ø¨Ø­Ø³Ø§Ø¨ ØªØ§Ù†ÙŠ Ø¨Ø§Ù„ÙØ¹Ù„');
 
   const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
@@ -95,13 +95,13 @@ export async function signUpMerchant({ phone, email, password, name, bankCode })
   if (userId) {
     const { error: linkErr } = await supabase
       .from('merchants').update({ owner_id: userId }).eq('id', merchant.id);
-    if (linkErr) { console.error('Link error:', linkErr); throw new Error('Êã ÇáÊÓÌíá ÈÓ ÑÈØ ÇáãÊÌÑ İÔá'); }
+    if (linkErr) { console.error('Link error:', linkErr); throw new Error('ØªÙ… Ø§Ù„ØªØ³Ø¬ÙŠÙ„ Ø¨Ø³ Ø±Ø¨Ø· Ø§Ù„Ù…ØªØ¬Ø± ÙØ´Ù„'); }
   }
   return data;
 }
 
 export async function signUpAdmin({ phone, email, password, name, adminCode }) {
-  if (adminCode.trim() !== 'PETAD-12321') throw new Error('ÈäßæÏ ÇáÃÏãä ÛíÑ ÕÍíÍ');
+  if (adminCode.trim() !== 'PETAD-12321') throw new Error('Ø¨Ù†ÙƒÙˆØ¯ Ø§Ù„Ø£Ø¯Ù…Ù† ØºÙŠØ± ØµØ­ÙŠØ­');
   const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
     password,
@@ -156,16 +156,16 @@ export async function getMyMerchant() {
 // Password Management
 // ============================================================
 export async function changeMyPassword({ currentPassword, newPassword }) {
-  if (!newPassword || newPassword.length < 6) throw new Error('ßáãÉ ÇáãÑæÑ ÇáÌÏíÏÉ 6 ÃÍÑİ Úáì ÇáÃŞá');
+  if (!newPassword || newPassword.length < 6) throw new Error('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø§Ù„Ø¬Ø¯ÙŠØ¯Ø© 6 Ø£Ø­Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„');
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ãÔ ãÓÌá ÏÎæá');
+  if (!user) throw new Error('Ù…Ø´ Ù…Ø³Ø¬Ù„ Ø¯Ø®ÙˆÙ„');
 
   const { error: signErr } = await supabase.auth.signInWithPassword({
     email: user.email,
     password: currentPassword
   });
-  if (signErr) throw new Error('ßáãÉ ÇáãÑæÑ ÇáÍÇáíÉ ÛíÑ ÕÍíÍÉ');
+  if (signErr) throw new Error('ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø§Ù„Ø­Ø§Ù„ÙŠØ© ØºÙŠØ± ØµØ­ÙŠØ­Ø©');
 
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) throw error;
