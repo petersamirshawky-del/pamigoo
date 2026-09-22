@@ -1,54 +1,52 @@
 // ============================================================
-// PAMIGO - Main Entry
+// PAMIGO - Main Entry (Stage 12: Ratings + Search)
 // ============================================================
-const V = '?v=20260922';
-
-const { supabase } = await import('./supabase.js' + V);
-const { toast, showLoader, hideLoader } = await import('./ui.js' + V);
-const { initI18n, setLang, currentLang, applyI18nToHTML } = await import('./i18n.js' + V);
-const { SUB_CATEGORIES, CATEGORY_ICONS } = await import('./config.js' + V);
-const {
+import { supabase } from './supabase.js';
+import { toast, showLoader, hideLoader } from './ui.js';
+import { initI18n, setLang, currentLang, applyI18nToHTML } from './i18n.js';
+import { SUB_CATEGORIES, CATEGORY_ICONS } from './config.js';
+import {
   signUpCustomer, signUpMerchant, signUpAdmin, signOut,
   findEmailByPhone, signInWithEmail,
   getProfile, getMyMerchant, onAuthChange,
   applyPeekEffect, getRealValue,
   changeMyPassword, adminChangePassword,
   sendPasswordReset, updateMyEmail
-} = await import('./auth.js' + V);
-const {
+} from './auth.js';
+import {
   createInvoice, createInvoiceByBankCode,
   getMerchantInvoices, getMyInvoices,
   getMyWallets, redeemCashback, getMerchantCustomerWallets,
   getMerchantCashbackSummary
-} = await import('./invoices.js' + V);
-const {
+} from './invoices.js';
+import {
   sendRequest, getMyRequests, getMerchantRequests,
   replyToRequest, acceptOffer, cancelRequest, deleteRequest,
   hideRequestForMerchant, askMerchantForImage, merchantSendExtraImage
-} = await import('./requests.js' + V);
-const {
+} from './requests.js';
+import {
   getMerchantStats, getMerchantOffers, addOffer, deleteOffer,
   updateCashbackRate, getMerchantCustomers, getMerchantWallets,
   getMerchantInvoicesList, editInvoice, processReturn,
   getReportData, getAnalytics,
   uploadMerchantLogo, deleteMerchantLogo,
   uploadProductImage, deleteProductImage
-} = await import('./dashboard.js' + V);
-const {
+} from './dashboard.js';
+import {
   getAdminStats, getAllMerchants, getAllCustomers, getAllInvoices,
   addTrader, freezeMerchant, updateMerchantRate, deleteMerchant,
   adjustCustomerBalance, resetCustomerBalance, deleteCustomer,
   editInvoiceAdmin, returnInvoiceAdmin, deleteInvoice,
   sendNotification, getNotifications,
   adminUpdateMerchant, adminUpdateCustomer, adminGetAllRequests
-} = await import('./admin.js' + V);
-const {
+} from './admin.js';
+import {
   getUserWalletsBreakdown, initAccountMap, getMarkerPosition,
   setMarkerPosition, searchAddress, updateMyMerchantLocation
-} = await import('./account.js' + V);
-const {
+} from './account.js';
+import {
   rateMerchant, getMerchantRatings
-} = await import('./ratings.js' + V);
+} from './ratings.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -361,6 +359,7 @@ window.openMerchant = async function (bankCode) {
 
   $('merchantModal').classList.add('active');
 
+  // تحميل التقييمات
   $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
   try {
     const ratings = await getMerchantRatings(m.id);
@@ -548,6 +547,7 @@ async function handleSubmitInvoice() {
       if (m) { merchantId = m.id; merchantName = m.name; }
     }
 
+    // إظهار قسم التقييم للعميل
     if (merchantId && currentProfile.role === 'customer') {
       lastRatedMerchantId = merchantId;
       lastRatedMerchantName = merchantName;
@@ -1197,6 +1197,7 @@ async function renderAdminDashboard() {
   $('admOffers').innerText = s.offersCount;
 }
 
+// ✅ معدّل: مع فلترة البحث
 async function renderAdminTraders() {
   adminData.merchants = await getAllMerchants();
   const el = $('adminTradersList');
@@ -1300,6 +1301,7 @@ window.delTrader = async function (id) {
   catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
+// ✅ معدّل: مع فلترة البحث
 async function renderAdminCustomers() {
   adminData.customers = await getAllCustomers();
   const el = $('adminCustomersList');
@@ -1844,6 +1846,7 @@ function bindEvents() {
   $('rateSlider').addEventListener('input', updateRateDisplay);
   $('exportPdfBtn').addEventListener('click', exportReportPDF);
 
+  // ✅ نجوم التقييم (Unicode ★)
   document.querySelectorAll('#starContainer .star').forEach(star => {
     star.addEventListener('click', function () {
       const val = parseInt(this.dataset.value);
@@ -1885,6 +1888,7 @@ function bindEvents() {
   $('adminInvoiceSearch').addEventListener('input', () => renderAdminInvoices());
   $('sendNotifBtn').addEventListener('click', handleSendNotif);
 
+  // ✅ بحث الأدمن
   const traderSearch = $('adminTraderSearch');
   if (traderSearch) traderSearch.addEventListener('input', () => renderAdminTraders());
 
