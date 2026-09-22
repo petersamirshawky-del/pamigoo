@@ -3,6 +3,9 @@
 // ============================================================
 import { supabase } from './supabase.js';
 
+// ============================================================
+// Merchant Stats
+// ============================================================
 export async function getMerchantStats(merchantId) {
   const { data: invoices } = await supabase
     .from('invoices').select('amount, cashback, status, return_amount, returned_cashback, customer_phone')
@@ -39,6 +42,9 @@ export async function getMerchantStats(merchantId) {
   };
 }
 
+// ============================================================
+// Offers
+// ============================================================
 export async function getMerchantOffers(merchantId) {
   const { data, error } = await supabase
     .from('offers').select('*').eq('merchant_id', merchantId)
@@ -47,9 +53,14 @@ export async function getMerchantOffers(merchantId) {
   return data || [];
 }
 
-export async function addOffer({ merchantId, title, discount }) {
+export async function addOffer({ merchantId, title, discount, imageBase64 }) {
   const { error } = await supabase
-    .from('offers').insert({ merchant_id: merchantId, title, discount });
+    .from('offers').insert({
+      merchant_id: merchantId,
+      title,
+      discount,
+      image_url: imageBase64 || null
+    });
   if (error) throw error;
 }
 
@@ -58,12 +69,18 @@ export async function deleteOffer(offerId) {
   if (error) throw error;
 }
 
+// ============================================================
+// Cashback Rate
+// ============================================================
 export async function updateCashbackRate(merchantId, rate) {
   const { error } = await supabase
     .from('merchants').update({ cashback_rate: rate }).eq('id', merchantId);
   if (error) throw error;
 }
 
+// ============================================================
+// Customers / Wallets
+// ============================================================
 export async function getMerchantCustomers(merchantId) {
   const { data } = await supabase
     .from('invoices')
@@ -88,6 +105,9 @@ export async function getMerchantWallets(merchantId) {
   return data || [];
 }
 
+// ============================================================
+// Invoices
+// ============================================================
 export async function getMerchantInvoicesList(merchantId) {
   const { data } = await supabase
     .from('invoices').select('*').eq('merchant_id', merchantId)
@@ -164,7 +184,7 @@ export async function getReportData(merchantId, period) {
 }
 
 // ============================================================
-// Analytics — ✅ نسبة النمو حقيقية
+// Analytics
 // ============================================================
 export async function getAnalytics(merchantId, merchantName, offers) {
   const { data: invoices } = await supabase
@@ -198,7 +218,6 @@ export async function getAnalytics(merchantId, merchantName, offers) {
 
   const topOffer = offers && offers.length ? offers[0].title : '-';
 
-  // حساب نسبة النمو الحقيقية (الشهر الحالي مقابل الشهر الماضي)
   const now = new Date();
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -232,4 +251,81 @@ export async function getAnalytics(merchantId, merchantName, offers) {
     repeatCount,
     growth: growthLabel
   };
+}
+
+// ============================================================
+// Merchant Logo Upload ✅ NEW
+// ============================================================
+export async function uploadMerchantLogo(merchantId, file) {
+  if (!file) throw new Error('اختار صورة');
+  if (!file.type.startsWith('image/')) throw new Error('لازم صورة');
+  if (file.size > 2 * 1024 * 1024) throw new Error('الصورة كبيرة (2MB max)');
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  const fileName = `${merchantId}-${Date.now()}.${ext}`;
+
+  const { error: upErr } = await supabase.storage
+    .from('merchant-logos')
+    .upload(fileName, file, { upsert: true, contentType: file.type });
+
+  if (upErr) throw upErr;
+
+  const { data: urlData } = supabase.storage
+    .from('merchant-logos')
+    .getPublicUrl(fileName);
+
+  const logoUrl = urlData.publicUrl;
+
+  const { error: updErr } = await supabase
+    .from('merchants')
+    .update({ logo_url: logoUrl })
+    .eq('id', merchantId);
+
+  if (updErr) throw updErr;
+
+  return logoUrl;
+}
+
+export async function deleteMerchantLogo(merchantId) {
+  const { data: m } = await supabase
+    .from('merchants').select('logo_url').eq('id', merchantId).single();
+
+  if (m?.logo_url) {
+    const fileName = m.logo_url.split('/').pop();
+    await supabase.storage.from('merchant-logos').remove([fileName]);
+  }
+
+  const { error } = await supabase
+    .from('merchants').update({ logo_url: null }).eq('id', merchantId);
+  if (error) throw error;
+}
+
+// ============================================================
+// Product Image Upload (for Stage 11-C) ✅ NEW
+// ============================================================
+export async function uploadProductImage(merchantId, file) {
+  if (!file) throw new Error('اختار صورة');
+  if (!file.type.startsWith('image/')) throw new Error('لازم صورة');
+  if (file.size > 3 * 1024 * 1024) throw new Error('الصورة كبيرة (3MB max)');
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  const fileName = `${merchantId}-${Date.now()}.${ext}`;
+
+  const { error: upErr } = await supabase.storage
+    .from('product-images')
+    .upload(fileName, file, { upsert: true, contentType: file.type });
+
+  if (upErr) throw upErr;
+
+  const { data: urlData } = supabase.storage
+    .from('product-images')
+    .getPublicUrl(fileName);
+
+  return urlData.publicUrl;
+}
+
+export async function deleteProductImage(imageUrl) {
+  if (!imageUrl) return;
+  const fileName = imageUrl.split('/').pop();
+  await supabase.storage.from('product-images').remove([fileName]);
 }

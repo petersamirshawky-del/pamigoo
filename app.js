@@ -1,5 +1,5 @@
 ﻿// ============================================================
-// PAMIGO - Main Entry (Stage 11: Real Email + Fixes)
+// PAMIGO - Main Entry (Stage 11: Real Email + Logo)
 // ============================================================
 import { supabase } from './supabase.js';
 import { SUB_CATEGORIES, CATEGORY_ICONS } from './config.js';
@@ -26,7 +26,9 @@ import {
   getMerchantStats, getMerchantOffers, addOffer, deleteOffer,
   updateCashbackRate, getMerchantCustomers, getMerchantWallets,
   getMerchantInvoicesList, editInvoice, processReturn,
-  getReportData, getAnalytics
+  getReportData, getAnalytics,
+  uploadMerchantLogo, deleteMerchantLogo,
+  uploadProductImage, deleteProductImage
 } from './dashboard.js';
 import {
   getAdminStats, getAllMerchants, getAllCustomers, getAllInvoices,
@@ -59,6 +61,7 @@ let currentReqFilter = 'all';
 let myRequestsCache = [];
 let adminData = { merchants: [], customers: [], invoices: [] };
 let expectedLogin = null;
+let uploadedOfferImage = null;
 
 // ============================================================
 // Load merchants
@@ -68,8 +71,8 @@ async function loadMerchants() {
     .from('merchants')
     .select(`
       id, bank_code, name, phone, category, sub_categories,
-      icon, lat, lng, cashback_rate, frozen,
-      offers ( id, title, discount ),
+      icon, logo_url, lat, lng, cashback_rate, frozen,
+      offers ( id, title, discount, image_url ),
       ratings ( stars )
     `)
     .eq('frozen', false);
@@ -147,6 +150,16 @@ function matchesCatSubs(m, cats, subs) {
 }
 
 // ============================================================
+// Logo HTML helpers
+// ============================================================
+function logoImgHtml(m, sizeClass) {
+  if (m.logo_url) {
+    return `<img src="${m.logo_url}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit" onerror="this.parentElement.innerHTML='${m.icon || '🏪'}'">`;
+  }
+  return m.icon || '🏪';
+}
+
+// ============================================================
 // Render: merchants list
 // ============================================================
 function renderMerchantsList() {
@@ -189,7 +202,7 @@ function renderMerchantsList() {
     }
     return `
       <div class="store-item" onclick="openMerchant('${m.bank_code}')">
-        <div class="icon">${m.icon || '🏪'}</div>
+        <div class="icon" style="overflow:hidden">${logoImgHtml(m)}</div>
         <div class="info">
           <h4>${m.name} <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></h4>
           <div class="desc">${dist ? dist + ' • ' : ''}${(m.offers || []).length} عرض • كاش باك ${rate}%${maxDisc ? ' • خصم لحد ' + maxDisc + '%' : ''}</div>
@@ -214,7 +227,7 @@ function renderTopDeals() {
       <div class="deal-card" onclick="openMerchant('${m.bank_code}')">
         <div class="tier-badge">${tier.icon}</div>
         <div class="discount">${rate}%</div>
-        <div class="icon">${m.icon || '🏪'}</div>
+        <div class="icon" style="overflow:hidden;display:flex;align-items:center;justify-content:center;border-radius:16px">${logoImgHtml(m)}</div>
         <div class="tag">${m.name}</div>
         <div style="font-size:11px;color:#ff6b35;margin-top:4px">كاش باك ${rate}%</div>
       </div>
@@ -233,7 +246,9 @@ function renderOffersGrid() {
     return `
       <div class="deal-card" onclick="openMerchant('${m.bank_code}')" style="min-width:auto;text-align:center">
         <div class="tier-badge">${tier.icon}</div>
-        <div style="font-size:48px">${m.icon || '🏪'}</div>
+        <div style="width:70px;height:70px;margin:0 auto;border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-soft);font-size:48px">
+          ${logoImgHtml(m)}
+        </div>
         <div class="discount" style="font-size:20px">${rate}%</div>
         <div style="font-size:13px;font-weight:600">${m.name}</div>
         <div style="font-size:11px;color:#ff6b35;margin-top:4px">كاش باك ${rate}%</div>
@@ -310,19 +325,33 @@ window.openMerchant = function (bankCode) {
   currentModalMerchant = m;
   const rate = m.cashback_rate || 15;
   const tier = getTier(rate);
-  $('modalMerchantName').innerText = m.name;
+
+  const logoHtml = m.logo_url
+    ? `<img src="${m.logo_url}" style="width:70px;height:70px;object-fit:cover;border-radius:16px;margin:0 auto 10px;display:block">`
+    : `<div style="font-size:60px;text-align:center">${m.icon || '🏪'}</div>`;
+
+  $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${m.name}</div>`;
   $('modalMerchantInfo').innerHTML = `${m.icon || '🏪'} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>`;
+
   $('modalOffersList').innerHTML = (m.offers || []).length
-    ? m.offers.map((o, i) => `
-        <div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:10px;border-right:4px solid #ff6b35;display:flex;justify-content:space-between;align-items:center;gap:10px">
-          <div style="flex:1">
-            <h5 style="font-size:15px;margin-bottom:4px;color:var(--primary)">${o.title}</h5>
-            <p style="font-size:12px;color:#6b7280">عرض ${i + 1} من ${m.offers.length}</p>
+    ? m.offers.map((o, i) => {
+        const imgHtml = o.image_url
+          ? `<img src="${o.image_url}" style="width:100%;max-width:120px;height:80px;object-fit:cover;border-radius:8px;margin-bottom:6px">`
+          : '';
+        return `
+        <div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:10px;border-right:4px solid #ff6b35">
+          ${imgHtml}
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <div style="flex:1">
+              <h5 style="font-size:15px;margin-bottom:4px;color:var(--primary)">${o.title}</h5>
+              <p style="font-size:12px;color:#6b7280">عرض ${i + 1} من ${m.offers.length}</p>
+            </div>
+            <div style="background:#1a2a6c;color:#fff;padding:6px 14px;border-radius:30px;font-weight:700;font-size:14px;white-space:nowrap">${o.discount}</div>
           </div>
-          <div style="background:#1a2a6c;color:#fff;padding:6px 14px;border-radius:30px;font-weight:700;font-size:14px;white-space:nowrap">${o.discount}</div>
-        </div>
-      `).join('')
+        </div>`;
+      }).join('')
     : '<p style="text-align:center;color:#6b7280;padding:20px">لا توجد عروض حالياً</p>';
+
   $('merchantModal').classList.add('active');
 };
 
@@ -770,10 +799,83 @@ window.hideReq = async function (reqId) {
 };
 
 // ============================================================
+// MERCHANT LOGO
+// ============================================================
+function renderLogoPreview() {
+  if (!currentMerchant) return;
+  const img = $('logoPreviewImg');
+  const emoji = $('logoPreviewEmoji');
+  if (!img || !emoji) return;
+
+  if (currentMerchant.logo_url) {
+    img.src = currentMerchant.logo_url;
+    img.style.display = 'block';
+    emoji.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    emoji.style.display = 'inline';
+    emoji.innerText = currentMerchant.icon || '🏪';
+  }
+}
+
+async function handleUploadLogo() {
+  if (!currentMerchant) return;
+  const res = $('logoUploadResult');
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    res.style.color = '#6b7280';
+    res.innerText = '⏳ جاري الرفع...';
+
+    try {
+      const url = await uploadMerchantLogo(currentMerchant.id, file);
+      currentMerchant.logo_url = url;
+      renderLogoPreview();
+      res.style.color = '#10b981';
+      res.innerText = '✅ تم رفع الشعار';
+      await refreshData();
+      setTimeout(() => res.innerText = '', 3000);
+    } catch (e) {
+      res.style.color = '#ef4444';
+      res.innerText = '❌ ' + e.message;
+    }
+  };
+
+  input.click();
+}
+
+async function handleDeleteLogo() {
+  if (!currentMerchant) return;
+  if (!confirm('متأكد من حذف الشعار؟')) return;
+  const res = $('logoUploadResult');
+
+  try {
+    await deleteMerchantLogo(currentMerchant.id);
+    currentMerchant.logo_url = null;
+    renderLogoPreview();
+    res.style.color = '#10b981';
+    res.innerText = '✅ تم حذف الشعار';
+    await refreshData();
+    setTimeout(() => res.innerText = '', 3000);
+  } catch (e) {
+    res.style.color = '#ef4444';
+    res.innerText = '❌ ' + e.message;
+  }
+}
+
+// ============================================================
 // DASHBOARD
 // ============================================================
 async function renderDashboard() {
   if (!currentMerchant) return;
+
+  renderLogoPreview();
 
   try {
     const s = await getMerchantStats(currentMerchant.id);
@@ -795,11 +897,16 @@ async function renderDashboard() {
   try {
     const offers = await getMerchantOffers(currentMerchant.id);
     const el = $('myOffersList');
-    el.innerHTML = offers.length ? offers.map(o => `
-      <div class="merchant-offer-card" style="background:#f9fafb;padding:12px;border-radius:12px;margin-bottom:8px;border-right:4px solid #ff6b35;display:flex;justify-content:space-between;align-items:center">
-        <div><span style="font-weight:600">${o.title}</span> <span style="color:#ff6b35;font-weight:700">${o.discount}</span></div>
+    el.innerHTML = offers.length ? offers.map(o => {
+      const imgHtml = o.image_url
+        ? `<img src="${o.image_url}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0">`
+        : '';
+      return `<div class="merchant-offer-card" style="background:#f9fafb;padding:10px;border-radius:12px;margin-bottom:8px;border-right:4px solid #ff6b35;display:flex;align-items:center;gap:10px">
+        ${imgHtml}
+        <div style="flex:1"><span style="font-weight:600">${o.title}</span><br><span style="color:#ff6b35;font-weight:700">${o.discount}</span></div>
         <button class="del-btn" onclick="deleteOfferClick('${o.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
-      </div>`).join('') : '<p style="color:#6b7280">لا توجد عروض</p>';
+      </div>`;
+    }).join('') : '<p style="color:#6b7280">لا توجد عروض</p>';
   } catch (e) { console.error(e); }
 
   try {
@@ -879,9 +986,12 @@ async function handleAddOffer() {
   const res = $('offerResult');
   if (!title || !discount) { res.style.color = 'red'; res.innerText = '❌ املأ البيانات'; return; }
   try {
-    await addOffer({ merchantId: currentMerchant.id, title, discount });
+    await addOffer({ merchantId: currentMerchant.id, title, discount, imageBase64: uploadedOfferImage });
     res.style.color = 'green'; res.innerText = '✅ تم نشر العرض';
     $('offerTitle').value = ''; $('offerDiscount').value = '';
+    uploadedOfferImage = null;
+    const p = $('offerImagePreview'); if (p) { p.style.display = 'none'; p.src = ''; }
+    const f = $('offerFileName'); if (f) f.innerText = 'لم يتم اختيار ملف';
     setTimeout(() => { res.innerText = ''; renderDashboard(); }, 1000);
   } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
 }
@@ -902,6 +1012,19 @@ function updateRateDisplay() {
   $('rateValueDisplay').innerText = v;
   const tier = getTier(v);
   $('rateTierDisplay').innerHTML = `${tier.icon} ${tier.name}`;
+}
+
+function handleOfferImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    uploadedOfferImage = ev.target.result;
+    const f = $('offerFileName'); if (f) f.innerText = '📎 ' + file.name;
+    const p = $('offerImagePreview');
+    if (p) { p.src = ev.target.result; p.style.display = 'block'; }
+  };
+  reader.readAsDataURL(file);
 }
 
 // ============================================================
@@ -999,9 +1122,12 @@ async function renderAdminTraders() {
   el.innerHTML = adminData.merchants.map(m => {
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
+    const logo = m.logo_url
+      ? `<img src="${m.logo_url}" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle">`
+      : (m.icon || '🏪');
     return `<div class="admin-item">
       <div class="head">
-        <span class="title">${m.icon || '🏪'} ${m.name}</span>
+        <span class="title">${logo} ${m.name}</span>
         ${m.frozen ? '<span class="frozen-badge">❄️ موقوف</span>' : '<span class="active-badge">✅ نشط</span>'}
       </div>
       <div class="info">🔑 ${m.bank_code} | 📱 ${m.phone || '-'} | 💰 ${rate}%</div>
@@ -1605,6 +1731,14 @@ function bindEvents() {
   $('saveRateBtn').addEventListener('click', handleSaveRate);
   $('rateSlider').addEventListener('input', updateRateDisplay);
   $('exportPdfBtn').addEventListener('click', exportReportPDF);
+
+  const upBtn = $('uploadLogoBtn');
+  const delBtn = $('deleteLogoBtn');
+  if (upBtn) upBtn.addEventListener('click', handleUploadLogo);
+  if (delBtn) delBtn.addEventListener('click', handleDeleteLogo);
+
+  const offerImg = $('offerImage');
+  if (offerImg) offerImg.addEventListener('change', handleOfferImage);
 
   document.querySelectorAll('.report-period-btn').forEach(btn => {
     btn.addEventListener('click', () => renderReports(btn.dataset.period));
