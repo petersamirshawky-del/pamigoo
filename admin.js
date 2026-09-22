@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // PAMIGO - Admin Panel
 // ============================================================
-import { supabase } from './supabase.js';
+import { supabase } from './supabase.js?v=20260922';
 
 export async function getAdminStats() {
   const { data: merchants } = await supabase.from('merchants').select('id');
@@ -107,7 +107,6 @@ export async function deleteMerchant(merchantId) {
   if (error) throw error;
 }
 
-// ✅ جديد: تعديل بيانات تاجر
 export async function adminUpdateMerchant(merchantId, data) {
   const { data: res, error } = await supabase.rpc('admin_update_merchant', {
     p_merchant_id: merchantId,
@@ -116,14 +115,14 @@ export async function adminUpdateMerchant(merchantId, data) {
     p_new_lat: data.lat ?? null,
     p_new_lng: data.lng ?? null,
     p_new_rate: data.rate ?? null,
-    p_new_sub_categories: data.subCategories || null
+    p_new_sub_categories: data.subCategories || null,
+    p_new_bank_code: data.bankCode || null
   });
   if (error) throw error;
   if (!res.ok) throw new Error(res.error);
   return res;
 }
 
-// ✅ جديد: تعديل بيانات عميل
 export async function adminUpdateCustomer(phone, newName, newPhone) {
   const { data, error } = await supabase.rpc('admin_update_customer', {
     p_phone: phone,
@@ -192,7 +191,6 @@ export async function getNotifications() {
   return data || [];
 }
 
-// ✅ جديد: كل الطلبات للأدمن
 export async function adminGetAllRequests() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
@@ -214,7 +212,6 @@ export async function adminGetAllRequests() {
   return data || [];
 }
 
-// ✅ جديد: الأدمن يغيّر باسورد أي حد
 export async function adminResetUserPassword(userId, newPassword) {
   const { data, error } = await supabase.rpc('admin_change_password', {
     p_user_id: userId, p_new_password: newPassword

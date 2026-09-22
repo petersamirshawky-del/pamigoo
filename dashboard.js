@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // PAMIGO - Merchant Dashboard / Reports / Analytics
 // ============================================================
-import { supabase } from './supabase.js';
+import { supabase } from './supabase.js?v=20260922';
 
 // ============================================================
 // Merchant Stats
@@ -254,7 +254,7 @@ export async function getAnalytics(merchantId, merchantName, offers) {
 }
 
 // ============================================================
-// Merchant Logo Upload ✅ NEW
+// Merchant Logo Upload
 // ============================================================
 export async function uploadMerchantLogo(merchantId, file) {
   if (!file) throw new Error('اختار صورة');
@@ -301,7 +301,7 @@ export async function deleteMerchantLogo(merchantId) {
 }
 
 // ============================================================
-// Product Image Upload (for Stage 11-C) ✅ NEW
+// Product Image Upload
 // ============================================================
 export async function uploadProductImage(merchantId, file) {
   if (!file) throw new Error('اختار صورة');

@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // PAMIGO - Ratings
 // ============================================================
-import { supabase } from './supabase.js';
+import { supabase } from './supabase.js?v=20260922';
 
 // ============================================================
 // عميل يقيّم تاجر
@@ -13,7 +13,6 @@ export async function rateMerchant({ merchantId, stars, comment }) {
   if (!merchantId) throw new Error('التاجر غير معروف');
   if (!stars || stars < 1 || stars > 5) throw new Error('اختار 1-5 نجوم');
 
-  // لو العميل قيّم التاجر قبل كده، نحدّث التقييم
   const { data: existing } = await supabase
     .from('ratings')
     .select('id')

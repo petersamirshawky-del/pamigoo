@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // PAMIGO - Account Page
 // ============================================================
-import { supabase } from './supabase.js';
+import { supabase } from './supabase.js?v=20260922';
 
 let mapInstance = null;
 let markerInstance = null;
@@ -59,7 +59,6 @@ export async function searchAddress(query) {
 }
 
 export async function updateMyLocation(userId, lat, lng) {
-  // متخزنش في profiles لأن مفيش عمود — بس في localStorage مؤقتًا
   localStorage.setItem('pamigo_user_loc', JSON.stringify({ lat, lng }));
 }
 

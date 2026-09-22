@@ -1,11 +1,11 @@
-// ============================================================
+ï»¿// ============================================================
 // PAMIGO - Special Requests
 // ============================================================
-import { supabase } from './supabase.js';
+import { supabase } from './supabase.js?v=20260922';
 
 export async function sendRequest({ category, product, details, imageBase64 }) {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('ãÔ ãÓÌá ÏÎæá');
+  if (!user) throw new Error('Ù…Ø´ Ù…Ø³Ø¬Ù„ Ø¯Ø®ÙˆÙ„');
 
   const { data, error } = await supabase
     .from('special_requests')
@@ -13,7 +13,7 @@ export async function sendRequest({ category, product, details, imageBase64 }) {
       customer_id: user.id,
       category,
       product: product.trim(),
-      details: details.trim() || 'áÇ ÊİÇÕíá',
+      details: details.trim() || 'Ù„Ø§ ØªÙØ§ØµÙŠÙ„',
       image_url: imageBase64 || null,
       status: 'pending'
     })
@@ -70,7 +70,7 @@ export async function replyToRequest({ requestId, merchantId, price, message, im
       request_id: requestId,
       merchant_id: merchantId,
       price: parseFloat(price),
-      message: message || 'ãÊæİÑ ÈÓÚÑ ããÊÇÒ',
+      message: message || 'Ù…ØªÙˆÙØ± Ø¨Ø³Ø¹Ø± Ù…Ù…ØªØ§Ø²',
       image_url: imageBase64 || null
     });
   if (error) throw error;
@@ -81,13 +81,12 @@ export async function replyToRequest({ requestId, merchantId, price, message, im
     .eq('id', requestId);
 }
 
-// ÇáÊÇÌÑ íÈÚÊ ÕæÑÉ ÅÖÇİíÉ
 export async function merchantSendExtraImage({ responseId, imageBase64, message }) {
   const { error } = await supabase
     .from('request_responses')
     .update({
       image_url: imageBase64,
-      merchant_reply: message || 'Ïí ÕæÑÉ ÅÖÇİíÉ'
+      merchant_reply: message || 'Ø¯ÙŠ ØµÙˆØ±Ø© Ø¥Ø¶Ø§ÙÙŠØ©'
     })
     .eq('id', responseId);
   if (error) throw error;
@@ -114,14 +113,13 @@ export async function deleteRequest(requestId) {
   if (error) throw error;
 }
 
-// ? ÇáÊÇÌÑ íÎİí ØáÈ ãä ÚäÏå (Úä ØÑíŞ ÏÇáÉ SQL)
 export async function hideRequestForMerchant(requestId, merchantId) {
   const { data, error } = await supabase.rpc('hide_request_for_merchant', {
     p_request_id: requestId,
     p_merchant_id: merchantId
   });
   if (error) throw error;
-  if (!data.ok) throw new Error(data.error || 'İÔá ÇáãÓÍ');
+  if (!data.ok) throw new Error(data.error || 'ÙØ´Ù„ Ø§Ù„Ù…Ø³Ø­');
   return data;
 }
 

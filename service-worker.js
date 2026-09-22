@@ -1,15 +1,15 @@
+﻿// ============================================================
+// PAMIGO - Service Worker
 // ============================================================
-// PAMIGO - Service Worker (v2)
-// ============================================================
-const CACHE_NAME = 'pamigo-v2';
+const CACHE_NAME = 'pamigo-v20260922';
 const urlsToCache = [
   './',
   './index.html',
-  './favicon.svg',
-  './manifest.json',
-  './css/base.css',
-  './css/components.css',
-  './css/layout.css'
+  './favicon.svg?v=20260922',
+  './manifest.json?v=20260922',
+  './css/base.css?v=20260922',
+  './css/components.css?v=20260922',
+  './css/layout.css?v=20260922'
 ];
 
 self.addEventListener('install', (event) => {
@@ -36,16 +36,17 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // متتجاهلش طلبات Supabase (لازم إنترنت دايمًا)
+  // متتجاهلش طلبات Supabase
   if (url.hostname.includes('supabase')) return;
 
-  // متتجاهلش طلبات غير GET
+  // JS files: جيبها من الشبكة على طول (متحفظهاش في الكاش)
+  if (url.pathname.endsWith('.js')) return;
+
   if (request.method !== 'GET') return;
 
-  // Network First - يجيب النسخة الجديدة دايمًا
+  // Network First
   event.respondWith(
     fetch(request).then((networkResponse) => {
-      // خزّن نسخة من الرد الجديد
       if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
         const responseClone = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => {
@@ -54,7 +55,6 @@ self.addEventListener('fetch', (event) => {
       }
       return networkResponse;
     }).catch(() => {
-      // لو مفيش نت، رجّع من الكاش
       return caches.match(request).then((response) => {
         if (response) return response;
         if (request.destination === 'document') {
