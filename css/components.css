@@ -513,3 +513,66 @@ html { scroll-behavior: smooth; }
   background: var(--primary);
   color: #fff;
 }
+/* ============================================================
+   Cairo Font Enhancements (11-D+)
+   ============================================================ */
+
+/* تحسين قراءة الأزرار */
+.card button,
+.admin-btn,
+.tab-btn,
+.category-chip,
+.auth-tab,
+.lang-btn,
+.report-period-btn,
+.accept-btn,
+.del-btn,
+.location {
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+/* الأرقام أوضح */
+.stat strong,
+.analytics-card .value,
+.my-balance-banner .val,
+.discount,
+.rate-display {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+/* عناوين الكاردات أقوى */
+.card h3, .card h4, .card h5 {
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+/* النصوص الصغيرة أوضح */
+.card input,
+.card select,
+.card textarea,
+.store-item .info .desc,
+.stat,
+.info-row {
+  font-weight: 500;
+}
+
+/* العناوين الرئيسية في الـ tabs */
+.tab-btn {
+  font-size: 13px;
+  padding: 11px 10px;
+}
+
+/* التصنيفات أوضح */
+.category-chip {
+  font-size: 13.5px;
+  padding: 9px 18px;
+}
+
+/* الأزرار الأساسية أكبر */
+.card button {
+  font-size: 15.5px;
+  padding: 14px;
+}
