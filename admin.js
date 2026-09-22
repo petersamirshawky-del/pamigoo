@@ -1,680 +1,222 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes">
-  <meta name="theme-color" content="#1a2a6c">
-  <title>PAMIGO</title>
-  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=20260922">
-  <link rel="manifest" href="manifest.json?v=20260922">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="PAMIGO">
-  <link rel="apple-touch-icon" href="favicon.svg?v=20260922">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="css/base.css?v=20260922">
-  <link rel="stylesheet" href="css/components.css?v=20260922">
-  <link rel="stylesheet" href="css/layout.css?v=20260922">
-</head>
-<body>
+// ============================================================
+// PAMIGO - Admin Panel
+// ============================================================
+import { supabase } from './supabase.js?v=20260922';
 
-  <div class="header">
-    <div class="header-left">
-      <div>
-        <h2>PAMIGO</h2>
-        <p><i class="fas fa-map-pin" style="color:#ff6b35"></i> <span id="locationText" data-i18n="header.locating">جاري تحديد الموقع...</span></p>
-      </div>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <div class="lang-switcher">
-        <button class="lang-btn active" data-lang="ar" onclick="window.__setLang('ar')">AR</button>
-        <button class="lang-btn" data-lang="en" onclick="window.__setLang('en')">EN</button>
-      </div>
-      <button class="location" id="refreshLocation" data-i18n="header.refresh">🔄 تحديث الموقع</button>
-    </div>
-  </div>
+export async function getAdminStats() {
+  const { data: merchants } = await supabase.from('merchants').select('id');
+  const { data: profiles } = await supabase.from('profiles').select('id');
+  const { data: invoices } = await supabase.from('invoices').select('amount, cashback, status, return_amount, returned_cashback');
+  const { data: redemptions } = await supabase.from('redemptions').select('used_cashback');
+  const { data: offers } = await supabase.from('offers').select('id');
 
-  <div id="authScreen" style="display:none">
-    <div class="card login-box">
-      <div class="auth-tabs">
-        <button class="auth-tab active" data-tab="login" data-i18n="auth.loginTab">🔐 دخول</button>
-        <button class="auth-tab" data-tab="signup" data-i18n="auth.signupTab">📝 حساب جديد</button>
-      </div>
+  let sales = 0, cbGiven = 0;
+  (invoices || []).forEach(i => {
+    if (i.status === 'active') { sales += parseFloat(i.amount||0); cbGiven += parseFloat(i.cashback||0); }
+    else if (i.status === 'partial_return') {
+      sales += parseFloat(i.amount||0) - parseFloat(i.return_amount||0);
+      cbGiven += parseFloat(i.cashback||0) - parseFloat(i.returned_cashback||0);
+    }
+  });
+  const cbSpent = (redemptions || []).reduce((s, r) => s + parseFloat(r.used_cashback || 0), 0);
 
-      <form id="loginForm">
-        <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)" data-i18n="login.title">تسجيل الدخول</h4>
+  return {
+    tradersCount: (merchants || []).length,
+    customersCount: (profiles || []).length,
+    invoicesCount: (invoices || []).length,
+    sales,
+    cbGiven,
+    cbSpent,
+    cbRemaining: cbGiven - cbSpent,
+    offersCount: (offers || []).length
+  };
+}
 
-        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px" data-i18n="login.role">👤 حسابي:</label>
-        <select id="loginRole">
-          <option value="customer" data-i18n="login.roleCustomer">👤 عميل</option>
-          <option value="merchant" data-i18n="login.roleMerchant">🏪 تاجر</option>
-          <option value="admin" data-i18n="login.roleAdmin">👑 أدمن</option>
-        </select>
+export async function getAllMerchants() {
+  const { data } = await supabase
+    .from('merchants').select('*, offers(id)')
+    .order('created_at', { ascending: false });
+  return data || [];
+}
 
-        <input type="tel" id="loginPhone" placeholder="📱 رقم الموبايل" autocomplete="tel" data-i18n-placeholder="login.phone">
-        <div class="password-wrap">
-          <input type="password" id="loginPassword" placeholder="🔑 كلمة المرور" autocomplete="current-password" data-i18n-placeholder="login.password">
-          <button type="button" class="eye-btn" onclick="togglePass('loginPassword', this)" tabindex="-1">👁️</button>
-        </div>
+export async function getAllCustomers() {
+  const { data: profiles } = await supabase.from('profiles').select('*').eq('role', 'customer');
+  const { data: wallets } = await supabase.from('wallets').select('*');
 
-        <div id="loginBankCodeGroup" style="display:none">
-          <div class="password-wrap">
-            <input type="password" id="loginBankCode" placeholder="🔑 بنكود التاجر" autocomplete="off" style="text-transform:uppercase" data-i18n-placeholder="login.bankCode">
-            <button type="button" class="eye-btn" onclick="togglePass('loginBankCode', this)" tabindex="-1">👁️</button>
-          </div>
-        </div>
-
-        <div id="loginAdminCodeGroup" style="display:none">
-          <div class="password-wrap">
-            <input type="password" id="loginAdminCode" placeholder="🔑 بنكود الأدمن" autocomplete="off" data-i18n-placeholder="login.adminCode">
-            <button type="button" class="eye-btn" onclick="togglePass('loginAdminCode', this)" tabindex="-1">👁️</button>
-          </div>
-        </div>
-
-        <button type="submit" id="loginBtn" style="margin-top:10px" data-i18n="login.btn">🚀 دخول</button>
-
-        <p style="text-align:center;margin-top:12px;font-size:13px">
-          <a href="#" id="forgotPassLink" style="color:var(--primary);text-decoration:underline" data-i18n="login.forgot">نسيت كلمة المرور؟</a>
-        </p>
-      </form>
-
-      <form id="signupForm" style="display:none">
-        <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)" data-i18n="signup.title">حساب جديد</h4>
-        <input type="text" id="signupName" placeholder="👤 الاسم" autocomplete="name" data-i18n-placeholder="signup.name">
-        <input type="tel" id="signupPhone" placeholder="📱 رقم الموبايل" autocomplete="tel" data-i18n-placeholder="signup.phone">
-        <input type="email" id="signupEmail" placeholder="📧 الإيميل الحقيقي" autocomplete="email" data-i18n-placeholder="signup.email">
-        <div class="password-wrap">
-          <input type="password" id="signupPassword" placeholder="🔑 كلمة المرور (6 أحرف على الأقل)" autocomplete="new-password" data-i18n-placeholder="signup.password">
-          <button type="button" class="eye-btn" onclick="togglePass('signupPassword', this)" tabindex="-1">👁️</button>
-        </div>
-        <select id="signupRole">
-          <option value="customer" data-i18n="login.roleCustomer">👤 عميل</option>
-          <option value="merchant" data-i18n="login.roleMerchant">🏪 تاجر</option>
-          <option value="admin" data-i18n="login.roleAdmin">👑 أدمن</option>
-        </select>
-        <div id="bankCodeGroup" style="display:none">
-          <input type="text" id="signupBankCode" placeholder="🔑 البنكود (مثال: MERCH-MNS01)" autocomplete="off" style="text-transform:uppercase" data-i18n-placeholder="signup.merchantBankCode">
-          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px" data-i18n="signup.merchantBankHint">💡 البنكود بتستلمه من إدارة PAMIGO.</p>
-        </div>
-        <div id="adminCodeGroup" style="display:none">
-          <div class="password-wrap">
-            <input type="password" id="signupAdminCode" placeholder="🔑 بنكود الأدمن" autocomplete="off" data-i18n-placeholder="signup.adminCode">
-            <button type="button" class="eye-btn" onclick="togglePass('signupAdminCode', this)" tabindex="-1">👁️</button>
-          </div>
-          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px" data-i18n="signup.adminHint">💡 خاص بصاحب المنصة فقط.</p>
-        </div>
-        <button type="submit" id="signupBtn" style="margin-top:10px" data-i18n="signup.btn">📝 إنشاء الحساب</button>
-      </form>
-
-      <div id="authMessage" class="auth-message"></div>
-    </div>
-  </div>
-
-  <div id="mainScreen" style="display:none">
-
-    <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 18px">
-      <div style="display:flex;align-items:center;gap:10px">
-        <span id="userRole" class="role-badge">-</span>
-        <strong id="userName" style="font-size:14px">-</strong>
-      </div>
-      <button id="logoutBtn" style="width:auto;padding:8px 16px;font-size:13px;background:var(--danger);border-radius:30px" data-i18n="logout">🚪 خروج</button>
-    </div>
-
-    <div id="merchantBanner" class="card" style="display:none;background:#d1fae5;border-right:4px solid var(--success);padding:12px 16px">
-      <strong style="color:#065f46" data-i18n="merchant.yourShop">🏪 متجرك:</strong>
-      <span id="merchantName" style="color:#065f46;font-weight:600">-</span>
-    </div>
-
-    <div class="tabs" id="mainTabs" style="display:flex !important; flex-wrap:wrap; gap:8px; background:#fff; padding:6px; border-radius:30px; box-shadow:0 2px 8px rgba(0,0,0,.04); margin:20px 0">
-      <button class="tab-btn active" data-tab="home" data-role="customer" data-i18n="tab.home">🏠 الرئيسية</button>
-      <button class="tab-btn" data-tab="offers" data-role="customer" data-i18n="tab.offers">🎁 العروض</button>
-      <button class="tab-btn" data-tab="invoice" data-role="all" data-i18n="tab.invoice">🧾 الفاتورة</button>
-      <button class="tab-btn" data-tab="requests" data-role="all" data-i18n="tab.requests">📋 طلباتي</button>
-      <button class="tab-btn" data-tab="dashboard" data-role="merchant" style="display:none" data-i18n="tab.dashboard">📊 لوحتي</button>
-      <button class="tab-btn" data-tab="reports" data-role="merchant" style="display:none" data-i18n="tab.reports">📈 تقاريري</button>
-      <button class="tab-btn" data-tab="analytics" data-role="merchant" style="display:none" data-i18n="tab.analytics">📉 تحليلاتي</button>
-      <button class="tab-btn" data-tab="admin" data-role="admin" style="display:none" data-i18n="tab.admin">👑 الأدمن</button>
-      <button class="tab-btn" data-tab="account" data-role="all" data-i18n="tab.account">👤 حسابي</button>
-    </div>
-
-    <div class="tab-content active" id="tab-home">
-      <div class="radius-control">
-        <label>🔍 نطاق البحث: <span id="homeRadiusValue">2</span> كم</label>
-        <input type="range" id="homeRadiusSlider" min="0.5" max="10" step="0.5" value="2">
-        <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
-          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📊 ترتيب النتائج:</label>
-          <div class="categories" id="homeSortOptions" style="margin-bottom:0">
-            <button class="category-chip active" data-sort="nearest"><i class="fas fa-location-dot"></i> الأقرب</button>
-            <button class="category-chip" data-sort="cashback"><i class="fas fa-coins"></i> أعلى كاش باك</button>
-            <button class="category-chip" data-sort="discount"><i class="fas fa-fire"></i> أعلى خصم</button>
-          </div>
-        </div>
-        <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
-          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">🏷️ نوع الخدمة:</label>
-          <div class="categories" id="homeCategories" style="margin-bottom:0">
-            <button class="category-chip active" data-cat="all"><i class="fas fa-th"></i> الكل</button>
-            <button class="category-chip" data-cat="fashion"><i class="fas fa-tshirt"></i> ملابس</button>
-            <button class="category-chip" data-cat="restaurants"><i class="fas fa-utensils"></i> مطاعم</button>
-            <button class="category-chip" data-cat="bigfood"><i class="fas fa-hamburger"></i> وجبات</button>
-            <button class="category-chip" data-cat="electronics"><i class="fas fa-mobile-alt"></i> إلكترونيات</button>
-            <button class="category-chip" data-cat="car_parts"><i class="fas fa-cog"></i> قطع غيار</button>
-            <button class="category-chip" data-cat="car_accessories"><i class="fas fa-car-side"></i> كماليات</button>
-            <button class="category-chip" data-cat="car_repair"><i class="fas fa-wrench"></i> صيانة</button>
-            <button class="category-chip" data-cat="clinics"><i class="fas fa-stethoscope"></i> عيادات</button>
-            <button class="category-chip" data-cat="labs"><i class="fas fa-flask"></i> معامل</button>
-            <button class="category-chip" data-cat="radiology"><i class="fas fa-x-ray"></i> أشعة</button>
-            <button class="category-chip" data-cat="hospitals"><i class="fas fa-hospital"></i> مستشفيات</button>
-          </div>
-        </div>
-        <div id="homeSubWrapper" style="margin-top:12px;border-top:1px solid #eee;padding-top:12px;display:none">
-          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📂 تصنيفات فرعية:</label>
-          <div class="categories" id="homeSubCategories" style="margin-bottom:0"></div>
-        </div>
-      </div>
-      <div class="search-bar">
-        <i class="fas fa-search"></i>
-        <input type="text" id="searchInput" placeholder="ابحث عن عروض أو متاجر...">
-      </div>
-      <div class="section-title"><h3>🔥 أفضل العروض</h3></div>
-      <div class="deals-scroll" id="dealsScroll"></div>
-      <div class="section-title"><h3>📍 المتاجر القريبة</h3></div>
-      <div id="merchantsList"><div class="no-requests">⏳ جاري التحميل...</div></div>
-    </div>
-
-    <div class="tab-content" id="tab-offers">
-      <div class="radius-control">
-        <div>
-          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">🏷️ نوع الخدمة:</label>
-          <div class="categories" id="offersCategories" style="margin-bottom:0">
-            <button class="category-chip active" data-cat="all"><i class="fas fa-th"></i> الكل</button>
-            <button class="category-chip" data-cat="fashion"><i class="fas fa-tshirt"></i> ملابس</button>
-            <button class="category-chip" data-cat="restaurants"><i class="fas fa-utensils"></i> مطاعم</button>
-            <button class="category-chip" data-cat="bigfood"><i class="fas fa-hamburger"></i> وجبات</button>
-            <button class="category-chip" data-cat="electronics"><i class="fas fa-mobile-alt"></i> إلكترونيات</button>
-            <button class="category-chip" data-cat="car_parts"><i class="fas fa-cog"></i> قطع غيار</button>
-            <button class="category-chip" data-cat="car_accessories"><i class="fas fa-car-side"></i> كماليات</button>
-            <button class="category-chip" data-cat="car_repair"><i class="fas fa-wrench"></i> صيانة</button>
-            <button class="category-chip" data-cat="clinics"><i class="fas fa-stethoscope"></i> عيادات</button>
-            <button class="category-chip" data-cat="labs"><i class="fas fa-flask"></i> معامل</button>
-            <button class="category-chip" data-cat="radiology"><i class="fas fa-x-ray"></i> أشعة</button>
-            <button class="category-chip" data-cat="hospitals"><i class="fas fa-hospital"></i> مستشفيات</button>
-          </div>
-        </div>
-        <div id="offersSubWrapper" style="margin-top:14px;border-top:1px solid #eee;padding-top:12px;display:none">
-          <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📂 تصنيفات فرعية:</label>
-          <div class="categories" id="offersSubCategories" style="margin-bottom:0"></div>
-        </div>
-      </div>
-      <div class="section-title"><h3>🎁 كل العروض</h3></div>
-      <div class="offers-grid" id="offersGrid"></div>
-    </div>
-
-    <div class="tab-content" id="tab-invoice">
-      <div class="card">
-        <h4 style="margin-bottom:10px">🧾 رفع فاتورة</h4>
-        <input type="text" id="invNumber" placeholder="رقم الفاتورة">
-        <input type="tel" id="invCustomerPhone" placeholder="📱 رقم موبايل العميل">
-        <input type="number" id="invAmount" placeholder="💰 المبلغ (جنيه)" min="1" step="0.01">
-        <div id="invBankCodeGroup">
-          <div class="password-wrap">
-            <input type="password" id="invBankCode" placeholder="🔑 البنكود" autocomplete="off" style="text-transform:uppercase">
-            <button type="button" class="eye-btn" onclick="togglePass('invBankCode', this)" tabindex="-1">👁️</button>
-          </div>
-          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">💡 ادّي الموبايل للكاشير يدخل البنكود.</p>
-        </div>
-        <button id="submitInvoiceBtn" style="margin-top:10px">✅ رفع الفاتورة</button>
-        <div id="invoiceResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
-      </div>
-
-      <div class="card" id="ratingSection" style="display:none;border-right:4px solid #f59e0b">
-        <h4 style="margin-bottom:8px">⭐ قيّم تجربتك</h4>
-        <p style="font-size:14px;color:#6b7280;margin-bottom:10px">
-          قيّم <strong id="ratedMerchantName">التاجر</strong>
-        </p>
-
-        <div class="stars" id="starContainer" style="display:flex;gap:8px;margin:12px 0;justify-content:center">
-          <span class="star" data-value="1">★</span>
-          <span class="star" data-value="2">★</span>
-          <span class="star" data-value="3">★</span>
-          <span class="star" data-value="4">★</span>
-          <span class="star" data-value="5">★</span>
-        </div>
-
-        <textarea id="reviewComment" placeholder="اكتب تعليقك (اختياري)..." style="width:100%;padding:12px;margin:8px 0;border:1px solid #ddd;border-radius:10px;min-height:70px;font-family:inherit"></textarea>
-
-        <button id="submitRatingBtn" style="background:#f59e0b;margin-top:8px">⭐ إرسال التقييم</button>
-        <div id="ratingResult" style="margin-top:8px;font-weight:600;text-align:center"></div>
-      </div>
-
-      <div class="card" id="merchantCashbackCard" style="display:none">
-        <h4 style="margin-bottom:12px">💵 ملخص الكاش باك</h4>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div style="background:#dbeafe;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#1e40af">ممنوح</div><div style="font-size:18px;font-weight:700;color:#1e40af;margin-top:4px" id="merCbGiven">0 ج</div></div>
-          <div style="background:#fef3c7;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#92400e">مصروف</div><div style="font-size:18px;font-weight:700;color:#92400e;margin-top:4px" id="merCbSpent">0 ج</div></div>
-          <div style="background:#fee2e2;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#991b1b">متبقي</div><div style="font-size:18px;font-weight:700;color:#991b1b;margin-top:4px" id="merCbRemaining">0 ج</div></div>
-          <div style="background:#d1fae5;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#065f46">صافي</div><div style="font-size:18px;font-weight:700;color:#065f46;margin-top:4px" id="merNetSales">0 ج</div></div>
-        </div>
-      </div>
-      <div class="card" id="merchantWalletsCard" style="display:none">
-        <h4 style="margin-bottom:10px">👥 أرصدة عملائي</h4>
-        <div id="merchantWalletsList"><p style="color:#6b7280;font-size:14px">لا يوجد أرصدة</p></div>
-      </div>
-      <div class="card" id="merchantInvoicesCard" style="display:none">
-        <h4 style="margin-bottom:10px">📄 آخر فواتير متجري</h4>
-        <div id="merchantInvoicesList"><p style="color:#6b7280;font-size:14px">لا توجد فواتير</p></div>
-      </div>
-      <div id="customerBalanceBanner" class="my-balance-banner" style="display:none">
-        <div class="lbl">💰 رصيدك الكلي من الكاش باك</div>
-        <div class="val" id="totalBalanceValue">0 ج</div>
-        <div class="sub">من <span id="balanceShopsCount">0</span> متجر</div>
-      </div>
-      <div class="card" id="customerWalletsCard" style="display:none">
-        <h4 style="margin-bottom:10px">🏪 رصيدك في كل متجر</h4>
-        <div id="customerWalletsList"></div>
-      </div>
-      <div class="card" id="customerRedeemCard" style="display:none">
-        <h4 style="margin-bottom:10px">💵 استخدام رصيد الكاش باك</h4>
-        <select id="redeemMerchant"><option value="">اختار المتجر</option></select>
-        <input type="number" id="redeemOriginal" placeholder="💰 مبلغ الفاتورة الجديدة" min="1" step="0.01">
-        <input type="number" id="redeemAmount" placeholder="💵 المبلغ المراد استخدامه" min="1" step="0.01">
-        <button id="redeemBtn" style="margin-top:10px">✅ تطبيق الخصم</button>
-        <div id="redeemResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
-      </div>
-      <div class="card" id="customerInvoicesCard" style="display:none">
-        <h4 style="margin-bottom:10px">📄 فواتيري</h4>
-        <div id="customerInvoicesList"><p style="color:#6b7280;font-size:14px">لا توجد فواتير</p></div>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-requests">
-      <div class="card" id="requestFormCard" style="display:none">
-        <h4 style="margin-bottom:10px">📝 طلب خاص</h4>
-        <select id="reqCategory">
-          <option value="fashion">👗 ملابس</option>
-          <option value="restaurants">🍕 مطاعم</option>
-          <option value="bigfood">🍔 وجبات</option>
-          <option value="electronics">📱 إلكترونيات</option>
-          <option value="car_parts">🛞 قطع غيار</option>
-          <option value="car_accessories">🪞 كماليات</option>
-          <option value="car_repair">🔧 صيانة</option>
-          <option value="clinics">🩺 عيادات</option>
-          <option value="labs">🧪 معامل</option>
-          <option value="radiology">📡 أشعة</option>
-          <option value="hospitals">🏨 مستشفيات</option>
-        </select>
-        <input type="text" id="reqProduct" placeholder="اسم المنتج أو الخدمة">
-        <textarea id="reqDetails" placeholder="تفاصيل إضافية..."></textarea>
-        <label style="margin-top:10px;font-size:14px;font-weight:600;display:block">📸 صورة (اختياري)</label>
-        <div style="border:2px dashed #ddd;padding:20px;text-align:center;border-radius:10px;cursor:pointer;margin:6px 0" onclick="document.getElementById('reqImage').click()">
-          <i class="fas fa-camera" style="font-size:24px;color:var(--primary)"></i>
-          <p style="margin:4px 0">اضغط لرفع صورة</p>
-          <span id="reqFileName" style="color:var(--primary);font-weight:600">لم يتم اختيار ملف</span>
-          <input type="file" id="reqImage" accept="image/*" style="display:none">
-        </div>
-        <img id="reqImagePreview" style="display:none;width:100%;max-width:200px;margin-top:10px;border-radius:10px;border:2px solid #ddd">
-        <button id="sendRequestBtn" style="margin-top:10px">📤 إرسال الطلب للتجار</button>
-        <div id="requestSendResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
-      </div>
-      <div id="reqStatsWrapper" style="display:none">
-        <div class="stats">
-          <div class="stat">📊 إجمالي<br><strong id="statTotal">0</strong></div>
-          <div class="stat">⏳ انتظار<br><strong id="statPending">0</strong></div>
-          <div class="stat">💬 ردود<br><strong id="statResponded">0</strong></div>
-          <div class="stat">✅ مقبولة<br><strong id="statAccepted">0</strong></div>
-        </div>
-        <div class="categories" id="reqFilters">
-          <button class="category-chip active" data-filter="all">🌟 الكل</button>
-          <button class="category-chip" data-filter="pending">⏳ قيد الانتظار</button>
-          <button class="category-chip" data-filter="responded">💬 تم الرد</button>
-          <button class="category-chip" data-filter="accepted">✅ مقبولة</button>
-        </div>
-      </div>
-      <div id="myRequestsList"></div>
-      <div id="merchantRequestsWrapper" style="display:none">
-        <div class="card" style="border-right:4px solid var(--success)">
-          <h4 style="margin-bottom:10px">📥 الطلبات الواردة</h4>
-          <p style="font-size:13px;color:#6b7280;margin-bottom:12px">الطلبات في تصنيفك.</p>
-          <div id="merchantRequestsList"><p style="color:#6b7280;font-size:14px">جاري التحميل...</p></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-dashboard">
-
-      <div class="card" style="border-right:4px solid var(--primary)">
-        <h4 style="margin-bottom:12px">🏪 شعار المتجر</h4>
-        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-          <div id="logoPreviewWrap" style="width:100px;height:100px;border-radius:16px;background:var(--bg-soft);display:flex;align-items:center;justify-content:center;font-size:48px;overflow:hidden;border:2px solid #eee;flex-shrink:0">
-            <img id="logoPreviewImg" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none">
-            <span id="logoPreviewEmoji">🏪</span>
-          </div>
-          <div style="flex:1;min-width:200px">
-            <button id="uploadLogoBtn" style="background:var(--primary)">📸 رفع شعار جديد</button>
-            <button id="deleteLogoBtn" style="background:var(--danger);margin-top:8px">🗑️ حذف الشعار</button>
-            <p style="font-size:12px;color:var(--text-muted);margin-top:8px">💡 صورة مربعة، أقل من 2MB (JPG/PNG)</p>
-          </div>
-        </div>
-        <div id="logoUploadResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
-      </div>
-
-      <div class="card">
-        <h4 style="margin-bottom:12px">📊 إحصائيات متجري</h4>
-        <div class="stats">
-          <div class="stat">👥 العملاء<br><strong id="dashCust">0</strong></div>
-          <div class="stat">💰 المبيعات<br><strong id="dashSales">0 ج</strong></div>
-          <div class="stat">🎁 العروض<br><strong id="dashOffers">0</strong></div>
-        </div>
-      </div>
-      <div class="card">
-        <h5 style="margin-bottom:12px;color:var(--primary)">💵 ملخص الكاش باك</h5>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div style="background:#dbeafe;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#1e40af">ممنوح</div><div style="font-size:18px;font-weight:700;color:#1e40af;margin-top:4px" id="dashGiven">0 ج</div></div>
-          <div style="background:#fef3c7;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#92400e">مصروف</div><div style="font-size:18px;font-weight:700;color:#92400e;margin-top:4px" id="dashSpent">0 ج</div></div>
-          <div style="background:#fee2e2;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#991b1b">متبقي</div><div style="font-size:18px;font-weight:700;color:#991b1b;margin-top:4px" id="dashRemaining">0 ج</div></div>
-          <div style="background:#d1fae5;padding:12px;border-radius:10px;text-align:center"><div style="font-size:11px;color:#065f46">صافي</div><div style="font-size:18px;font-weight:700;color:#065f46;margin-top:4px" id="dashNetSales">0 ج</div></div>
-        </div>
-      </div>
-      <div class="card" style="border-right:4px solid #ff6b35">
-        <h4 style="margin-bottom:10px">💰 نسبة الكاش باك بتاعتك</h4>
-        <div class="rate-slider-container">
-          <div class="rate-display"><span id="rateValueDisplay">15</span>%</div>
-          <div class="rate-tier-display" id="rateTierDisplay">🥈 مميز</div>
-          <input type="range" id="rateSlider" min="1" max="50" step="1" value="15">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-top:5px"><span>1%</span><span>50%</span></div>
-        </div>
-        <button id="saveRateBtn" style="margin-top:10px;background:#10b981">💾 حفظ النسبة</button>
-        <div id="rateSaveResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
-      </div>
-      <div class="card">
-        <h5 style="margin-bottom:10px">➕ إضافة عرض جديد</h5>
-        <input type="text" id="offerTitle" placeholder="اسم العرض">
-        <input type="text" id="offerDiscount" placeholder="الخصم (مثل: 20% OFF)">
-        <label style="margin-top:10px;font-size:13px;font-weight:600;display:block">📸 صورة العرض (اختياري)</label>
-        <div style="border:2px dashed #ddd;padding:14px;text-align:center;border-radius:10px;cursor:pointer;margin:6px 0" onclick="document.getElementById('offerImage').click()">
-          <i class="fas fa-camera" style="font-size:20px;color:var(--primary)"></i>
-          <p style="margin:4px 0;font-size:13px">اضغط لرفع صورة</p>
-          <span id="offerFileName" style="color:var(--primary);font-weight:600;font-size:12px">لم يتم اختيار ملف</span>
-          <input type="file" id="offerImage" accept="image/*" style="display:none">
-        </div>
-        <img id="offerImagePreview" style="display:none;width:100%;max-width:180px;margin-top:8px;border-radius:10px;border:2px solid #ddd">
-        <button id="addOfferBtn" style="margin-top:10px">📤 نشر العرض</button>
-        <div id="offerResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
-        <div style="border-bottom:1px solid #ddd;margin:15px 0"></div>
-        <h5 style="margin-bottom:10px">📋 عروضي المنشورة</h5>
-        <div id="myOffersList"><p style="color:#6b7280">لا توجد عروض</p></div>
-        <div style="border-bottom:1px solid #ddd;margin:15px 0"></div>
-        <h5 style="margin-bottom:10px">👥 عملائي</h5>
-        <div id="myCustomersList"><p style="color:#6b7280">لا يوجد عملاء</p></div>
-        <div style="border-bottom:1px solid #ddd;margin:15px 0"></div>
-        <h5 style="margin-bottom:10px">🧾 فواتيري</h5>
-        <div id="dashInvoicesList"><p style="color:#6b7280">لا توجد فواتير</p></div>
-        <div style="border-bottom:1px solid #ddd;margin:15px 0"></div>
-        <h5 style="margin-bottom:10px">💰 أرصدة عملائي</h5>
-        <div id="dashWalletsList"><p style="color:#6b7280">لا يوجد أرصدة</p></div>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-reports">
-      <div class="card" id="reportContent">
-        <h4 style="margin-bottom:15px">📈 تقارير متجري</h4>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:15px">
-          <button class="report-period-btn" data-period="daily">📅 النهاردة</button>
-          <button class="report-period-btn" data-period="weekly">📅 الأسبوع</button>
-          <button class="report-period-btn" data-period="monthly">📅 الشهر</button>
-          <button class="report-period-btn active" data-period="all">📅 الكل</button>
-        </div>
-        <div id="reportPeriodLabel" style="text-align:center;color:var(--primary);margin-bottom:15px;font-weight:600;font-size:15px"></div>
-        <div class="stats">
-          <div class="stat">📄 الفواتير<br><strong id="repInvoices">0</strong></div>
-          <div class="stat">💰 المبيعات<br><strong id="repSales">0 ج</strong></div>
-          <div class="stat">💵 كاش باك ممنوح<br><strong id="repGiven">0 ج</strong></div>
-          <div class="stat">💵 كاش باك مصروف<br><strong id="repSpent">0 ج</strong></div>
-        </div>
-        <div id="reportDetails"></div>
-        <button id="exportPdfBtn" style="margin-top:15px;background:#10b981">📥 تصدير PDF</button>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-analytics">
-      <div class="card">
-        <h4 style="margin-bottom:15px">📉 تحليلات متجري</h4>
-        <div class="analytics-grid">
-          <div class="analytics-card"><div class="label">إجمالي العملاء</div><div class="value" id="anaTotalCustomers">0</div></div>
-          <div class="analytics-card"><div class="label">متوسط الإنفاق</div><div class="value" id="anaAvgSpend">0 ج</div></div>
-          <div class="analytics-card"><div class="label">أكثر يوم مبيعات</div><div class="value" id="anaTopDay">-</div></div>
-          <div class="analytics-card"><div class="label">أكثر ساعة</div><div class="value" id="anaTopHour">-</div></div>
-          <div class="analytics-card"><div class="label">العرض الأكثر تأثيراً</div><div class="value" id="anaTopOffer">-</div></div>
-          <div class="analytics-card"><div class="label">متوسط التقييم</div><div class="value" id="anaAvgRating">-</div></div>
-          <div class="analytics-card"><div class="label">العملاء المتكررون</div><div class="value" id="anaRepeatCustomers">0</div></div>
-          <div class="analytics-card"><div class="label">نسبة النمو</div><div class="value" id="anaGrowth">—</div></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-admin">
-      <div class="admin-header">
-        <h3>👑 لوحة الأدمن</h3>
-        <p>مرحباً بك يا صاحب المنصة</p>
-      </div>
-      <div class="admin-subtabs">
-        <button class="admin-subtab active" data-admin="dashboard">📊 إحصائيات</button>
-        <button class="admin-subtab" data-admin="traders">🏪 التجار</button>
-        <button class="admin-subtab" data-admin="customers">👥 العملاء</button>
-        <button class="admin-subtab" data-admin="invoices">🧾 الفواتير</button>
-        <button class="admin-subtab" data-admin="requests">📋 الطلبات</button>
-        <button class="admin-subtab" data-admin="notifications">📢 إشعارات</button>
-      </div>
-
-      <div class="admin-section active" id="admin-dashboard">
-        <div class="card">
-          <h4 style="margin-bottom:15px">📊 إحصائيات المنصة</h4>
-          <div class="stats">
-            <div class="stat">🏪 التجار<br><strong id="admTraders">0</strong></div>
-            <div class="stat">👥 العملاء<br><strong id="admCustomers">0</strong></div>
-            <div class="stat">🧾 الفواتير<br><strong id="admInvoices">0</strong></div>
-            <div class="stat">💰 المبيعات<br><strong id="admSales">0 ج</strong></div>
-          </div>
-          <div class="stats">
-            <div class="stat">💵 كاش باك ممنوح<br><strong id="admGiven">0 ج</strong></div>
-            <div class="stat">💵 كاش باك مصروف<br><strong id="admSpent">0 ج</strong></div>
-            <div class="stat">📊 رصيد متبقي<br><strong id="admRemaining">0 ج</strong></div>
-            <div class="stat">🎁 عروض<br><strong id="admOffers">0</strong></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="admin-section" id="admin-traders">
-        <div class="card">
-          <h4 style="margin-bottom:15px">🏪 إدارة التجار</h4>
-          <input type="text" id="adminTraderSearch" placeholder="🔍 ابحث باسم التاجر أو رقم الموبايل أو البنكود..." style="margin-bottom:12px">
-          <button id="showAddTraderBtn" style="background:#27ae60;margin-bottom:15px">➕ إضافة تاجر جديد</button>
-          <div id="addTraderForm" style="display:none;background:#f9fafb;padding:15px;border-radius:12px;margin-bottom:15px;border-right:4px solid #27ae60">
-            <h5 style="margin-bottom:10px;color:var(--primary)">➕ إضافة تاجر جديد</h5>
-            <input type="text" id="newTraderName" placeholder="اسم التاجر">
-            <input type="text" id="newTraderBankCode" placeholder="البنكود (مثال: MERCH-MNS13)" style="text-transform:uppercase">
-            <input type="text" id="newTraderPhone" placeholder="رقم الموبايل">
-            <select id="newTraderCategory">
-              <option value="fashion">👗 ملابس</option>
-              <option value="restaurants">🍕 مطاعم</option>
-              <option value="bigfood">🍔 وجبات</option>
-              <option value="electronics">📱 إلكترونيات</option>
-              <option value="car_parts">🛞 قطع غيار</option>
-              <option value="car_accessories">🪞 كماليات</option>
-              <option value="car_repair">🔧 صيانة</option>
-              <option value="clinics">🩺 عيادات</option>
-              <option value="labs">🧪 معامل</option>
-              <option value="radiology">📡 أشعة</option>
-              <option value="hospitals">🏨 مستشفيات</option>
-            </select>
-            <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيفات الفرعية:</label>
-            <div id="newTraderSubs" class="categories" style="margin-bottom:0"></div>
-            <input type="number" id="newTraderLat" placeholder="Latitude" step="0.0001">
-            <input type="number" id="newTraderLng" placeholder="Longitude" step="0.0001">
-            <input type="number" id="newTraderRate" placeholder="نسبة الكاش باك" min="1" max="50" value="15">
-            <div style="display:flex;gap:8px;margin-top:10px">
-              <button id="addTraderConfirmBtn" style="flex:1;background:#27ae60">✅ إضافة</button>
-              <button id="hideAddTraderBtn" style="flex:1;background:#95a5a6">❌ إلغاء</button>
-            </div>
-            <div id="addTraderResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
-          </div>
-          <div id="adminTradersList"></div>
-        </div>
-      </div>
-
-      <div class="admin-section" id="admin-customers">
-        <div class="card">
-          <h4 style="margin-bottom:15px">👥 إدارة العملاء</h4>
-          <input type="text" id="adminCustomerSearch" placeholder="🔍 ابحث باسم العميل أو رقم الموبايل..." style="margin-bottom:12px">
-          <div id="adminCustomersList"></div>
-        </div>
-      </div>
-
-      <div class="admin-section" id="admin-invoices">
-        <div class="card">
-          <h4 style="margin-bottom:15px">🧾 كل الفواتير</h4>
-          <input type="text" id="adminInvoiceSearch" placeholder="🔍 ابحث برقم الفاتورة أو الموبايل..." style="margin-bottom:10px">
-          <div id="adminInvoicesList"></div>
-        </div>
-      </div>
-
-      <div class="admin-section" id="admin-requests">
-        <div class="card">
-          <h4 style="margin-bottom:15px">📋 كل الطلبات</h4>
-          <div id="adminRequestsList"><p style="color:#6b7280;font-size:14px">جاري التحميل...</p></div>
-        </div>
-      </div>
-
-      <div class="admin-section" id="admin-notifications">
-        <div class="card">
-          <h4 style="margin-bottom:15px">📢 إرسال إشعار</h4>
-          <input type="text" id="notifTitle" placeholder="عنوان الإشعار">
-          <textarea id="notifMessage" placeholder="نص الإشعار" style="width:100%;padding:12px;margin:6px 0;border:1px solid #ddd;border-radius:10px;min-height:80px"></textarea>
-          <select id="notifTarget">
-            <option value="all">الكل</option>
-            <option value="customers">العملاء فقط</option>
-            <option value="merchants">التجار فقط</option>
-          </select>
-          <button id="sendNotifBtn" style="background:#c0392b;margin-top:8px">📤 إرسال</button>
-          <div id="notifResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
-          <div style="border-top:1px solid #ddd;margin-top:15px;padding-top:15px">
-            <h5 style="margin-bottom:10px">📋 الإشعارات المرسلة</h5>
-            <div id="adminNotifHistory"><p style="color:#6b7280">لا توجد إشعارات</p></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-account">
-      <div class="card">
-        <h4 style="margin-bottom:15px">👤 حسابي</h4>
-        <div class="info-row"><span>الاسم</span><strong id="accName">-</strong></div>
-        <div class="info-row"><span>رقم الهاتف</span><strong id="accPhone">-</strong></div>
-        <div class="info-row"><span>الإيميل</span><strong id="accEmail">-</strong></div>
-        <div class="info-row"><span>رصيد الكاش باك</span><strong id="accBalance">-</strong></div>
-        <div class="info-row"><span>عدد الفواتير</span><strong id="accInvoicesCount">-</strong></div>
-        <div class="info-row"><span>📍 الموقع</span><strong id="accLocation">غير محدد</strong></div>
-      </div>
-      <div class="card" id="myWalletsCard" style="display:none">
-        <h4 style="margin-bottom:15px">💰 تفصيل رصيدي</h4>
-        <div id="customerWalletsBreakdown"></div>
-      </div>
-
-      <div class="card" style="border-right:4px solid var(--warning)">
-        <h4 style="margin-bottom:15px">⚙️ إعدادات الحساب</h4>
-        <button id="openChangePassBtn" style="background:var(--warning);margin-bottom:10px">🔒 تغيير كلمة المرور</button>
-        <button id="openEmailBtn" style="background:var(--primary)">📧 تحديث الإيميل</button>
-
-        <div id="changePassForm" style="display:none;margin-top:15px;padding-top:15px;border-top:1px solid #eee">
-          <h5 style="margin-bottom:10px;color:var(--primary)">🔒 تغيير كلمة المرور</h5>
-          <div class="password-wrap">
-            <input type="password" id="currentPass" placeholder="🔑 كلمة المرور الحالية">
-            <button type="button" class="eye-btn" onclick="togglePass('currentPass', this)" tabindex="-1">👁️</button>
-          </div>
-          <div class="password-wrap">
-            <input type="password" id="newPass" placeholder="🔑 كلمة المرور الجديدة (6+)">
-            <button type="button" class="eye-btn" onclick="togglePass('newPass', this)" tabindex="-1">👁️</button>
-          </div>
-          <div class="password-wrap">
-            <input type="password" id="newPassConfirm" placeholder="🔑 تأكيد كلمة المرور">
-            <button type="button" class="eye-btn" onclick="togglePass('newPassConfirm', this)" tabindex="-1">👁️</button>
-          </div>
-          <button id="saveNewPassBtn" style="background:var(--success);margin-top:10px">💾 حفظ</button>
-          <div id="changePassResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
-        </div>
-
-        <div id="emailForm" style="display:none;margin-top:15px;padding-top:15px;border-top:1px solid #eee">
-          <h5 style="margin-bottom:10px;color:var(--primary)">📧 الإيميل</h5>
-          <input type="email" id="myEmail" placeholder="example@mail.com">
-          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">💡 الإيميل بيستخدم في استرجاع كلمة المرور لو نسيتها.</p>
-          <button id="saveEmailBtn" style="background:var(--primary)">💾 حفظ</button>
-          <div id="emailResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h4 id="pickerTitle" style="margin-bottom:8px">📍 حدد موقعك</h4>
-        <p id="pickerHint" style="font-size:13px;color:#6b7280;margin-bottom:8px">اضغط على الخريطة أو ابحث بالعنوان</p>
-        <div class="location-search-box">
-          <input type="text" id="addressSearch" placeholder="ابحث بالعنوان">
-          <button id="searchAddrBtn">🔍</button>
-        </div>
-        <div id="searchResult" style="font-size:13px;color:#6b7280;margin-bottom:8px"></div>
-        <div id="pickerMap"></div>
-        <button id="saveLocationBtn" style="margin-top:10px">💾 حفظ الموقع</button>
-        <div id="locationSaveResult" style="margin-top:8px;font-weight:bold"></div>
-      </div>
-    </div>
-
-  </div>
-
-  <div class="modal-overlay" id="merchantModal" style="display:none" onclick="closeModal(event)">
-    <div class="modal-box" onclick="event.stopPropagation()">
-      <button class="close-btn" onclick="closeMerchantModal()">✕</button>
-      <h3 id="modalMerchantName">اسم التاجر</h3>
-      <div class="merchant-info" id="modalMerchantInfo" style="color:#6b7280;font-size:14px;margin-bottom:14px"></div>
-      <div id="modalOffersList"></div>
-
-      <div id="modalRatingsList" style="margin-top:16px;border-top:1px solid #eee;padding-top:12px">
-        <h4 style="font-size:14px;color:var(--primary);margin-bottom:8px">⭐ تقييمات العملاء</h4>
-        <div id="modalRatingsContent"><p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal-overlay" id="forgotModal" style="display:none" onclick="closeForgotModal(event)">
-    <div class="modal-box" onclick="event.stopPropagation()">
-      <button class="close-btn" onclick="closeForgotModal()">✕</button>
-      <h3 style="padding-left:0">🔑 نسيت كلمة المرور</h3>
-      <p style="font-size:13px;color:#6b7280;margin-bottom:14px">اكتب الإيميل اللي ربطته بحسابك، وهيوصلك لينك لتصفير كلمة المرور.</p>
-      <input type="email" id="forgotEmail" placeholder="example@mail.com">
-      <button id="sendResetBtn" style="margin-top:10px">📧 إرسال لينك</button>
-      <div id="forgotResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
-    </div>
-  </div>
-
-  <div class="footer">PAMIGO v51.0</div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <script type="module" src="ui.js?v=20260922"></script>
-  <script type="module" src="i18n.js?v=20260922"></script>
-  <script type="module" src="app.js?v=20260922"></script>
-  <script>
-    window.togglePass = function(inputId, btn) {
-      const input = document.getElementById(inputId);
-      if (!input) return;
-      const isHidden = input.type === 'password';
-      input.type = isHidden ? 'text' : 'password';
-      btn.innerText = isHidden ? '🙈' : '👁️';
+  return (profiles || []).map(p => {
+    const w = (wallets || []).filter(x => x.customer_id === p.id);
+    return {
+      ...p,
+      balance: w.reduce((s, x) => s + parseFloat(x.balance || 0), 0),
+      earned: w.reduce((s, x) => s + parseFloat(x.earned || 0), 0),
+      spent: w.reduce((s, x) => s + parseFloat(x.spent || 0), 0),
+      shops: w.length
     };
-    window.closeForgotModal = function(e) {
-      if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
-      document.getElementById('forgotModal').classList.remove('active');
-    };
-  </script>
-</body>
-</html>
+  });
+}
+
+export async function getAllInvoices(search) {
+  const { data } = await supabase.from('invoices')
+    .select('*, merchants(name, icon)')
+    .order('created_at', { ascending: false }).limit(200);
+  let list = data || [];
+  if (search) {
+    const s = search.toLowerCase();
+    list = list.filter(i =>
+      (i.number || '').toLowerCase().includes(s) ||
+      (i.customer_phone || '').includes(s) ||
+      (i.merchants?.name || '').toLowerCase().includes(s)
+    );
+  }
+  return list;
+}
+
+export async function addTrader(data) {
+  const { data: res, error } = await supabase.rpc('admin_add_merchant', {
+    p_bank_code: data.bankCode,
+    p_name: data.name,
+    p_phone: data.phone,
+    p_category: data.category,
+    p_sub_categories: data.subCategories,
+    p_icon: data.icon,
+    p_lat: data.lat,
+    p_lng: data.lng,
+    p_cashback_rate: data.rate
+  });
+  if (error) throw error;
+  if (!res.ok) throw new Error(res.error);
+  return res;
+}
+
+export async function freezeMerchant(merchantId, frozen) {
+  const { data, error } = await supabase.rpc('admin_freeze_merchant', {
+    p_merchant_id: merchantId, p_frozen: frozen
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data;
+}
+
+export async function updateMerchantRate(merchantId, rate) {
+  const { error } = await supabase.from('merchants').update({ cashback_rate: rate }).eq('id', merchantId);
+  if (error) throw error;
+}
+
+export async function deleteMerchant(merchantId) {
+  const { error } = await supabase.from('merchants').delete().eq('id', merchantId);
+  if (error) throw error;
+}
+
+export async function adminUpdateMerchant(merchantId, data) {
+  const { data: res, error } = await supabase.rpc('admin_update_merchant', {
+    p_merchant_id: merchantId,
+    p_new_name: data.name || null,
+    p_new_phone: data.phone || null,
+    p_new_lat: data.lat ?? null,
+    p_new_lng: data.lng ?? null,
+    p_new_rate: data.rate ?? null,
+    p_new_sub_categories: data.subCategories || null,
+    p_new_bank_code: data.bankCode || null
+  });
+  if (error) throw error;
+  if (!res.ok) throw new Error(res.error);
+  return res;
+}
+
+export async function adminUpdateCustomer(phone, newName, newPhone) {
+  const { data, error } = await supabase.rpc('admin_update_customer', {
+    p_phone: phone,
+    p_new_name: newName || null,
+    p_new_phone: newPhone || null
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data;
+}
+
+export async function adjustCustomerBalance(phone, merchantId, amount) {
+  const { data, error } = await supabase.rpc('admin_adjust_balance', {
+    p_customer_phone: phone, p_merchant_id: merchantId, p_amount: amount
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data;
+}
+
+export async function resetCustomerBalance(phone) {
+  const { data: prof } = await supabase.from('profiles').select('id').eq('phone', phone).single();
+  if (!prof) throw new Error('مش موجود');
+  const { error } = await supabase.from('wallets').update({ balance: 0 }).eq('customer_id', prof.id);
+  if (error) throw error;
+}
+
+export async function deleteCustomer(phone) {
+  const { data: prof } = await supabase.from('profiles').select('id').eq('phone', phone).single();
+  if (prof) {
+    await supabase.from('wallets').delete().eq('customer_id', prof.id);
+    await supabase.from('invoices').update({ customer_id: null }).eq('customer_id', prof.id);
+  }
+}
+
+export async function editInvoiceAdmin(invoiceId, newAmount, newPhone) {
+  const { data, error } = await supabase.rpc('edit_invoice', {
+    p_invoice_id: invoiceId, p_new_amount: newAmount, p_new_phone: newPhone
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data;
+}
+
+export async function returnInvoiceAdmin(invoiceId, returnAmount) {
+  const { data, error } = await supabase.rpc('process_return', {
+    p_invoice_id: invoiceId, p_return_amount: returnAmount
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data;
+}
+
+export async function deleteInvoice(invoiceId) {
+  const { error } = await supabase.from('invoices').delete().eq('id', invoiceId);
+  if (error) throw error;
+}
+
+export async function sendNotification({ title, message, target }) {
+  const { error } = await supabase.from('notifications').insert({ title, message, target });
+  if (error) throw error;
+}
+
+export async function getNotifications() {
+  const { data } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(50);
+  return data || [];
+}
+
+export async function adminGetAllRequests() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from('special_requests')
+    .select(`
+      *,
+      request_responses (
+        id, price, message, image_url, merchant_id,
+        customer_messages, merchant_reply, created_at,
+        merchants ( name, icon )
+      )
+    `)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) { console.error(error); return []; }
+  return data || [];
+}
+
+export async function adminResetUserPassword(userId, newPassword) {
+  const { data, error } = await supabase.rpc('admin_change_password', {
+    p_user_id: userId, p_new_password: newPassword
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data;
+}
