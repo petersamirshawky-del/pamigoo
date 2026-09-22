@@ -1,52 +1,54 @@
 // ============================================================
-// PAMIGO - Main Entry (Stage 12: Ratings)
+// PAMIGO - Main Entry
 // ============================================================
-import { supabase } from './supabase.js';
-import { toast, showLoader, hideLoader } from './ui.js';
-import { initI18n, setLang } from './i18n.js';
-import { SUB_CATEGORIES, CATEGORY_ICONS } from './config.js';
-import {
+const V = '?v=20260922';
+
+const { supabase } = await import('./supabase.js' + V);
+const { toast, showLoader, hideLoader } = await import('./ui.js' + V);
+const { initI18n, setLang, currentLang, applyI18nToHTML } = await import('./i18n.js' + V);
+const { SUB_CATEGORIES, CATEGORY_ICONS } = await import('./config.js' + V);
+const {
   signUpCustomer, signUpMerchant, signUpAdmin, signOut,
   findEmailByPhone, signInWithEmail,
   getProfile, getMyMerchant, onAuthChange,
   applyPeekEffect, getRealValue,
   changeMyPassword, adminChangePassword,
   sendPasswordReset, updateMyEmail
-} from './auth.js';
-import {
+} = await import('./auth.js' + V);
+const {
   createInvoice, createInvoiceByBankCode,
   getMerchantInvoices, getMyInvoices,
   getMyWallets, redeemCashback, getMerchantCustomerWallets,
   getMerchantCashbackSummary
-} from './invoices.js';
-import {
+} = await import('./invoices.js' + V);
+const {
   sendRequest, getMyRequests, getMerchantRequests,
   replyToRequest, acceptOffer, cancelRequest, deleteRequest,
   hideRequestForMerchant, askMerchantForImage, merchantSendExtraImage
-} from './requests.js';
-import {
+} = await import('./requests.js' + V);
+const {
   getMerchantStats, getMerchantOffers, addOffer, deleteOffer,
   updateCashbackRate, getMerchantCustomers, getMerchantWallets,
   getMerchantInvoicesList, editInvoice, processReturn,
   getReportData, getAnalytics,
   uploadMerchantLogo, deleteMerchantLogo,
   uploadProductImage, deleteProductImage
-} from './dashboard.js';
-import {
+} = await import('./dashboard.js' + V);
+const {
   getAdminStats, getAllMerchants, getAllCustomers, getAllInvoices,
   addTrader, freezeMerchant, updateMerchantRate, deleteMerchant,
   adjustCustomerBalance, resetCustomerBalance, deleteCustomer,
   editInvoiceAdmin, returnInvoiceAdmin, deleteInvoice,
   sendNotification, getNotifications,
   adminUpdateMerchant, adminUpdateCustomer, adminGetAllRequests
-} from './admin.js';
-import {
+} = await import('./admin.js' + V);
+const {
   getUserWalletsBreakdown, initAccountMap, getMarkerPosition,
   setMarkerPosition, searchAddress, updateMyMerchantLocation
-} from './account.js';
-import {
+} = await import('./account.js' + V);
+const {
   rateMerchant, getMerchantRatings
-} from './ratings.js';
+} = await import('./ratings.js' + V);
 
 const $ = (id) => document.getElementById(id);
 
@@ -359,7 +361,6 @@ window.openMerchant = async function (bankCode) {
 
   $('merchantModal').classList.add('active');
 
-  // تحميل التقييمات
   $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
   try {
     const ratings = await getMerchantRatings(m.id);
@@ -547,7 +548,6 @@ async function handleSubmitInvoice() {
       if (m) { merchantId = m.id; merchantName = m.name; }
     }
 
-    // إظهار قسم التقييم للعميل
     if (merchantId && currentProfile.role === 'customer') {
       lastRatedMerchantId = merchantId;
       lastRatedMerchantName = merchantName;
@@ -556,7 +556,7 @@ async function handleSubmitInvoice() {
       $('ratingSection').style.display = 'block';
       $('ratingResult').innerText = '';
       $('reviewComment').value = '';
-      document.querySelectorAll('#starContainer i').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('#starContainer .star').forEach(el => el.classList.remove('active'));
     }
 
     $('invNumber').value = ''; $('invCustomerPhone').value = ''; $('invAmount').value = '';
@@ -607,7 +607,7 @@ async function handleSubmitRating() {
       $('ratingResult').innerText = '';
       $('reviewComment').value = '';
       selectedRating = 0;
-      document.querySelectorAll('#starContainer i').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('#starContainer .star').forEach(el => el.classList.remove('active'));
     }, 2000);
   } catch (e) {
     res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
@@ -1200,8 +1200,23 @@ async function renderAdminDashboard() {
 async function renderAdminTraders() {
   adminData.merchants = await getAllMerchants();
   const el = $('adminTradersList');
-  if (!adminData.merchants.length) { el.innerHTML = '<p style="color:#6b7280">لا يوجد تجار</p>'; return; }
-  el.innerHTML = adminData.merchants.map(m => {
+
+  const search = ($('adminTraderSearch')?.value || '').trim().toLowerCase();
+  let list = adminData.merchants;
+  if (search) {
+    list = list.filter(m =>
+      (m.name || '').toLowerCase().includes(search) ||
+      (m.phone || '').includes(search) ||
+      (m.bank_code || '').toLowerCase().includes(search)
+    );
+  }
+
+  if (!list.length) {
+    el.innerHTML = `<p style="color:#6b7280;text-align:center;padding:20px">${search ? '🔍 مفيش نتائج مطابقة' : 'لا يوجد تجار'}</p>`;
+    return;
+  }
+
+  el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
     const logo = m.logo_url
@@ -1288,8 +1303,23 @@ window.delTrader = async function (id) {
 async function renderAdminCustomers() {
   adminData.customers = await getAllCustomers();
   const el = $('adminCustomersList');
-  if (!adminData.customers.length) { el.innerHTML = '<p style="color:#6b7280">لا يوجد عملاء</p>'; return; }
-  el.innerHTML = adminData.customers.map(c => `
+
+  const search = ($('adminCustomerSearch')?.value || '').trim().toLowerCase();
+  let list = adminData.customers;
+  if (search) {
+    list = list.filter(c =>
+      (c.name || '').toLowerCase().includes(search) ||
+      (c.phone || '').includes(search) ||
+      (c.email || '').toLowerCase().includes(search)
+    );
+  }
+
+  if (!list.length) {
+    el.innerHTML = `<p style="color:#6b7280;text-align:center;padding:20px">${search ? '🔍 مفيش نتائج مطابقة' : 'لا يوجد عملاء'}</p>`;
+    return;
+  }
+
+  el.innerHTML = list.map(c => `
     <div class="admin-item">
       <div class="head">
         <span class="title">📱 ${c.phone}${c.name ? ' - ' + c.name : ''}</span>
@@ -1814,12 +1844,11 @@ function bindEvents() {
   $('rateSlider').addEventListener('input', updateRateDisplay);
   $('exportPdfBtn').addEventListener('click', exportReportPDF);
 
-  // نجوم التقييم
-  document.querySelectorAll('#starContainer i').forEach(star => {
+  document.querySelectorAll('#starContainer .star').forEach(star => {
     star.addEventListener('click', function () {
       const val = parseInt(this.dataset.value);
       selectedRating = val;
-      document.querySelectorAll('#starContainer i').forEach(s =>
+      document.querySelectorAll('#starContainer .star').forEach(s =>
         s.classList.toggle('active', parseInt(s.dataset.value) <= val)
       );
     });
@@ -1855,6 +1884,12 @@ function bindEvents() {
   $('addTraderConfirmBtn').addEventListener('click', handleAddTrader);
   $('adminInvoiceSearch').addEventListener('input', () => renderAdminInvoices());
   $('sendNotifBtn').addEventListener('click', handleSendNotif);
+
+  const traderSearch = $('adminTraderSearch');
+  if (traderSearch) traderSearch.addEventListener('input', () => renderAdminTraders());
+
+  const customerSearch = $('adminCustomerSearch');
+  if (customerSearch) customerSearch.addEventListener('input', () => renderAdminCustomers());
 
   $('searchAddrBtn').addEventListener('click', handleSearchAddress);
   $('saveLocationBtn').addEventListener('click', handleSaveLocation);
