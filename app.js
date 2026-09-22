@@ -1,7 +1,8 @@
 ﻿// ============================================================
-// PAMIGO - Main Entry (Stage 11: Real Email + Logo)
+// PAMIGO - Main Entry (Stage 11-D: UI + Logo + Email)
 // ============================================================
 import { supabase } from './supabase.js';
+import { toast, showLoader, hideLoader } from './ui.js';
 import { SUB_CATEGORIES, CATEGORY_ICONS } from './config.js';
 import {
   signUpCustomer, signUpMerchant, signUpAdmin, signOut,
@@ -150,9 +151,9 @@ function matchesCatSubs(m, cats, subs) {
 }
 
 // ============================================================
-// Logo HTML helpers
+// Logo HTML helper
 // ============================================================
-function logoImgHtml(m, sizeClass) {
+function logoImgHtml(m) {
   if (m.logo_url) {
     return `<img src="${m.logo_url}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit" onerror="this.parentElement.innerHTML='${m.icon || '🏪'}'">`;
   }
@@ -671,20 +672,20 @@ function getStatusBadge(status) {
 
 window.acceptOfferClick = async function (reqId, respId) {
   if (!confirm('متأكد من قبول العرض؟')) return;
-  try { await acceptOffer({ requestId: reqId, responseId: respId }); alert('✅ تم'); renderRequestsTab(); }
-  catch (e) { alert('❌ ' + e.message); }
+  try { await acceptOffer({ requestId: reqId, responseId: respId }); toast('✅ تم قبول العرض', 'success'); renderRequestsTab(); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.cancelReqClick = async function (reqId) {
   if (!confirm('متأكد من الإلغاء؟')) return;
   try { await cancelRequest(reqId); renderRequestsTab(); }
-  catch (e) { alert('❌ ' + e.message); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.deleteReqClick = async function (reqId) {
   if (!confirm('متأكد من الحذف؟')) return;
   try { await deleteRequest(reqId); renderRequestsTab(); }
-  catch (e) { alert('❌ ' + e.message); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.askImageClick = async function (respId) {
@@ -695,9 +696,9 @@ window.askImageClick = async function (respId) {
   if (!resp) return;
   try {
     await askMerchantForImage({ responseId: respId, message: msg, existingMessages: resp.customer_messages || [] });
-    alert('✅ تم');
+    toast('✅ تم إرسال الرسالة', 'success');
     renderRequestsTab();
-  } catch (e) { alert('❌ ' + e.message); }
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 async function renderMerchantRequestsList() {
@@ -752,7 +753,7 @@ async function renderMerchantRequestsList() {
 
 window.replyToReq = async function (reqId) {
   const price = prompt('اكتب السعر:'); if (price === null) return;
-  const p = parseFloat(price); if (isNaN(p) || p <= 0) { alert('❌ سعر غير صحيح'); return; }
+  const p = parseFloat(price); if (isNaN(p) || p <= 0) { toast('❌ سعر غير صحيح', 'error'); return; }
   const message = prompt('رسالة للعميل:', 'متوفر بسعر ممتاز'); if (message === null) return;
 
   const hasImage = confirm('تحب ترفق صورة؟');
@@ -761,9 +762,9 @@ window.replyToReq = async function (reqId) {
 
   try {
     await replyToRequest({ requestId: reqId, merchantId: currentMerchant.id, price: p, message, imageBase64 });
-    alert('✅ تم');
+    toast('✅ تم إرسال ردك', 'success');
     renderRequestsTab();
-  } catch (e) { alert('❌ ' + e.message); }
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.sendExtraImage = async function (responseId) {
@@ -772,9 +773,9 @@ window.sendExtraImage = async function (responseId) {
   const message = prompt('رسالة (اختياري):', 'دي صورة إضافية');
   try {
     await merchantSendExtraImage({ responseId, imageBase64, message });
-    alert('✅ تم');
+    toast('✅ تم إرسال الصورة', 'success');
     renderRequestsTab();
-  } catch (e) { alert('❌ ' + e.message); }
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 function pickImage() {
@@ -795,7 +796,7 @@ function pickImage() {
 window.hideReq = async function (reqId) {
   if (!confirm('مسح الطلب من عندك؟')) return;
   try { await hideRequestForMerchant(reqId, currentMerchant.id); renderRequestsTab(); }
-  catch (e) { alert('❌ ' + e.message); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 // ============================================================
@@ -954,7 +955,7 @@ async function renderDashboard() {
 window.deleteOfferClick = async function (offerId) {
   if (!confirm('حذف العرض؟')) return;
   try { await deleteOffer(offerId); renderDashboard(); }
-  catch (e) { alert('❌ ' + e.message); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.editInvClick = async function (invId) {
@@ -963,10 +964,10 @@ window.editInvClick = async function (invId) {
   const newAmount = prompt(`المبلغ الحالي: ${inv.amount} ج\nاكتب المبلغ الجديد:`, inv.amount);
   if (newAmount === null) return;
   const a = parseFloat(newAmount);
-  if (isNaN(a) || a <= 0) { alert('❌ غير صحيح'); return; }
-  if (a > parseFloat(inv.amount)) { alert('❌ لا يمكن الزيادة'); return; }
-  try { await editInvoice(invId, a, null); alert('✅ تم'); renderDashboard(); }
-  catch (e) { alert('❌ ' + e.message); }
+  if (isNaN(a) || a <= 0) { toast('❌ غير صحيح', 'error'); return; }
+  if (a > parseFloat(inv.amount)) { toast('❌ لا يمكن الزيادة', 'error'); return; }
+  try { await editInvoice(invId, a, null); toast('✅ تم', 'success'); renderDashboard(); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.returnInvClick = async function (invId) {
@@ -975,9 +976,9 @@ window.returnInvClick = async function (invId) {
   const inv = (await getMerchantInvoicesList(currentMerchant.id)).find(i => i.id === invId);
   if (!inv) return;
   const r = amount === 'الكل' ? parseFloat(inv.amount) : parseFloat(amount);
-  if (isNaN(r) || r <= 0) { alert('❌ غير صحيح'); return; }
-  try { await processReturn(invId, r); alert('✅ تم'); renderDashboard(); }
-  catch (e) { alert('❌ ' + e.message); }
+  if (isNaN(r) || r <= 0) { toast('❌ غير صحيح', 'error'); return; }
+  try { await processReturn(invId, r); toast('✅ تم', 'success'); renderDashboard(); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 async function handleAddOffer() {
@@ -1054,7 +1055,7 @@ async function renderReports(period) {
 }
 
 function exportReportPDF() {
-  if (typeof html2pdf === 'undefined') { alert('❌ المكتبة مش محملة'); return; }
+  if (typeof html2pdf === 'undefined') { toast('❌ المكتبة مش محملة', 'error'); return; }
   const element = document.getElementById('reportContent');
   const opt = {
     margin: 10,
@@ -1174,33 +1175,33 @@ window.adminEditMerchantFull = async function (id) {
       lng: parseFloat(newLng),
       rate: parseInt(newRate)
     });
-    alert('✅ تم التعديل');
+    toast('✅ تم التعديل', 'success');
     renderAdminTraders();
-  } catch (e) { alert('❌ ' + e.message); }
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.adminChangePassMerchant = async function (merchantId) {
   const m = adminData.merchants.find(x => x.id === merchantId);
-  if (!m || !m.owner_id) { alert('❌ التاجر ده مش مرتبط بحساب'); return; }
+  if (!m || !m.owner_id) { toast('❌ التاجر ده مش مرتبط بحساب', 'error'); return; }
   const newPass = prompt('اكتب كلمة المرور الجديدة (6+ أحرف):');
-  if (!newPass || newPass.length < 6) { alert('❌ قصيرة'); return; }
+  if (!newPass || newPass.length < 6) { toast('❌ قصيرة', 'error'); return; }
   try {
     await adminChangePassword(m.owner_id, newPass);
-    alert('✅ تم تغيير كلمة المرور');
-  } catch (e) { alert('❌ ' + e.message); }
+    toast('✅ تم تغيير كلمة المرور', 'success');
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.toggleFreeze = async function (id) {
   const m = adminData.merchants.find(x => x.id === id);
   if (!m) return;
   try { await freezeMerchant(id, !m.frozen); renderAdminTraders(); }
-  catch (e) { alert('❌ ' + e.message); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.delTrader = async function (id) {
   if (!confirm('متأكد من الحذف؟')) return;
   try { await deleteMerchant(id); renderAdminTraders(); }
-  catch (e) { alert('❌ ' + e.message); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 async function renderAdminCustomers() {
@@ -1237,18 +1238,18 @@ window.adminEditCustomerFull = async function (phone) {
 
   try {
     await adminUpdateCustomer(phone, newName.trim(), newPhone.trim());
-    alert('✅ تم التعديل');
+    toast('✅ تم التعديل', 'success');
     renderAdminCustomers();
-  } catch (e) { alert('❌ ' + e.message); }
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.adminChangePassCustomer = async function (userId) {
   const newPass = prompt('اكتب كلمة المرور الجديدة (6+):');
-  if (!newPass || newPass.length < 6) { alert('❌ قصيرة'); return; }
+  if (!newPass || newPass.length < 6) { toast('❌ قصيرة', 'error'); return; }
   try {
     await adminChangePassword(userId, newPass);
-    alert('✅ تم');
-  } catch (e) { alert('❌ ' + e.message); }
+    toast('✅ تم', 'success');
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.adminAdjustBal = async function (phone) {
@@ -1262,20 +1263,20 @@ window.adminAdjustBal = async function (phone) {
   if (!amount) return;
   const a = parseFloat(amount);
   if (isNaN(a)) return;
-  try { await adjustCustomerBalance(phone, m.id, a); alert('✅ تم'); renderAdminCustomers(); }
-  catch (e) { alert('❌ ' + e.message); }
+  try { await adjustCustomerBalance(phone, m.id, a); toast('✅ تم', 'success'); renderAdminCustomers(); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.adminResetBal = async function (phone) {
   if (!confirm('تصفير كل الرصيد؟')) return;
-  try { await resetCustomerBalance(phone); alert('✅ تم'); renderAdminCustomers(); }
-  catch (e) { alert('❌ ' + e.message); }
+  try { await resetCustomerBalance(phone); toast('✅ تم', 'success'); renderAdminCustomers(); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.adminDelCustomer = async function (phone) {
   if (!confirm(`حذف حساب العميل ${phone}؟`)) return;
-  try { await deleteCustomer(phone); alert('✅ تم'); renderAdminCustomers(); }
-  catch (e) { alert('❌ ' + e.message); }
+  try { await deleteCustomer(phone); toast('✅ تم', 'success'); renderAdminCustomers(); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 async function renderAdminInvoices() {
@@ -1312,10 +1313,10 @@ window.adminEditInv = async function (id) {
   const newAmount = prompt(`المبلغ الحالي: ${inv.amount} ج\nالجديد:`, inv.amount);
   if (newAmount === null) return;
   const a = parseFloat(newAmount);
-  if (isNaN(a) || a <= 0) { alert('❌ غير صحيح'); return; }
-  if (a > parseFloat(inv.amount)) { alert('❌ لا يمكن الزيادة'); return; }
-  try { await editInvoiceAdmin(id, a, null); alert('✅ تم'); renderAdminInvoices(); }
-  catch (e) { alert('❌ ' + e.message); }
+  if (isNaN(a) || a <= 0) { toast('❌ غير صحيح', 'error'); return; }
+  if (a > parseFloat(inv.amount)) { toast('❌ لا يمكن الزيادة', 'error'); return; }
+  try { await editInvoiceAdmin(id, a, null); toast('✅ تم', 'success'); renderAdminInvoices(); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.adminReturnInv = async function (id) {
@@ -1324,15 +1325,15 @@ window.adminReturnInv = async function (id) {
   const amount = prompt("مبلغ المرتجع (أو 'الكل'):");
   if (amount === null) return;
   const r = amount === 'الكل' ? parseFloat(inv.amount) : parseFloat(amount);
-  if (isNaN(r) || r <= 0) { alert('❌ غير صحيح'); return; }
-  try { await returnInvoiceAdmin(id, r); alert('✅ تم'); renderAdminInvoices(); }
-  catch (e) { alert('❌ ' + e.message); }
+  if (isNaN(r) || r <= 0) { toast('❌ غير صحيح', 'error'); return; }
+  try { await returnInvoiceAdmin(id, r); toast('✅ تم', 'success'); renderAdminInvoices(); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.adminDelInv = async function (id) {
   if (!confirm('حذف الفاتورة؟')) return;
   try { await deleteInvoice(id); renderAdminInvoices(); }
-  catch (e) { alert('❌ ' + e.message); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 async function renderAdminRequests() {
