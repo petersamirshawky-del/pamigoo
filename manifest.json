@@ -1,0 +1,22 @@
+﻿{
+  "name": "PAMIGO - باميجو",
+  "short_name": "PAMIGO",
+  "description": "منصة العروض والكاش باك",
+  "start_url": "/pamigoo/",
+  "scope": "/pamigoo/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a2a6c",
+  "theme_color": "#1a2a6c",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["shopping", "business", "food"]
+}
