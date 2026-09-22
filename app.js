@@ -1,4 +1,5 @@
-﻿// ============================================================
+﻿import { initI18n, setLang, t, currentLang, applyI18nToHTML } from './i18n.js';
+// ============================================================
 // PAMIGO - Main Entry (Stage 11-D: UI + Logo + Email)
 // ============================================================
 import { supabase } from './supabase.js';
@@ -1906,4 +1907,21 @@ window.addEventListener('load', async () => {
   } else {
     showAuthScreen();
   }
+});
+initI18n();
+window.__setLang = setLang;
+
+// لما اللغة تتغير، نعيد الرندر
+window.addEventListener('langChanged', () => {
+  // عيد رسم المحتوى اللي فيه لغة
+  if (currentProfile) {
+    document.getElementById('userRole').innerText =
+      currentLang === 'ar'
+        ? ({ customer: '👤 عميل', merchant: '🏪 تاجر', admin: '👑 أدمن' })[currentProfile.role]
+        : ({ customer: '👤 Customer', merchant: '🏪 Merchant', admin: '👑 Admin' })[currentProfile.role];
+  }
+  if (document.getElementById('merchantBanner').style.display !== 'none') {
+    document.getElementById('merchantName').dataset.i18n = 'merchant.yourShop';
+  }
+  applyI18nToHTML();
 });

@@ -18,83 +18,89 @@
     <div class="header-left">
       <div>
         <h2>PAMIGO</h2>
-        <p><i class="fas fa-map-pin" style="color:#ff6b35"></i> <span id="locationText">جاري تحديد الموقع...</span></p>
+        <p><i class="fas fa-map-pin" style="color:#ff6b35"></i> <span id="locationText" data-i18n="header.locating">جاري تحديد الموقع...</span></p>
       </div>
     </div>
-    <button class="location" id="refreshLocation">🔄 تحديث الموقع</button>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div class="lang-switcher">
+        <button class="lang-btn active" data-lang="ar" onclick="window.__setLang('ar')">AR</button>
+        <button class="lang-btn" data-lang="en" onclick="window.__setLang('en')">EN</button>
+      </div>
+      <button class="location" id="refreshLocation" data-i18n="header.refresh">🔄 تحديث الموقع</button>
+    </div>
   </div>
 
   <!-- Auth -->
   <div id="authScreen" style="display:none">
     <div class="card login-box">
       <div class="auth-tabs">
-        <button class="auth-tab active" data-tab="login">🔐 دخول</button>
-        <button class="auth-tab" data-tab="signup">📝 حساب جديد</button>
+        <button class="auth-tab active" data-tab="login" data-i18n="auth.loginTab">🔐 دخول</button>
+        <button class="auth-tab" data-tab="signup" data-i18n="auth.signupTab">📝 حساب جديد</button>
       </div>
 
       <form id="loginForm">
-        <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">تسجيل الدخول</h4>
+        <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)" data-i18n="login.title">تسجيل الدخول</h4>
 
-        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">👤 حسابي:</label>
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px" data-i18n="login.role">👤 حسابي:</label>
         <select id="loginRole">
-          <option value="customer">👤 عميل</option>
-          <option value="merchant">🏪 تاجر</option>
-          <option value="admin">👑 أدمن</option>
+          <option value="customer" data-i18n="login.roleCustomer">👤 عميل</option>
+          <option value="merchant" data-i18n="login.roleMerchant">🏪 تاجر</option>
+          <option value="admin" data-i18n="login.roleAdmin">👑 أدمن</option>
         </select>
 
-        <input type="tel" id="loginPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
+        <input type="tel" id="loginPhone" placeholder="📱 رقم الموبايل" autocomplete="tel" data-i18n-placeholder="login.phone">
         <div class="password-wrap">
-          <input type="password" id="loginPassword" placeholder="🔑 كلمة المرور" autocomplete="current-password">
+          <input type="password" id="loginPassword" placeholder="🔑 كلمة المرور" autocomplete="current-password" data-i18n-placeholder="login.password">
           <button type="button" class="eye-btn" onclick="togglePass('loginPassword', this)" tabindex="-1">👁️</button>
         </div>
 
         <div id="loginBankCodeGroup" style="display:none">
           <div class="password-wrap">
-            <input type="password" id="loginBankCode" placeholder="🔑 بنكود التاجر" autocomplete="off" style="text-transform:uppercase">
+            <input type="password" id="loginBankCode" placeholder="🔑 بنكود التاجر" autocomplete="off" style="text-transform:uppercase" data-i18n-placeholder="login.bankCode">
             <button type="button" class="eye-btn" onclick="togglePass('loginBankCode', this)" tabindex="-1">👁️</button>
           </div>
         </div>
 
         <div id="loginAdminCodeGroup" style="display:none">
           <div class="password-wrap">
-            <input type="password" id="loginAdminCode" placeholder="🔑 بنكود الأدمن" autocomplete="off">
+            <input type="password" id="loginAdminCode" placeholder="🔑 بنكود الأدمن" autocomplete="off" data-i18n-placeholder="login.adminCode">
             <button type="button" class="eye-btn" onclick="togglePass('loginAdminCode', this)" tabindex="-1">👁️</button>
           </div>
         </div>
 
-        <button type="submit" id="loginBtn" style="margin-top:10px">🚀 دخول</button>
+        <button type="submit" id="loginBtn" style="margin-top:10px" data-i18n="login.btn">🚀 دخول</button>
 
         <p style="text-align:center;margin-top:12px;font-size:13px">
-          <a href="#" id="forgotPassLink" style="color:var(--primary);text-decoration:underline">نسيت كلمة المرور؟</a>
+          <a href="#" id="forgotPassLink" style="color:var(--primary);text-decoration:underline" data-i18n="login.forgot">نسيت كلمة المرور؟</a>
         </p>
       </form>
 
       <form id="signupForm" style="display:none">
-        <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)">حساب جديد</h4>
-        <input type="text" id="signupName" placeholder="👤 الاسم" autocomplete="name">
-        <input type="tel" id="signupPhone" placeholder="📱 رقم الموبايل" autocomplete="tel">
-        <input type="email" id="signupEmail" placeholder="📧 الإيميل الحقيقي" autocomplete="email">
+        <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)" data-i18n="signup.title">حساب جديد</h4>
+        <input type="text" id="signupName" placeholder="👤 الاسم" autocomplete="name" data-i18n-placeholder="signup.name">
+        <input type="tel" id="signupPhone" placeholder="📱 رقم الموبايل" autocomplete="tel" data-i18n-placeholder="signup.phone">
+        <input type="email" id="signupEmail" placeholder="📧 الإيميل الحقيقي" autocomplete="email" data-i18n-placeholder="signup.email">
         <div class="password-wrap">
-          <input type="password" id="signupPassword" placeholder="🔑 كلمة المرور (6 أحرف على الأقل)" autocomplete="new-password">
+          <input type="password" id="signupPassword" placeholder="🔑 كلمة المرور (6 أحرف على الأقل)" autocomplete="new-password" data-i18n-placeholder="signup.password">
           <button type="button" class="eye-btn" onclick="togglePass('signupPassword', this)" tabindex="-1">👁️</button>
         </div>
         <select id="signupRole">
-          <option value="customer">👤 عميل</option>
-          <option value="merchant">🏪 تاجر</option>
-          <option value="admin">👑 أدمن</option>
+          <option value="customer" data-i18n="login.roleCustomer">👤 عميل</option>
+          <option value="merchant" data-i18n="login.roleMerchant">🏪 تاجر</option>
+          <option value="admin" data-i18n="login.roleAdmin">👑 أدمن</option>
         </select>
         <div id="bankCodeGroup" style="display:none">
-          <input type="text" id="signupBankCode" placeholder="🔑 البنكود (مثال: MERCH-MNS01)" autocomplete="off" style="text-transform:uppercase">
-          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">💡 البنكود بتستلمه من إدارة PAMIGO.</p>
+          <input type="text" id="signupBankCode" placeholder="🔑 البنكود (مثال: MERCH-MNS01)" autocomplete="off" style="text-transform:uppercase" data-i18n-placeholder="signup.merchantBankCode">
+          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px" data-i18n="signup.merchantBankHint">💡 البنكود بتستلمه من إدارة PAMIGO.</p>
         </div>
         <div id="adminCodeGroup" style="display:none">
           <div class="password-wrap">
-            <input type="password" id="signupAdminCode" placeholder="🔑 بنكود الأدمن" autocomplete="off">
+            <input type="password" id="signupAdminCode" placeholder="🔑 بنكود الأدمن" autocomplete="off" data-i18n-placeholder="signup.adminCode">
             <button type="button" class="eye-btn" onclick="togglePass('signupAdminCode', this)" tabindex="-1">👁️</button>
           </div>
-          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px">💡 خاص بصاحب المنصة فقط.</p>
+          <p style="font-size:12px;color:var(--text-muted);margin:4px 0 8px" data-i18n="signup.adminHint">💡 خاص بصاحب المنصة فقط.</p>
         </div>
-        <button type="submit" id="signupBtn" style="margin-top:10px">📝 إنشاء الحساب</button>
+        <button type="submit" id="signupBtn" style="margin-top:10px" data-i18n="signup.btn">📝 إنشاء الحساب</button>
       </form>
 
       <div id="authMessage" class="auth-message"></div>
@@ -109,24 +115,24 @@
         <span id="userRole" class="role-badge">-</span>
         <strong id="userName" style="font-size:14px">-</strong>
       </div>
-      <button id="logoutBtn" style="width:auto;padding:8px 16px;font-size:13px;background:var(--danger);border-radius:30px">🚪 خروج</button>
+      <button id="logoutBtn" style="width:auto;padding:8px 16px;font-size:13px;background:var(--danger);border-radius:30px" data-i18n="logout">🚪 خروج</button>
     </div>
 
     <div id="merchantBanner" class="card" style="display:none;background:#d1fae5;border-right:4px solid var(--success);padding:12px 16px">
-      <strong style="color:#065f46">🏪 متجرك:</strong>
+      <strong style="color:#065f46" data-i18n="merchant.yourShop">🏪 متجرك:</strong>
       <span id="merchantName" style="color:#065f46;font-weight:600">-</span>
     </div>
 
     <div class="tabs" id="mainTabs" style="display:flex !important; flex-wrap:wrap; gap:8px; background:#fff; padding:6px; border-radius:30px; box-shadow:0 2px 8px rgba(0,0,0,.04); margin:20px 0">
-      <button class="tab-btn active" data-tab="home" data-role="customer">🏠 الرئيسية</button>
-      <button class="tab-btn" data-tab="offers" data-role="customer">🎁 العروض</button>
-      <button class="tab-btn" data-tab="invoice" data-role="all">🧾 الفاتورة</button>
-      <button class="tab-btn" data-tab="requests" data-role="all">📋 طلباتي</button>
-      <button class="tab-btn" data-tab="dashboard" data-role="merchant" style="display:none">📊 لوحتي</button>
-      <button class="tab-btn" data-tab="reports" data-role="merchant" style="display:none">📈 تقاريري</button>
-      <button class="tab-btn" data-tab="analytics" data-role="merchant" style="display:none">📉 تحليلاتي</button>
-      <button class="tab-btn" data-tab="admin" data-role="admin" style="display:none">👑 الأدمن</button>
-      <button class="tab-btn" data-tab="account" data-role="all">👤 حسابي</button>
+      <button class="tab-btn active" data-tab="home" data-role="customer" data-i18n="tab.home">🏠 الرئيسية</button>
+      <button class="tab-btn" data-tab="offers" data-role="customer" data-i18n="tab.offers">🎁 العروض</button>
+      <button class="tab-btn" data-tab="invoice" data-role="all" data-i18n="tab.invoice">🧾 الفاتورة</button>
+      <button class="tab-btn" data-tab="requests" data-role="all" data-i18n="tab.requests">📋 طلباتي</button>
+      <button class="tab-btn" data-tab="dashboard" data-role="merchant" style="display:none" data-i18n="tab.dashboard">📊 لوحتي</button>
+      <button class="tab-btn" data-tab="reports" data-role="merchant" style="display:none" data-i18n="tab.reports">📈 تقاريري</button>
+      <button class="tab-btn" data-tab="analytics" data-role="merchant" style="display:none" data-i18n="tab.analytics">📉 تحليلاتي</button>
+      <button class="tab-btn" data-tab="admin" data-role="admin" style="display:none" data-i18n="tab.admin">👑 الأدمن</button>
+      <button class="tab-btn" data-tab="account" data-role="all" data-i18n="tab.account">👤 حسابي</button>
     </div>
 
     <!-- الرئيسية -->
@@ -317,7 +323,6 @@
     <!-- لوحتي -->
     <div class="tab-content" id="tab-dashboard">
 
-      <!-- شعار المتجر -->
       <div class="card" style="border-right:4px solid var(--primary)">
         <h4 style="margin-bottom:12px">🏪 شعار المتجر</h4>
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
@@ -628,11 +633,12 @@
     </div>
   </div>
 
-  <div class="footer">PAMIGO v43.0 — Stage 11-D</div>
+  <div class="footer">PAMIGO v44.0 — i18n Phase 1</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script type="module" src="ui.js"></script>
+  <script type="module" src="i18n.js"></script>
   <script type="module" src="app.js"></script>
   <script>
     window.togglePass = function(inputId, btn) {
