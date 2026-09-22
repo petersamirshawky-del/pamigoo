@@ -32,6 +32,115 @@
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(26, 42, 108, 0.08);
 }
+/* ============================================================
+   Stage 11-D: Animations & Polish
+   ============================================================ */
+
+/* Smooth transitions على كل العناصر التفاعلية */
+.tab-content.active {
+  animation: fadeInUp 0.3s ease;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* تحسين شكل الـ cards لما تظهر */
+.card {
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.store-item:hover {
+  transform: translateY(-3px);
+}
+
+.deal-card:hover {
+  transform: translateY(-4px);
+}
+
+/* Empty state محسّن */
+.no-requests {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.no-requests::before {
+  content: '🔍';
+  display: block;
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.6;
+}
+
+/* Loading dots */
+.loading-dots::after {
+  content: '';
+  animation: dots 1.4s infinite;
+}
+
+@keyframes dots {
+  0%, 20% { content: '.'; }
+  40% { content: '..'; }
+  60%, 100% { content: '...'; }
+}
+
+/* تحسين شكل الـ buttons في الحالات المختلفة */
+button {
+  transition: all 0.2s ease;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+button:not(:disabled):active {
+  transform: translateY(0);
+}
+
+/* Hover للـ category chips */
+.category-chip:hover {
+  transform: translateY(-1px);
+}
+
+/* Smooth scroll */
+html { scroll-behavior: smooth; }
+
+/* تحسين شكل الـ modal */
+.modal-box {
+  animation: modalIn 0.3s ease;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* صورة الشعار في my offers */
+.merchant-offer-card img {
+  transition: transform 0.2s ease;
+}
+.merchant-offer-card:hover img {
+  transform: scale(1.05);
+}
+
+/* Smooth loading text */
+.no-requests.loading {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
 .card textarea { min-height: 80px; resize: vertical; }
 
 /* Buttons */
