@@ -1989,21 +1989,33 @@ function bindEvents() {
 // AUTH STATE
 // ============================================================
 onAuthChange(async (event, session) => {
+  console.log('🔔 AUTH CHANGE:', event, 'Session:', !!session);
+
   if (session?.user) {
+    console.log('👤 User found:', session.user.id);
+
     const profile = await getProfile();
-    if (!profile) return;
+    console.log('📋 Profile:', profile);
+
+    if (!profile) {
+      console.log('❌ No profile found!');
+      return;
+    }
 
     if (expectedLogin) {
+      console.log('🔍 Checking expectedLogin:', expectedLogin);
       const exp = expectedLogin;
       expectedLogin = null;
 
       if (profile.role !== exp.role) {
+        console.log('❌ Role mismatch:', profile.role, '!==', exp.role);
         await signOut();
         setTimeout(() => showMessage(`❌ الدور مش متطابق — حسابك ${getRoleName(profile.role)}`), 300);
         return;
       }
 
       if (exp.role === 'admin' && exp.adminCode !== 'PETAD-12321') {
+        console.log('❌ Wrong admin code');
         await signOut();
         setTimeout(() => showMessage('❌ بنكود الأدمن غير صحيح'), 300);
         return;
@@ -2011,7 +2023,9 @@ onAuthChange(async (event, session) => {
 
       if (exp.role === 'merchant') {
         const m = await getMyMerchant();
+        console.log('🏪 Merchant:', m);
         if (!m || (m.bank_code || '').toUpperCase() !== exp.bankCode.toUpperCase()) {
+          console.log('❌ Bank code mismatch');
           await signOut();
           setTimeout(() => showMessage('❌ البنكود مش بتاع حسابك'), 300);
           return;
@@ -2019,12 +2033,14 @@ onAuthChange(async (event, session) => {
       }
     }
 
+    console.log('✅ Showing main screen...');
     await showMainScreen(profile);
+    console.log('✅ Main screen shown!');
   } else {
+    console.log('🚪 No session, showing auth screen');
     showAuthScreen();
   }
 });
-
 // ============================================================
 // INIT
 // ============================================================
