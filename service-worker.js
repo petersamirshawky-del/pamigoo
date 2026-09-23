@@ -1,19 +1,26 @@
 ﻿// ============================================================
 // PAMIGO - Service Worker
 // ============================================================
-const CACHE_NAME = 'pamigo-v20260922';
+const CACHE_NAME = 'pamigo-v1';
 const urlsToCache = [
   './',
   './index.html',
-  './favicon.svg?v=20260922',
-  './manifest.json?v=20260922',
-  './css/base.css?v=20260922',
-  './css/components.css?v=20260922',
-  './css/layout.css?v=20260922'
+  './favicon.svg',
+  './manifest.json',
+  './css/base.css',
+  './css/components.css',
+  './css/layout.css'
 ];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(urlsToCache).catch(err => {
+        console.log('⚠️ Cache addAll error:', err);
+      });
+    })
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -36,15 +43,22 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // متتجاهلش طلبات Supabase
+  // ✅ متتجاهلش طلبات Supabase
   if (url.hostname.includes('supabase')) return;
 
-  // JS files: جيبها من الشبكة على طول (متحفظهاش في الكاش)
+  // ✅ متتجاهلش طلبات esm.sh و CDN
+  if (url.hostname.includes('esm.sh') ||
+      url.hostname.includes('cdnjs') ||
+      url.hostname.includes('unpkg') ||
+      url.hostname.includes('fonts.googleapis') ||
+      url.hostname.includes('fonts.gstatic')) return;
+
+  // ✅ JS files: جيبها من الشبكة على طول
   if (url.pathname.endsWith('.js')) return;
 
   if (request.method !== 'GET') return;
 
-  // Network First
+  // ✅ Network First مع Fallback للكاش
   event.respondWith(
     fetch(request).then((networkResponse) => {
       if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {

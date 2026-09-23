@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // PAMIGO - Invoices + Wallets
 // ============================================================
-import { supabase } from './supabase.js?v=20260922';
+import { supabase } from './supabase.js';
 
 export async function createInvoiceByBankCode({ number, customerPhone, amount, bankCode }) {
   const { data, error } = await supabase.rpc('create_invoice_by_bankcode', {

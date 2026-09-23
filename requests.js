@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // PAMIGO - Special Requests
 // ============================================================
-import { supabase } from './supabase.js?v=20260922';
+import { supabase } from './supabase.js';
 
 export async function sendRequest({ category, product, details, imageBase64 }) {
   const { data: { user } } = await supabase.auth.getUser();

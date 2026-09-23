@@ -1,7 +1,7 @@
 ﻿// ============================================================
 // PAMIGO - Merchant Dashboard / Reports / Analytics
 // ============================================================
-import { supabase } from './supabase.js?v=20260922';
+import { supabase } from './supabase.js';
 
 // ============================================================
 // Merchant Stats

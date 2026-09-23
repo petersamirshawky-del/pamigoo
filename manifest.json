@@ -4,7 +4,9 @@
   "description": "منصة العروض والكاش باك",
   "start_url": "/pamigoo/",
   "scope": "/pamigoo/",
+  "id": "/pamigoo/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#1a2a6c",
   "theme_color": "#1a2a6c",
@@ -15,7 +17,13 @@
       "src": "favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
   "categories": ["shopping", "business", "food"]

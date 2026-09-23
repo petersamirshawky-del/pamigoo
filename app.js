@@ -1,52 +1,60 @@
+﻿// ============================================================
+// PAMIGO - Main Entry
 // ============================================================
-// PAMIGO - Main Entry (Stage 12: Ratings + Search)
-// ============================================================
-import { supabase } from './supabase.js';
-import { toast, showLoader, hideLoader } from './ui.js';
-import { initI18n, setLang, currentLang, applyI18nToHTML } from './i18n.js';
-import { SUB_CATEGORIES, CATEGORY_ICONS } from './config.js';
-import {
+
+const { supabase } = await import('./supabase.js');
+const { toast, showLoader, hideLoader } = await import('./ui.js');
+const { initI18n, setLang, currentLang, applyI18nToHTML } = await import('./i18n.js');
+const { SUB_CATEGORIES, CATEGORY_ICONS } = await import('./config.js');
+
+const {
   signUpCustomer, signUpMerchant, signUpAdmin, signOut,
   findEmailByPhone, signInWithEmail,
   getProfile, getMyMerchant, onAuthChange,
   applyPeekEffect, getRealValue,
   changeMyPassword, adminChangePassword,
   sendPasswordReset, updateMyEmail
-} from './auth.js';
-import {
+} = await import('./auth.js');
+
+const {
   createInvoice, createInvoiceByBankCode,
   getMerchantInvoices, getMyInvoices,
   getMyWallets, redeemCashback, getMerchantCustomerWallets,
   getMerchantCashbackSummary
-} from './invoices.js';
-import {
+} = await import('./invoices.js');
+
+const {
   sendRequest, getMyRequests, getMerchantRequests,
   replyToRequest, acceptOffer, cancelRequest, deleteRequest,
   hideRequestForMerchant, askMerchantForImage, merchantSendExtraImage
-} from './requests.js';
-import {
+} = await import('./requests.js');
+
+const {
   getMerchantStats, getMerchantOffers, addOffer, deleteOffer,
   updateCashbackRate, getMerchantCustomers, getMerchantWallets,
   getMerchantInvoicesList, editInvoice, processReturn,
   getReportData, getAnalytics,
   uploadMerchantLogo, deleteMerchantLogo,
   uploadProductImage, deleteProductImage
-} from './dashboard.js';
-import {
+} = await import('./dashboard.js');
+
+const {
   getAdminStats, getAllMerchants, getAllCustomers, getAllInvoices,
   addTrader, freezeMerchant, updateMerchantRate, deleteMerchant,
   adjustCustomerBalance, resetCustomerBalance, deleteCustomer,
   editInvoiceAdmin, returnInvoiceAdmin, deleteInvoice,
   sendNotification, getNotifications,
   adminUpdateMerchant, adminUpdateCustomer, adminGetAllRequests
-} from './admin.js';
-import {
+} = await import('./admin.js');
+
+const {
   getUserWalletsBreakdown, initAccountMap, getMarkerPosition,
   setMarkerPosition, searchAddress, updateMyMerchantLocation
-} from './account.js';
-import {
+} = await import('./account.js');
+
+const {
   rateMerchant, getMerchantRatings
-} from './ratings.js';
+} = await import('./ratings.js');
 
 const $ = (id) => document.getElementById(id);
 
@@ -84,6 +92,7 @@ async function loadMerchants() {
       ratings ( stars )
     `)
     .eq('frozen', false);
+
   if (error) { console.error(error); return []; }
   return data || [];
 }
@@ -169,6 +178,7 @@ function logoImgHtml(m) {
 // ============================================================
 function renderMerchantsList() {
   let list = [...allMerchants];
+
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
     list = list.filter(m =>
@@ -176,13 +186,16 @@ function renderMerchantsList() {
       (m.offers || []).some(o => (o.title || '').toLowerCase().includes(q))
     );
   }
+
   list = list.filter(m => matchesCatSubs(m, homeCategories, homeSubCategories));
+
   if (userLat !== null && userLng !== null) {
     list = list.filter(m => {
       m._dist = calcDistance(userLat, userLng, m.lat, m.lng);
       return m._dist <= homeRadius;
     });
   }
+
   if (homeSort === 'nearest' && userLat !== null) {
     list.sort((a, b) => (a._dist || 0) - (b._dist || 0));
   } else if (homeSort === 'cashback') {
@@ -200,11 +213,13 @@ function renderMerchantsList() {
     const maxDisc = getMaxDiscount(m);
     const rating = getAvgRating(m);
     const dist = m._dist ? m._dist.toFixed(2) + ' كم' : '';
+
     let subNames = '';
     if (m.sub_categories && m.sub_categories.length) {
       const l = SUB_CATEGORIES[m.category] || [];
       subNames = m.sub_categories.map(id => (l.find(x => x.id === id) || {}).name || id).join(', ');
     }
+
     return `
       <div class="store-item" onclick="openMerchant('${m.bank_code}')">
         <div class="icon" style="overflow:hidden">${logoImgHtml(m)}</div>
@@ -223,8 +238,10 @@ function renderMerchantsList() {
 function renderTopDeals() {
   const sorted = [...allMerchants].filter(m => (m.offers || []).length > 0)
     .sort((a, b) => (b.cashback_rate || 0) - (a.cashback_rate || 0)).slice(0, 10);
+
   const el = $('dealsScroll');
   if (!sorted.length) { el.innerHTML = ''; return; }
+
   el.innerHTML = sorted.map(m => {
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
@@ -243,8 +260,10 @@ function renderTopDeals() {
 function renderOffersGrid() {
   let list = [...allMerchants].filter(m => (m.offers || []).length > 0)
     .filter(m => matchesCatSubs(m, offersCategories, offersSubCategories));
+
   const el = $('offersGrid');
   if (!list.length) { el.innerHTML = `<p style="text-align:center;padding:20px;color:#6b7280">لا توجد عروض</p>`; return; }
+
   el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
@@ -266,11 +285,14 @@ function renderOffersGrid() {
 function renderSubCategoriesGeneric({ categories, subs, wrapperEl, containerEl, onToggle }) {
   const singleCat = categories.length === 1 && categories[0] !== 'all' ? categories[0] : null;
   if (!singleCat || !SUB_CATEGORIES[singleCat]) { wrapperEl.style.display = 'none'; return; }
+
   wrapperEl.style.display = 'block';
   const list = SUB_CATEGORIES[singleCat];
+
   containerEl.innerHTML = list.map(sub => `
     <button class="category-chip ${subs.includes(sub.id) ? 'active' : ''}" data-sub="${sub.id}">${sub.name}</button>
   `).join('');
+
   containerEl.querySelectorAll('.category-chip').forEach(btn => {
     btn.addEventListener('click', () => onToggle(btn.dataset.sub, btn));
   });
@@ -287,9 +309,11 @@ function toggleCategoryGeneric({ cat, chip, categories, subs, containerId, onUpd
     const ai = categories.indexOf('all');
     if (ai > -1) categories.splice(ai, 1);
     document.querySelector(`#${containerId} .category-chip[data-cat="all"]`)?.classList.remove('active');
+
     const idx = categories.indexOf(cat);
     if (idx > -1) { categories.splice(idx, 1); chip.classList.remove('active'); }
     else { categories.push(cat); chip.classList.add('active'); }
+
     if (categories.length === 0) {
       categories.push('all');
       document.querySelector(`#${containerId} .category-chip[data-cat="all"]`)?.classList.add('active');
@@ -328,6 +352,7 @@ window.openMerchant = async function (bankCode) {
   const m = allMerchants.find(x => x.bank_code === bankCode);
   if (!m) return;
   currentModalMerchant = m;
+
   const rate = m.cashback_rate || 15;
   const tier = getTier(rate);
 
@@ -344,22 +369,22 @@ window.openMerchant = async function (bankCode) {
           ? `<img src="${o.image_url}" style="width:100%;max-width:120px;height:80px;object-fit:cover;border-radius:8px;margin-bottom:6px">`
           : '';
         return `
-        <div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:10px;border-right:4px solid #ff6b35">
-          ${imgHtml}
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-            <div style="flex:1">
-              <h5 style="font-size:15px;margin-bottom:4px;color:var(--primary)">${o.title}</h5>
-              <p style="font-size:12px;color:#6b7280">عرض ${i + 1} من ${m.offers.length}</p>
+          <div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:10px;border-right:4px solid #ff6b35">
+            ${imgHtml}
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+              <div style="flex:1">
+                <h5 style="font-size:15px;margin-bottom:4px;color:var(--primary)">${o.title}</h5>
+                <p style="font-size:12px;color:#6b7280">عرض ${i + 1} من ${m.offers.length}</p>
+              </div>
+              <div style="background:#1a2a6c;color:#fff;padding:6px 14px;border-radius:30px;font-weight:700;font-size:14px;white-space:nowrap">${o.discount}</div>
             </div>
-            <div style="background:#1a2a6c;color:#fff;padding:6px 14px;border-radius:30px;font-weight:700;font-size:14px;white-space:nowrap">${o.discount}</div>
-          </div>
-        </div>`;
+          </div>`;
       }).join('')
     : '<p style="text-align:center;color:#6b7280;padding:20px">لا توجد عروض حالياً</p>';
 
   $('merchantModal').classList.add('active');
 
-  // تحميل التقييمات
+  // جلب التقييمات
   $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
   try {
     const ratings = await getMerchantRatings(m.id);
@@ -405,12 +430,12 @@ function updateTabsVisibility() {
   });
 }
 
+// ✅ تم إصلاح دالة switchTab لإضافة صفحة العروض
 function switchTab(name) {
-  document.querySelectorAll('.tab-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.tab === name));
-  document.querySelectorAll('.tab-content').forEach(c =>
-    c.classList.toggle('active', c.id === 'tab-' + name));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + name));
 
+  if (name === 'offers') renderOffersGrid(); // ✅ السطر الجديد
   if (name === 'invoice') renderInvoiceTab();
   if (name === 'requests') renderRequestsTab();
   if (name === 'dashboard' && currentMerchant) renderDashboard();
@@ -478,12 +503,14 @@ async function renderMyWalletAndInvoices() {
     const wallets = await getMyWallets(currentProfile.id);
     const total = wallets.reduce((s, w) => s + parseFloat(w.balance || 0), 0);
     const shops = wallets.filter(w => parseFloat(w.balance) > 0).length;
+
     if (total > 0 || wallets.length > 0) {
       $('customerBalanceBanner').style.display = 'block';
       $('customerWalletsCard').style.display = 'block';
       $('customerRedeemCard').style.display = 'block';
       $('totalBalanceValue').innerText = total.toFixed(2) + ' ج';
       $('balanceShopsCount').innerText = shops;
+
       const active = wallets.filter(w => parseFloat(w.balance) > 0 || parseFloat(w.earned) > 0);
       const el = $('customerWalletsList');
       el.innerHTML = active.length ? active.map(w => {
@@ -493,6 +520,7 @@ async function renderMyWalletAndInvoices() {
           <div style="font-size:14px;color:#10b981;font-weight:700;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
         </div>`;
       }).join('') : '<p style="color:#6b7280;font-size:14px">لا توجد أرصدة</p>';
+
       const sel = $('redeemMerchant');
       sel.innerHTML = '<option value="">اختار المتجر</option>' +
         active.filter(w => parseFloat(w.balance) > 0).map(w => {
@@ -527,7 +555,9 @@ async function handleSubmitInvoice() {
   const amount = parseFloat($('invAmount').value);
   const bankCode = $('invBankCode') ? getRealValue('invBankCode') : '';
   const res = $('invoiceResult');
+
   if (!num || !phone || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
+
   const isMerchant = currentProfile.role === 'merchant' && currentMerchant;
   if (!isMerchant && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ ادخل البنكود'; return; }
 
@@ -547,7 +577,6 @@ async function handleSubmitInvoice() {
       if (m) { merchantId = m.id; merchantName = m.name; }
     }
 
-    // إظهار قسم التقييم للعميل
     if (merchantId && currentProfile.role === 'customer') {
       lastRatedMerchantId = merchantId;
       lastRatedMerchantName = merchantName;
@@ -561,6 +590,7 @@ async function handleSubmitInvoice() {
 
     $('invNumber').value = ''; $('invCustomerPhone').value = ''; $('invAmount').value = '';
     if ($('invBankCode')) { $('invBankCode').value = ''; $('invBankCode').dataset.realValue = ''; }
+
     setTimeout(() => renderInvoiceTab(), 1500);
   } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
@@ -570,7 +600,9 @@ async function handleRedeem() {
   const original = parseFloat($('redeemOriginal').value);
   const amount = parseFloat($('redeemAmount').value);
   const res = $('redeemResult');
+
   if (!merchantId || !original || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
+
   try {
     await redeemCashback({ merchantId, amount, originalAmount: original });
     res.style.color = '#10b981'; res.innerText = `✅ المطلوب ${(original - amount).toFixed(2)} ج`;
@@ -584,22 +616,13 @@ async function handleRedeem() {
 // ============================================================
 async function handleSubmitRating() {
   const res = $('ratingResult');
-
-  if (!selectedRating || selectedRating < 1) {
-    res.style.color = '#ef4444'; res.innerText = '⚠️ اختر عدد النجوم'; return;
-  }
-  if (!lastRatedMerchantId) {
-    res.style.color = '#ef4444'; res.innerText = '⚠️ التاجر غير معروف'; return;
-  }
+  if (!selectedRating || selectedRating < 1) { res.style.color = '#ef4444'; res.innerText = '⚠️ اختر عدد النجوم'; return; }
+  if (!lastRatedMerchantId) { res.style.color = '#ef4444'; res.innerText = '⚠️ التاجر غير معروف'; return; }
 
   const comment = $('reviewComment').value.trim();
 
   try {
-    await rateMerchant({
-      merchantId: lastRatedMerchantId,
-      stars: selectedRating,
-      comment
-    });
+    await rateMerchant({ merchantId: lastRatedMerchantId, stars: selectedRating, comment });
     res.style.color = '#10b981'; res.innerText = '✅ شكراً لتقييمك!';
     await refreshData();
     setTimeout(() => {
@@ -609,9 +632,7 @@ async function handleSubmitRating() {
       selectedRating = 0;
       document.querySelectorAll('#starContainer .star').forEach(el => el.classList.remove('active'));
     }, 2000);
-  } catch (e) {
-    res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
-  }
+  } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
 
 // ============================================================
@@ -635,7 +656,9 @@ async function handleSendRequest() {
   const product = $('reqProduct').value.trim();
   const details = $('reqDetails').value.trim();
   const res = $('requestSendResult');
+
   if (!product) { res.style.color = '#ef4444'; res.innerText = '❌ اكتب اسم المنتج'; return; }
+
   try {
     await sendRequest({ category, product, details, imageBase64: uploadedReqImage });
     res.style.color = '#10b981'; res.innerText = '✅ تم إرسال الطلب';
@@ -648,6 +671,7 @@ async function handleSendRequest() {
 
 async function renderRequestsTab() {
   if (!currentProfile) return;
+
   if (currentProfile.role === 'merchant' && currentMerchant) {
     $('requestFormCard').style.display = 'none';
     $('reqStatsWrapper').style.display = 'none';
@@ -669,10 +693,12 @@ async function renderRequestsTab() {
 
 async function renderMyRequests() {
   myRequestsCache = await getMyRequests();
+
   const total = myRequestsCache.length;
   const pending = myRequestsCache.filter(r => r.status === 'pending').length;
   const responded = myRequestsCache.filter(r => r.status === 'responded').length;
   const accepted = myRequestsCache.filter(r => r.status === 'accepted').length;
+
   $('statTotal').innerText = total;
   $('statPending').innerText = pending;
   $('statResponded').innerText = responded;
@@ -693,12 +719,15 @@ async function renderMyRequests() {
       const isAccepted = req.accepted_response_id === r.id;
       const imageHtml = r.image_url
         ? `<img src="${r.image_url}" style="width:100%;max-width:150px;border-radius:10px;margin:6px 0;border:2px solid #eee" onerror="this.style.display='none'">` : '';
+
       const acceptBtn = isAccepted
         ? `<button class="accept-btn" style="background:#94a3b8;cursor:not-allowed">✅ مقبول</button>`
         : (req.status === 'accepted' ? '' : `<button class="accept-btn" onclick="acceptOfferClick('${req.id}','${r.id}')">قبول</button>`);
+
       const msgs = (r.customer_messages || []).map(msg =>
         `<div style="background:#dbeafe;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>👤 أنت:</strong> ${msg.text}</div>`
       ).join('');
+
       const replyHtml = r.merchant_reply
         ? `<div style="background:#fef3c7;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>🏪 ${m.name || ''}:</strong> ${r.merchant_reply}</div>` : '';
 
@@ -790,6 +819,7 @@ async function renderMerchantRequestsList() {
       el.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;padding:20px">مفيش طلبات 😴</p>';
       return;
     }
+
     el.innerHTML = requests.map(req => {
       const myReply = (req.request_responses || []).find(r => r.merchant_id === currentMerchant.id);
       const statusBadge = getStatusBadge(req.status);
@@ -836,7 +866,6 @@ window.replyToReq = async function (reqId) {
   const price = prompt('اكتب السعر:'); if (price === null) return;
   const p = parseFloat(price); if (isNaN(p) || p <= 0) { toast('❌ سعر غير صحيح', 'error'); return; }
   const message = prompt('رسالة للعميل:', 'متوفر بسعر ممتاز'); if (message === null) return;
-
   const hasImage = confirm('تحب ترفق صورة؟');
   let imageBase64 = null;
   if (hasImage) imageBase64 = await pickImage();
@@ -903,18 +932,14 @@ function renderLogoPreview() {
 async function handleUploadLogo() {
   if (!currentMerchant) return;
   const res = $('logoUploadResult');
-
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
-
   input.onchange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     res.style.color = '#6b7280';
     res.innerText = '⏳ جاري الرفع...';
-
     try {
       const url = await uploadMerchantLogo(currentMerchant.id, file);
       currentMerchant.logo_url = url;
@@ -928,7 +953,6 @@ async function handleUploadLogo() {
       res.innerText = '❌ ' + e.message;
     }
   };
-
   input.click();
 }
 
@@ -936,7 +960,6 @@ async function handleDeleteLogo() {
   if (!currentMerchant) return;
   if (!confirm('متأكد من حذف الشعار؟')) return;
   const res = $('logoUploadResult');
-
   try {
     await deleteMerchantLogo(currentMerchant.id);
     currentMerchant.logo_url = null;
@@ -956,7 +979,6 @@ async function handleDeleteLogo() {
 // ============================================================
 async function renderDashboard() {
   if (!currentMerchant) return;
-
   renderLogoPreview();
 
   try {
@@ -981,8 +1003,7 @@ async function renderDashboard() {
     const el = $('myOffersList');
     el.innerHTML = offers.length ? offers.map(o => {
       const imgHtml = o.image_url
-        ? `<img src="${o.image_url}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0">`
-        : '';
+        ? `<img src="${o.image_url}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0">` : '';
       return `<div class="merchant-offer-card" style="background:#f9fafb;padding:10px;border-radius:12px;margin-bottom:8px;border-right:4px solid #ff6b35;display:flex;align-items:center;gap:10px">
         ${imgHtml}
         <div style="flex:1"><span style="font-weight:600">${o.title}</span><br><span style="color:#ff6b35;font-weight:700">${o.discount}</span></div>
@@ -1108,7 +1129,6 @@ function handleOfferImage(e) {
   };
   reader.readAsDataURL(file);
 }
-
 // ============================================================
 // REPORTS
 // ============================================================
@@ -1197,12 +1217,11 @@ async function renderAdminDashboard() {
   $('admOffers').innerText = s.offersCount;
 }
 
-// ✅ معدّل: مع فلترة البحث
 async function renderAdminTraders() {
   adminData.merchants = await getAllMerchants();
   const el = $('adminTradersList');
-
   const search = ($('adminTraderSearch')?.value || '').trim().toLowerCase();
+
   let list = adminData.merchants;
   if (search) {
     list = list.filter(m =>
@@ -1223,6 +1242,7 @@ async function renderAdminTraders() {
     const logo = m.logo_url
       ? `<img src="${m.logo_url}" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle">`
       : (m.icon || '🏪');
+
     return `<div class="admin-item">
       <div class="head">
         <span class="title">${logo} ${m.name}</span>
@@ -1247,19 +1267,14 @@ window.adminEditMerchantFull = async function (id) {
 
   const newBankCode = prompt(`البنكود الحالي: ${m.bank_code}\nالجديد:`, m.bank_code);
   if (newBankCode === null) return;
-
   const newName = prompt(`اسم التاجر الحالي: ${m.name}\nالجديد:`, m.name);
   if (newName === null) return;
-
   const newPhone = prompt(`الموبايل الحالي: ${m.phone}\nالجديد:`, m.phone || '');
   if (newPhone === null) return;
-
   const newLat = prompt(`Latitude الحالي: ${m.lat}\nالجديد:`, m.lat);
   if (newLat === null) return;
-
   const newLng = prompt(`Longitude الحالي: ${m.lng}\nالجديد:`, m.lng);
   if (newLng === null) return;
-
   const newRate = prompt(`النسبة الحالية: ${m.cashback_rate}%\nالجديدة (1-50):`, m.cashback_rate);
   if (newRate === null) return;
 
@@ -1301,12 +1316,11 @@ window.delTrader = async function (id) {
   catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
-// ✅ معدّل: مع فلترة البحث
 async function renderAdminCustomers() {
   adminData.customers = await getAllCustomers();
   const el = $('adminCustomersList');
-
   const search = ($('adminCustomerSearch')?.value || '').trim().toLowerCase();
+
   let list = adminData.customers;
   if (search) {
     list = list.filter(c =>
@@ -1342,13 +1356,10 @@ async function renderAdminCustomers() {
 window.adminEditCustomerFull = async function (phone) {
   const c = adminData.customers.find(x => x.phone === phone);
   if (!c) return;
-
   const newName = prompt(`الاسم الحالي: ${c.name || 'مش محدد'}\nالجديد:`, c.name || '');
   if (newName === null) return;
-
   const newPhone = prompt(`الموبايل الحالي: ${c.phone}\nالجديد:`, c.phone);
   if (newPhone === null) return;
-
   try {
     await adminUpdateCustomer(phone, newName.trim(), newPhone.trim());
     toast('✅ تم التعديل', 'success');
@@ -1396,11 +1407,14 @@ async function renderAdminInvoices() {
   const search = $('adminInvoiceSearch')?.value || '';
   adminData.invoices = await getAllInvoices(search);
   const el = $('adminInvoicesList');
+
   if (!adminData.invoices.length) { el.innerHTML = '<p style="color:#6b7280">لا توجد فواتير</p>'; return; }
+
   el.innerHTML = adminData.invoices.map(inv => {
     const statusBadge = inv.status === 'active'
       ? '<span class="active-badge">✅ نشطة</span>'
       : `<span class="blocked-badge">❌ ${inv.status === 'returned' ? 'مرتجع' : 'مرتجع جزئي'}</span>`;
+
     return `<div class="admin-item">
       <div class="head">
         <span class="title">📄 #${inv.number}</span>
@@ -1454,15 +1468,17 @@ async function renderAdminRequests() {
   try {
     const reqs = await adminGetAllRequests();
     if (!reqs.length) { el.innerHTML = '<p style="color:#6b7280">لا توجد طلبات</p>'; return; }
+
     el.innerHTML = reqs.map(r => {
       const responses = r.request_responses || [];
       const respHtml = responses.map(resp => {
         const m = resp.merchants || {};
         return `<div style="background:#f9fafb;padding:8px;border-radius:8px;margin-top:6px;border-right:3px solid var(--primary);font-size:12px">
-          <strong>🏪 ${m.name || ''}</strong> • 💰 ${parseFloat(resp.price||0).toFixed(0)} ج
+          <strong>🏪 ${m.name || ''}</strong> • 💰 ${parseFloat(resp.price || 0).toFixed(0)} ج
           <div style="color:#6b7280">${resp.message || ''}</div>
         </div>`;
       }).join('');
+
       return `<div class="admin-item">
         <div class="head">
           <span class="title">📦 ${r.product}</span>
@@ -1548,6 +1564,7 @@ async function handleAddTrader() {
 // ============================================================
 async function initAccountMapUI() {
   if (!currentProfile) return;
+
   $('accName').innerText = currentProfile.name || '-';
   $('accPhone').innerText = currentProfile.phone || '-';
   $('accEmail').innerText = currentProfile.email || 'لم يتم إضافة إيميل';
@@ -1626,55 +1643,38 @@ async function handleChangePassword() {
   const confirmPass = $('newPassConfirm').value;
   const res = $('changePassResult');
 
-  if (!currentPass || !newPass || !confirmPass) {
-    res.style.color = '#ef4444'; res.innerText = '❌ املأ كل الحقول'; return;
-  }
-  if (newPass !== confirmPass) {
-    res.style.color = '#ef4444'; res.innerText = '❌ كلمتين المرور مش متطابقتين'; return;
-  }
-  if (newPass.length < 6) {
-    res.style.color = '#ef4444'; res.innerText = '❌ كلمة المرور 6 أحرف على الأقل'; return;
-  }
+  if (!currentPass || !newPass || !confirmPass) { res.style.color = '#ef4444'; res.innerText = '❌ املأ كل الحقول'; return; }
+  if (newPass !== confirmPass) { res.style.color = '#ef4444'; res.innerText = '❌ كلمتين المرور مش متطابقتين'; return; }
+  if (newPass.length < 6) { res.style.color = '#ef4444'; res.innerText = '❌ كلمة المرور 6 أحرف على الأقل'; return; }
 
   try {
     await changeMyPassword({ currentPassword: currentPass, newPassword: newPass });
     res.style.color = '#10b981'; res.innerText = '✅ تم تغيير كلمة المرور';
     $('currentPass').value = ''; $('newPass').value = ''; $('newPassConfirm').value = '';
     setTimeout(() => { res.innerText = ''; $('changePassForm').style.display = 'none'; }, 2000);
-  } catch (e) {
-    res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
-  }
+  } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
 
 async function handleSaveEmail() {
   const email = $('myEmail').value.trim();
   const res = $('emailResult');
-  if (!email || !email.includes('@')) {
-    res.style.color = '#ef4444'; res.innerText = '❌ إيميل غير صحيح'; return;
-  }
+  if (!email || !email.includes('@')) { res.style.color = '#ef4444'; res.innerText = '❌ إيميل غير صحيح'; return; }
   try {
     await updateMyEmail(email);
     currentProfile.email = email;
-    res.style.color = '#10b981'; res.innerText = '✅ تم حفظ الإيميل — شوف بريدك للتفعيل';
+    res.style.color = '#10b981'; res.innerText = '✅ تم حفظ الإيميل - شوف بريدك للتفعيل';
     setTimeout(() => res.innerText = '', 3000);
-  } catch (e) {
-    res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
-  }
+  } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
 
 async function handleSendReset() {
   const email = $('forgotEmail').value.trim();
   const res = $('forgotResult');
-  if (!email || !email.includes('@')) {
-    res.style.color = '#ef4444'; res.innerText = '❌ إيميل غير صحيح'; return;
-  }
+  if (!email || !email.includes('@')) { res.style.color = '#ef4444'; res.innerText = '❌ إيميل غير صحيح'; return; }
   try {
     await sendPasswordReset(email);
-    res.style.color = '#10b981';
-    res.innerText = '✅ تم الإرسال — شوف إيميلك';
-  } catch (e) {
-    res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
-  }
+    res.style.color = '#10b981'; res.innerText = '✅ تم الإرسال - شوف إيميلك';
+  } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
 
 // ============================================================
@@ -1696,6 +1696,7 @@ async function showMainScreen(profile) {
   currentProfile = profile;
   $('authScreen').style.display = 'none';
   $('mainScreen').style.display = 'block';
+
   $('userRole').innerText = getRoleName(profile.role);
   $('userRole').className = 'role-badge role-' + profile.role;
   $('userName').innerText = profile.name || 'مستخدم';
@@ -1738,7 +1739,6 @@ async function handleLogin(e) {
 
   const btn = $('loginBtn');
   btn.disabled = true; btn.innerText = '⏳ جاري الدخول...';
-
   expectedLogin = { role, bankCode, adminCode };
 
   try {
@@ -1770,6 +1770,7 @@ async function handleSignup(e) {
 
   const btn = $('signupBtn');
   btn.disabled = true; btn.innerText = '⏳ جاري التسجيل...';
+
   try {
     if (role === 'merchant') {
       await signUpMerchant({ phone, email, password, name, bankCode });
@@ -1778,7 +1779,6 @@ async function handleSignup(e) {
     } else {
       await signUpCustomer({ phone, email, password, name });
     }
-
     showMessage('✅ تم إنشاء الحساب', 'success');
     await signInWithEmail({ email, password });
   } catch (err) {
@@ -1846,7 +1846,6 @@ function bindEvents() {
   $('rateSlider').addEventListener('input', updateRateDisplay);
   $('exportPdfBtn').addEventListener('click', exportReportPDF);
 
-  // ✅ نجوم التقييم (Unicode ★)
   document.querySelectorAll('#starContainer .star').forEach(star => {
     star.addEventListener('click', function () {
       const val = parseInt(this.dataset.value);
@@ -1880,15 +1879,16 @@ function bindEvents() {
     $('addTraderForm').style.display = 'block';
     renderNewTraderSubs();
   });
+
   $('hideAddTraderBtn').addEventListener('click', () => {
     $('addTraderForm').style.display = 'none';
   });
+
   $('newTraderCategory').addEventListener('change', renderNewTraderSubs);
   $('addTraderConfirmBtn').addEventListener('click', handleAddTrader);
   $('adminInvoiceSearch').addEventListener('input', () => renderAdminInvoices());
   $('sendNotifBtn').addEventListener('click', handleSendNotif);
 
-  // ✅ بحث الأدمن
   const traderSearch = $('adminTraderSearch');
   if (traderSearch) traderSearch.addEventListener('input', () => renderAdminTraders());
 
@@ -1902,17 +1902,20 @@ function bindEvents() {
     e.preventDefault();
     $('forgotModal').classList.add('active');
   });
+
   $('sendResetBtn').addEventListener('click', handleSendReset);
 
   $('openChangePassBtn').addEventListener('click', () => {
     $('changePassForm').style.display = 'block';
     $('emailForm').style.display = 'none';
   });
+
   $('openEmailBtn').addEventListener('click', () => {
     $('emailForm').style.display = 'block';
     $('changePassForm').style.display = 'none';
     $('myEmail').value = currentProfile?.email || '';
   });
+
   $('saveNewPassBtn').addEventListener('click', handleChangePassword);
   $('saveEmailBtn').addEventListener('click', handleSaveEmail);
 
@@ -1992,7 +1995,7 @@ onAuthChange(async (event, session) => {
 
       if (profile.role !== exp.role) {
         await signOut();
-        setTimeout(() => showMessage(`❌ الدور مش متطابق — حسابك ${getRoleName(profile.role)}`), 300);
+        setTimeout(() => showMessage(`❌ الدور مش متطابق - حسابك ${getRoleName(profile.role)}`), 300);
         return;
       }
 
@@ -2026,7 +2029,6 @@ window.addEventListener('load', async () => {
   showAuthTab('login');
   updateBankCodeVisibility();
   updateLoginVisibility();
-
   initI18n();
   window.__setLang = setLang;
 

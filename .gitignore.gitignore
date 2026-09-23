@@ -1,0 +1,30 @@
+﻿# OS Files
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Build
+dist/
+build/
+
+# Supabase
+.supabase/
+
+# Secrets
+secrets.json

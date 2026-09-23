@@ -1,16 +1,32 @@
 ﻿// ============================================================
-// Supabase Client
+// Supabase Client - Singleton Pattern
 // ============================================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: false
-  }
-});
+// ✅ Singleton: instance واحد بس في كل التطبيق
+const GLOBAL_KEY = '__PAMIGO_SUPABASE__';
+
+function getSupabaseClient() {
+  // لو موجود في window، رجّعه
+  if (window[GLOBAL_KEY]) return window[GLOBAL_KEY];
+
+  // اعمل instance جديد
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+      storageKey: 'pamigo-auth-token' // ✅ مفتاح واحد بس لكل التطبيق
+    }
+  });
+
+  // خزنه في window
+  window[GLOBAL_KEY] = client;
+  return client;
+}
+
+export const supabase = getSupabaseClient();
 
 // ============================================================
 // Helper: الحصول على المستخدم الحالي
