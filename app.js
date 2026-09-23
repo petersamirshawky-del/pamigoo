@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // PAMIGO - Main Entry
 // ============================================================
 
@@ -384,7 +384,6 @@ window.openMerchant = async function (bankCode) {
 
   $('merchantModal').classList.add('active');
 
-  // جلب التقييمات
   $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
   try {
     const ratings = await getMerchantRatings(m.id);
@@ -430,12 +429,11 @@ function updateTabsVisibility() {
   });
 }
 
-// ✅ تم إصلاح دالة switchTab لإضافة صفحة العروض
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + name));
 
-  if (name === 'offers') renderOffersGrid(); // ✅ السطر الجديد
+  if (name === 'offers') renderOffersGrid();
   if (name === 'invoice') renderInvoiceTab();
   if (name === 'requests') renderRequestsTab();
   if (name === 'dashboard' && currentMerchant) renderDashboard();
@@ -2022,9 +2020,9 @@ onAuthChange(async (event, session) => {
 });
 
 // ============================================================
-// INIT
+// INIT - يعمل بعد تحميل كل الـ imports
 // ============================================================
-window.addEventListener('load', async () => {
+(async function init() {
   bindEvents();
   showAuthTab('login');
   updateBankCodeVisibility();
@@ -2055,4 +2053,4 @@ window.addEventListener('load', async () => {
   } else {
     showAuthScreen();
   }
-});
+})();
