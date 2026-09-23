@@ -3,9 +3,6 @@
 // ============================================================
 import { supabase } from './supabase.js';
 
-// ============================================================
-// عميل يقيّم تاجر
-// ============================================================
 export async function rateMerchant({ merchantId, stars, comment }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('مش مسجل دخول');
@@ -45,9 +42,6 @@ export async function rateMerchant({ merchantId, stars, comment }) {
   return true;
 }
 
-// ============================================================
-// جلب تقييمات تاجر
-// ============================================================
 export async function getMerchantRatings(merchantId) {
   const { data, error } = await supabase
     .from('ratings')
@@ -62,9 +56,6 @@ export async function getMerchantRatings(merchantId) {
   return data || [];
 }
 
-// ============================================================
-// جلب تقييم العميل لتاجر معين
-// ============================================================
 export async function getMyRating(merchantId) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
