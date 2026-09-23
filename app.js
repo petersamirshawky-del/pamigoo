@@ -83,20 +83,42 @@ let lastRatedMerchantName = '';
 // Load merchants
 // ============================================================
 async function loadMerchants() {
-  const { data, error } = await supabase
+  // 1) جيب المتاجر
+  const { data: merchantsData, error: merr } = await supabase
     .from('merchants')
-    .select(`
-      id, bank_code, name, phone, category, sub_categories,
-      icon, logo_url, lat, lng, cashback_rate, frozen,
-      offers ( id, title, discount, image_url ),
-      ratings ( stars )
-    `)
+    .select('*')
     .eq('frozen', false);
 
-  if (error) { console.error(error); return []; }
-  return data || [];
-}
+  if (merr) { console.error('Merchants error:', merr); return []; }
+  if (!merchantsData || !merchantsData.length) return [];
 
+  // 2) جيب العروض كلها
+  const { data: allOffers } = await supabase.from('offers').select('*');
+
+  // 3) جيب التقييمات كلها
+  const { data: allRatings } = await supabase.from('ratings').select('*');
+
+  // 4) اربط العروض بكل تاجر
+  const offersByMerchant = {};
+  (allOffers || []).forEach(o => {
+    if (!offersByMerchant[o.merchant_id]) offersByMerchant[o.merchant_id] = [];
+    offersByMerchant[o.merchant_id].push(o);
+  });
+
+  // 5) اربط التقييمات بكل تاجر
+  const ratingsByMerchant = {};
+  (allRatings || []).forEach(r => {
+    if (!ratingsByMerchant[r.merchant_id]) ratingsByMerchant[r.merchant_id] = [];
+    ratingsByMerchant[r.merchant_id].push(r);
+  });
+
+  // 6) ادمج كل حاجة
+  return merchantsData.map(m => ({
+    ...m,
+    offers: offersByMerchant[m.id] || [],
+    ratings: ratingsByMerchant[m.id] || []
+  }));
+}
 // ============================================================
 // Helpers
 // ============================================================
