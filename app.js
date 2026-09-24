@@ -2150,3 +2150,19 @@ document.addEventListener('click', function(e) {
   if (name === 'admin') renderAdminSection('dashboard');
   if (name === 'account') setTimeout(initAccountMapUI, 300);
 });
+// 🔍 مراقبة من بيغير display بتاع tab-offers
+const target = document.getElementById('tab-offers');
+if (target) {
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((m) => {
+      if (m.attributeName === 'style' || m.attributeName === 'class') {
+        console.log('🚨 tab-offers اتغير!', {
+          style: target.style.display,
+          classes: target.className,
+          stack: new Error().stack.split('\n').slice(1, 5).join('\n')
+        });
+      }
+    });
+  });
+  observer.observe(target, { attributes: true });
+}
