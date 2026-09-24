@@ -1,7 +1,6 @@
-﻿// ============================================================
+// ============================================================
 // PAMIGO - Main Entry
 // ============================================================
-
 const { supabase } = await import('./supabase.js');
 const { toast, showLoader, hideLoader } = await import('./ui.js');
 const { initI18n, setLang, currentLang, applyI18nToHTML } = await import('./i18n.js');
@@ -54,9 +53,7 @@ const {
   setMarkerPosition, searchAddress, updateMyMerchantLocation
 } = await import('./account.js');
 
-const {
-  rateMerchant, getMerchantRatings
-} = await import('./ratings.js');
+const { rateMerchant, getMerchantRatings } = await import('./ratings.js');
 
 const $ = (id) => document.getElementById(id);
 
@@ -86,10 +83,7 @@ let lastRatedMerchantName = '';
 // ============================================================
 async function loadMerchants() {
   const { data: merchantsData, error: merr } = await supabase
-    .from('merchants')
-    .select('*')
-    .eq('frozen', false);
-
+    .from('merchants').select('*').eq('frozen', false);
   if (merr) { console.error('Merchants error:', merr); return []; }
   if (!merchantsData || !merchantsData.length) return [];
 
@@ -135,7 +129,6 @@ function getTier(rate) {
   return { name: 'عادي', icon: '🥉', cls: 'tier-bronze' };
 }
 
-// ✅ معدّلة لاستخدام discount_value
 function getMaxDiscount(m) {
   if (!m.offers || !m.offers.length) return 0;
   return Math.max(...m.offers.map(o => parseInt(o.discount_value) || 0));
@@ -194,7 +187,6 @@ function logoImgHtml(m) {
 // ============================================================
 function renderMerchantsList() {
   let list = [...allMerchants];
-
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
     list = list.filter(m =>
@@ -202,11 +194,9 @@ function renderMerchantsList() {
       (m.offers || []).some(o => (o.title || '').toLowerCase().includes(q))
     );
   }
-
   list = list.filter(m => matchesCatSubs(m, homeCategories, homeSubCategories));
 
   const radius = parseFloat(homeRadius) || 2;
-
   if (userLat !== null && userLng !== null) {
     list = list.map(m => ({
       ...m,
@@ -234,7 +224,6 @@ function renderMerchantsList() {
     const maxDisc = getMaxDiscount(m);
     const rating = getAvgRating(m);
     const dist = m._dist ? m._dist.toFixed(2) + ' كم' : '';
-
     let subNames = '';
     if (m.sub_categories && m.sub_categories.length) {
       const l = SUB_CATEGORIES[m.category] || [];
@@ -295,7 +284,7 @@ function renderOffersGrid() {
         <div style="width:70px;height:70px;margin:0 auto;border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-soft);font-size:48px">
           ${logoImgHtml(m)}
         </div>
-        <div class="discount" style="font-size:20px">${maxDisc > 0 ? maxDisc + '%' : '—'}</div>
+        <div class="discount" style="font-size:20px">${maxDisc > 0 ? maxDisc + '%' : '---'}</div>
         <div style="font-size:13px;font-weight:600">${m.name}</div>
         <div style="font-size:11px;color:#ff6b35;margin-top:4px">كاش باك ${rate}%</div>
         <div style="font-size:11px;color:#6b7280;margin-top:2px">${(m.offers || []).length} عرض</div>
@@ -307,14 +296,11 @@ function renderOffersGrid() {
 function renderSubCategoriesGeneric({ categories, subs, wrapperEl, containerEl, onToggle }) {
   const singleCat = categories.length === 1 && categories[0] !== 'all' ? categories[0] : null;
   if (!singleCat || !SUB_CATEGORIES[singleCat]) { wrapperEl.style.display = 'none'; return; }
-
   wrapperEl.style.display = 'block';
   const list = SUB_CATEGORIES[singleCat];
-
   containerEl.innerHTML = list.map(sub => `
     <button class="category-chip ${subs.includes(sub.id) ? 'active' : ''}" data-sub="${sub.id}">${sub.name}</button>
   `).join('');
-
   containerEl.querySelectorAll('.category-chip').forEach(btn => {
     btn.addEventListener('click', () => onToggle(btn.dataset.sub, btn));
   });
@@ -331,11 +317,9 @@ function toggleCategoryGeneric({ cat, chip, categories, subs, containerId, onUpd
     const ai = categories.indexOf('all');
     if (ai > -1) categories.splice(ai, 1);
     document.querySelector(`#${containerId} .category-chip[data-cat="all"]`)?.classList.remove('active');
-
     const idx = categories.indexOf(cat);
     if (idx > -1) { categories.splice(idx, 1); chip.classList.remove('active'); }
     else { categories.push(cat); chip.classList.add('active'); }
-
     if (categories.length === 0) {
       categories.push('all');
       document.querySelector(`#${containerId} .category-chip[data-cat="all"]`)?.classList.add('active');
@@ -375,19 +359,16 @@ function openMerchant(bankCode) {
   if (!m) return;
   currentModalMerchant = m;
 
-  // ✅ تسجيل المشاهدة
   trackOfferEvent({ offerId: null, merchantId: m.id, eventType: 'click' });
 
   const rate = m.cashback_rate || 15;
   const tier = getTier(rate);
-
   const logoHtml = m.logo_url
     ? `<img src="${m.logo_url}" style="width:70px;height:70px;object-fit:cover;border-radius:16px;margin:0 auto 10px;display:block">`
     : `<div style="font-size:60px;text-align:center">${m.icon || '🏪'}</div>`;
 
   $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${m.name}</div>`;
   $('modalMerchantInfo').innerHTML = `${m.icon || '🏪'} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>`;
-
   $('modalOffersList').innerHTML = (m.offers || []).length
     ? m.offers.map((o, i) => {
         const imgHtml = o.image_url
@@ -413,7 +394,6 @@ function openMerchant(bankCode) {
   modal.classList.add('active');
   modal.style.display = 'flex';
 
-  // أزرار الاتصال والموقع
   const oldActions = modal.querySelector('.modal-actions-bar');
   if (oldActions) oldActions.remove();
 
@@ -479,7 +459,6 @@ function switchTab(name) {
     c.classList.toggle('active', isTarget);
     c.style.display = isTarget ? 'block' : 'none';
   });
-
   if (name === 'offers') renderOffersGrid();
   if (name === 'invoice') renderInvoiceTab();
   if (name === 'requests') renderRequestsTab();
@@ -609,7 +588,6 @@ async function handleSubmitInvoice() {
   try {
     let merchantId = null;
     let merchantName = '';
-
     if (isMerchant) {
       const r = await createInvoice({ number: num, customerPhone: phone, amount, merchantId: currentMerchant.id });
       merchantId = currentMerchant.id;
@@ -635,7 +613,6 @@ async function handleSubmitInvoice() {
 
     $('invNumber').value = ''; $('invCustomerPhone').value = ''; $('invAmount').value = '';
     if ($('invBankCode')) { $('invBankCode').value = ''; $('invBankCode').dataset.realValue = ''; }
-
     setTimeout(() => renderInvoiceTab(), 1500);
   } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
@@ -665,7 +642,6 @@ async function handleSubmitRating() {
   if (!lastRatedMerchantId) { res.style.color = '#ef4444'; res.innerText = '⚠️ التاجر غير معروف'; return; }
 
   const comment = $('reviewComment').value.trim();
-
   try {
     await rateMerchant({ merchantId: lastRatedMerchantId, stars: selectedRating, comment });
     res.style.color = '#10b981'; res.innerText = '✅ شكراً لتقييمك!';
@@ -716,7 +692,6 @@ async function handleSendRequest() {
 
 async function renderRequestsTab() {
   if (!currentProfile) return;
-
   if (currentProfile.role === 'merchant' && currentMerchant) {
     $('requestFormCard').style.display = 'none';
     $('reqStatsWrapper').style.display = 'none';
@@ -738,7 +713,6 @@ async function renderRequestsTab() {
 
 async function renderMyRequests() {
   myRequestsCache = await getMyRequests();
-
   const total = myRequestsCache.length;
   const pending = myRequestsCache.filter(r => r.status === 'pending').length;
   const responded = myRequestsCache.filter(r => r.status === 'responded').length;
@@ -758,21 +732,17 @@ async function renderMyRequests() {
   el.innerHTML = list.map(req => {
     const statusBadge = getStatusBadge(req.status);
     const responses = req.request_responses || [];
-
     const respHtml = responses.length ? responses.map(r => {
       const m = r.merchants || {};
       const isAccepted = req.accepted_response_id === r.id;
       const imageHtml = r.image_url
         ? `<img src="${r.image_url}" style="width:100%;max-width:150px;border-radius:10px;margin:6px 0;border:2px solid #eee" onerror="this.style.display='none'">` : '';
-
       const acceptBtn = isAccepted
         ? `<button class="accept-btn" style="background:#94a3b8;cursor:not-allowed">✅ مقبول</button>`
         : (req.status === 'accepted' ? '' : `<button class="accept-btn" onclick="window.acceptOfferClick('${req.id}','${r.id}')">قبول</button>`);
-
       const msgs = (r.customer_messages || []).map(msg =>
         `<div style="background:#dbeafe;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>👤 أنت:</strong> ${msg.text}</div>`
       ).join('');
-
       const replyHtml = r.merchant_reply
         ? `<div style="background:#fef3c7;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>🏪 ${m.name || ''}:</strong> ${r.merchant_reply}</div>` : '';
 
@@ -864,7 +834,6 @@ async function renderMerchantRequestsList() {
       el.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;padding:20px">مفيش طلبات 😴</p>';
       return;
     }
-
     el.innerHTML = requests.map(req => {
       const myReply = (req.request_responses || []).find(r => r.merchant_id === currentMerchant.id);
       const statusBadge = getStatusBadge(req.status);
@@ -953,6 +922,7 @@ async function hideReq(reqId) {
   try { await hideRequestForMerchant(reqId, currentMerchant.id); renderRequestsTab(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
 }
+
 // ============================================================
 // MERCHANT LOGO
 // ============================================================
@@ -1131,7 +1101,6 @@ async function returnInvClick(invId) {
   catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
-// ✅ دالة إضافة عرض جديدة
 async function handleAddOffer() {
   const title = $('offerTitle').value.trim();
   const type = $('offerType') ? $('offerType').value : 'percent';
@@ -1149,16 +1118,10 @@ async function handleAddOffer() {
     if (!percent || percent < 1 || percent > 100) { res.style.color = 'red'; res.innerText = '❌ النسبة لازم بين 1 و 100'; return; }
     discountText = percent + '% OFF';
     discountValue = percent;
-  } else if (type === '1+1') {
-    discountText = '1+1';
-    discountValue = 50;
-  } else if (type === '2+1') {
-    discountText = '2+1';
-    discountValue = 33;
-  } else if (type === '3+1') {
-    discountText = '3+1';
-    discountValue = 25;
-  } else if (type === 'custom') {
+  } else if (type === '1+1') { discountText = '1+1'; discountValue = 50; }
+  else if (type === '2+1') { discountText = '2+1'; discountValue = 33; }
+  else if (type === '3+1') { discountText = '3+1'; discountValue = 25; }
+  else if (type === 'custom') {
     if (!custom) { res.style.color = 'red'; res.innerText = '❌ اكتب وصف الخصم'; return; }
     discountText = custom;
     discountValue = 0;
@@ -1167,10 +1130,7 @@ async function handleAddOffer() {
   try {
     await addOffer({
       merchantId: currentMerchant.id,
-      title,
-      discount: discountText,
-      discountValue,
-      description,
+      title, discount: discountText, discountValue, description,
       imageBase64: uploadedOfferImage
     });
     res.style.color = 'green'; res.innerText = '✅ تم نشر العرض';
@@ -1225,14 +1185,12 @@ async function renderReports(period) {
   if (!currentMerchant) return;
   document.querySelectorAll('.report-period-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.period === period));
-
   const r = await getReportData(currentMerchant.id, period);
   $('reportPeriodLabel').innerText = '📅 ' + r.periodLabel;
   $('repInvoices').innerText = r.invoicesCount;
   $('repSales').innerText = r.sales.toFixed(2) + ' ج';
   $('repGiven').innerText = r.cbGiven.toFixed(2) + ' ج';
   $('repSpent').innerText = r.cbSpent.toFixed(2) + ' ج';
-
   $('reportDetails').innerHTML = `
     <div style="border-top:1px solid #eee;margin-top:15px;padding-top:15px">
       <h5 style="margin-bottom:10px;color:var(--primary)">📋 تفاصيل إضافية</h5>
@@ -1275,7 +1233,6 @@ async function renderAnalyticsTab() {
     $('anaGrowth').innerText = a.growth;
   } catch (e) { console.error(e); }
 }
-
 // ============================================================
 // ADMIN
 // ============================================================
@@ -1312,8 +1269,8 @@ async function renderAdminTraders() {
   adminData.merchants = await getAllMerchants();
   const el = $('adminTradersList');
   const search = ($('adminTraderSearch')?.value || '').trim().toLowerCase();
-
   let list = adminData.merchants;
+
   if (search) {
     list = list.filter(m =>
       (m.name || '').toLowerCase().includes(search) ||
@@ -1333,7 +1290,6 @@ async function renderAdminTraders() {
     const logo = m.logo_url
       ? `<img src="${m.logo_url}" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle">`
       : (m.icon || '🏪');
-
     return `<div class="admin-item">
       <div class="head">
         <span class="title">${logo} ${m.name}</span>
@@ -1411,8 +1367,8 @@ async function renderAdminCustomers() {
   adminData.customers = await getAllCustomers();
   const el = $('adminCustomersList');
   const search = ($('adminCustomerSearch')?.value || '').trim().toLowerCase();
-
   let list = adminData.customers;
+
   if (search) {
     list = list.filter(c =>
       (c.name || '').toLowerCase().includes(search) ||
@@ -1451,6 +1407,7 @@ async function adminEditCustomerFull(phone) {
   if (newName === null) return;
   const newPhone = prompt(`الموبايل الحالي: ${c.phone}\nالجديد:`, c.phone);
   if (newPhone === null) return;
+
   try {
     await adminUpdateCustomer(phone, newName.trim(), newPhone.trim());
     toast('✅ تم التعديل', 'success');
@@ -1478,6 +1435,7 @@ async function adminAdjustBal(phone) {
   if (!amount) return;
   const a = parseFloat(amount);
   if (isNaN(a)) return;
+
   try { await adjustCustomerBalance(phone, m.id, a); toast('✅ تم', 'success'); renderAdminCustomers(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
 }
@@ -1519,7 +1477,8 @@ async function renderAdminInvoices() {
           <button class="admin-btn primary" onclick="window.adminEditInv('${inv.id}')">✏️ تعديل</button>
           <button class="admin-btn danger" onclick="window.adminReturnInv('${inv.id}')">🔄 مرتجع</button>
         ` : ''}
-        <button class="admin-btn danger" onclick="window.adminDelInv('${inv.id}')">🗑️ حذف</button>
+        <button class="admin-btn danger" onclick="window.adminDeleteWithCashback('${inv.id}')">🗑️ حذف + كاش باك</button>
+        <button class="admin-btn warning" onclick="window.adminDeleteOnly('${inv.id}')">🗑️ حذف فقط</button>
       </div>
     </div>`;
   }).join('');
@@ -1548,10 +1507,22 @@ async function adminReturnInv(id) {
   catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
-async function adminDelInv(id) {
-  if (!confirm('حذف الفاتورة؟')) return;
-  try { await deleteInvoice(id); renderAdminInvoices(); }
-  catch (e) { toast('❌ ' + e.message, 'error'); }
+async function adminDeleteWithCashback(id) {
+  if (!confirm('⚠️ حذف الفاتورة + الكاش باك من محفظة العميل؟\n\nده هيأثر على رصيد العميل.')) return;
+  try {
+    await deleteInvoice(id, true);
+    toast('✅ تم حذف الفاتورة + الكاش باك', 'success');
+    renderAdminInvoices();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function adminDeleteOnly(id) {
+  if (!confirm('حذف الفاتورة فقط؟\n\nالكاش باك هيفضل في محفظة العميل.')) return;
+  try {
+    await deleteInvoice(id, false);
+    toast('✅ تم حذف الفاتورة فقط', 'success');
+    renderAdminInvoices();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
 async function renderAdminRequests() {
@@ -1559,7 +1530,6 @@ async function renderAdminRequests() {
   try {
     const reqs = await adminGetAllRequests();
     if (!reqs.length) { el.innerHTML = '<p style="color:#6b7280">لا توجد طلبات</p>'; return; }
-
     el.innerHTML = reqs.map(r => {
       const responses = r.request_responses || [];
       const respHtml = responses.map(resp => {
@@ -1569,7 +1539,6 @@ async function renderAdminRequests() {
           <div style="color:#6b7280">${resp.message || ''}</div>
         </div>`;
       }).join('');
-
       return `<div class="admin-item">
         <div class="head">
           <span class="title">📦 ${r.product}</span>
@@ -1595,19 +1564,15 @@ async function renderAdminNotifHistory() {
     </div>`).join('');
 }
 
-// ✅ جدول تفاعل العروض
 async function renderOfferEventsTable() {
   const container = $('adminOfferEventsList');
   if (!container) return;
   container.innerHTML = '<p style="text-align:center;padding:20px;color:#6b7280">جاري التحميل...</p>';
-
   const events = await getAdminOfferEventsStats();
-
   if (!events.length) {
     container.innerHTML = '<p style="text-align:center;padding:20px;color:#6b7280">مفيش تفاعل لحد دلوقتي</p>';
     return;
   }
-
   container.innerHTML = events.map(e => `
     <div class="admin-item">
       <div class="head">
@@ -1621,8 +1586,7 @@ async function renderOfferEventsTable() {
         <span>📞 تواصل: <strong>${e.contacts}</strong></span>
         <span>📍 خرائط: <strong>${e.maps}</strong></span>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 async function handleSendNotif() {
@@ -1685,7 +1649,6 @@ async function handleAddTrader() {
 // ============================================================
 async function initAccountMapUI() {
   if (!currentProfile) return;
-
   $('accName').innerText = currentProfile.name || '-';
   $('accPhone').innerText = currentProfile.phone || '-';
   $('accEmail').innerText = currentProfile.email || 'لم يتم إضافة إيميل';
@@ -1817,7 +1780,6 @@ async function showMainScreen(profile) {
   currentProfile = profile;
   $('authScreen').style.display = 'none';
   $('mainScreen').style.display = 'block';
-
   $('userRole').innerText = getRoleName(profile.role);
   $('userRole').className = 'role-badge role-' + profile.role;
   $('userName').innerText = profile.name || 'مستخدم';
@@ -2000,13 +1962,12 @@ function bindEvents() {
     $('addTraderForm').style.display = 'block';
     renderNewTraderSubs();
   });
-
   $('hideAddTraderBtn').addEventListener('click', () => {
     $('addTraderForm').style.display = 'none';
   });
-
   $('newTraderCategory').addEventListener('change', renderNewTraderSubs);
   $('addTraderConfirmBtn').addEventListener('click', handleAddTrader);
+
   $('adminInvoiceSearch').addEventListener('input', () => renderAdminInvoices());
   $('sendNotifBtn').addEventListener('click', handleSendNotif);
 
@@ -2024,14 +1985,12 @@ function bindEvents() {
     $('forgotModal').classList.add('active');
     $('forgotModal').style.display = 'flex';
   });
-
   $('sendResetBtn').addEventListener('click', handleSendReset);
 
   $('openChangePassBtn').addEventListener('click', () => {
     $('changePassForm').style.display = 'block';
     $('emailForm').style.display = 'none';
   });
-
   $('openEmailBtn').addEventListener('click', () => {
     $('emailForm').style.display = 'block';
     $('changePassForm').style.display = 'none';
@@ -2158,8 +2117,8 @@ async function runInit() {
   updateBankCodeVisibility();
   updateLoginVisibility();
   initI18n();
-  window.__setLang = setLang;
 
+  window.__setLang = setLang;
   window.addEventListener('langChanged', () => {
     if (currentProfile) {
       document.getElementById('userRole').innerText =
@@ -2186,7 +2145,7 @@ async function runInit() {
 }
 
 // ============================================================
-// ✅ كشف كل الدوال للـ HTML
+// كشف كل الدوال للـ HTML
 // ============================================================
 window.switchTab = switchTab;
 window.openMerchant = openMerchant;
@@ -2221,10 +2180,10 @@ window.adminResetBal = adminResetBal;
 window.adminDelCustomer = adminDelCustomer;
 window.adminEditInv = adminEditInv;
 window.adminReturnInv = adminReturnInv;
-window.adminDelInv = adminDelInv;
+window.adminDeleteWithCashback = adminDeleteWithCashback;
+window.adminDeleteOnly = adminDeleteOnly;
 window.renderOfferEventsTable = renderOfferEventsTable;
 
-// ✅ تتبع تفاعل العملاء
 window.contactMerchant = function(phone, merchantId) {
   trackOfferEvent({ offerId: null, merchantId, eventType: 'contact' });
   window.location.href = 'tel:' + phone;
