@@ -2166,3 +2166,12 @@ if (target) {
   });
   observer.observe(target, { attributes: true });
 }
+// ✅ كشف الدوال للـ HTML
+window.switchTab = switchTab;
+window.renderOffersGrid = renderOffersGrid;
+window.renderRequestsTab = renderRequestsTab;
+window.renderInvoiceTab = renderInvoiceTab;
+window.renderDashboard = renderDashboard;
+window.renderReports = renderReports;
+window.renderAnalyticsTab = renderAnalyticsTab;
+window.renderAdminSection = renderAdminSection;
