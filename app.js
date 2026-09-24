@@ -2044,7 +2044,14 @@ onAuthChange(async (event, session) => {
 // ============================================================
 // INIT - يعمل بعد تحميل كل الـ imports
 // ============================================================
-(async function init() {
+// ✅ ننتظر الـ DOM يخلص تحميل الأول
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', runInit);
+} else {
+  runInit();
+}
+
+async function runInit() {
   bindEvents();
   showAuthTab('login');
   updateBankCodeVisibility();
@@ -2075,4 +2082,4 @@ onAuthChange(async (event, session) => {
   } else {
     showAuthScreen();
   }
-})();
+}
