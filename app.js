@@ -83,7 +83,6 @@ let lastRatedMerchantName = '';
 // Load merchants
 // ============================================================
 async function loadMerchants() {
-  // 1) جيب المتاجر
   const { data: merchantsData, error: merr } = await supabase
     .from('merchants')
     .select('*')
@@ -92,33 +91,28 @@ async function loadMerchants() {
   if (merr) { console.error('Merchants error:', merr); return []; }
   if (!merchantsData || !merchantsData.length) return [];
 
-  // 2) جيب العروض كلها
   const { data: allOffers } = await supabase.from('offers').select('*');
-
-  // 3) جيب التقييمات كلها
   const { data: allRatings } = await supabase.from('ratings').select('*');
 
-  // 4) اربط العروض بكل تاجر
   const offersByMerchant = {};
   (allOffers || []).forEach(o => {
     if (!offersByMerchant[o.merchant_id]) offersByMerchant[o.merchant_id] = [];
     offersByMerchant[o.merchant_id].push(o);
   });
 
-  // 5) اربط التقييمات بكل تاجر
   const ratingsByMerchant = {};
   (allRatings || []).forEach(r => {
     if (!ratingsByMerchant[r.merchant_id]) ratingsByMerchant[r.merchant_id] = [];
     ratingsByMerchant[r.merchant_id].push(r);
   });
 
-  // 6) ادمج كل حاجة
   return merchantsData.map(m => ({
     ...m,
     offers: offersByMerchant[m.id] || [],
     ratings: ratingsByMerchant[m.id] || []
   }));
 }
+
 // ============================================================
 // Helpers
 // ============================================================
@@ -370,7 +364,7 @@ function renderOffersSubCategories() {
   });
 }
 
-window.openMerchant = async function (bankCode) {
+function openMerchant(bankCode) {
   const m = allMerchants.find(x => x.bank_code === bankCode);
   if (!m) return;
   currentModalMerchant = m;
@@ -407,8 +401,7 @@ window.openMerchant = async function (bankCode) {
   $('merchantModal').classList.add('active');
 
   $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
-  try {
-    const ratings = await getMerchantRatings(m.id);
+  getMerchantRatings(m.id).then(ratings => {
     if (!ratings.length) {
       $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">لا توجد تقييمات بعد</p>';
     } else {
@@ -422,19 +415,19 @@ window.openMerchant = async function (bankCode) {
         </div>`;
       }).join('');
     }
-  } catch (e) {
+  }).catch(() => {
     $('modalRatingsContent').innerHTML = '<p style="color:#ef4444;font-size:12px">تعذر تحميل التقييمات</p>';
-  }
-};
+  });
+}
 
-window.closeMerchantModal = function () {
+function closeMerchantModal() {
   $('merchantModal').classList.remove('active');
   currentModalMerchant = null;
-};
+}
 
-window.closeModal = function (e) {
+function closeModal(e) {
   if (e.target.classList.contains('modal-overlay')) closeMerchantModal();
-};
+}
 
 // ============================================================
 // Tabs
@@ -451,32 +444,23 @@ function updateTabsVisibility() {
   });
 }
 
-// ✅ تشغيل مباشر للأزرار (حل سريع ومضمون)
-document.addEventListener('click', function(e) {
-  const btn = e.target.closest('.tab-btn');
-  if (!btn) return;
-  const tabName = btn.dataset.tab;
-  if (!tabName) return;
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(c => {
+    const isTarget = c.id === 'tab-' + name;
+    c.classList.toggle('active', isTarget);
+    c.style.display = isTarget ? 'block' : 'none';
+  });
 
-  // شيل الـ active من كل الأزرار والتابات
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
-  // فعّل الزر والتاب الحاليين
-  btn.classList.add('active');
-  const tabEl = document.getElementById('tab-' + tabName);
-  if (tabEl) tabEl.classList.add('active');
-
-  // شغل الدوال المطلوبة
-  if (tabName === 'offers') renderOffersGrid();
-  if (tabName === 'invoice') renderInvoiceTab();
-  if (tabName === 'requests') renderRequestsTab();
-  if (tabName === 'dashboard' && currentMerchant) renderDashboard();
-  if (tabName === 'reports' && currentMerchant) renderReports('all');
-  if (tabName === 'analytics' && currentMerchant) renderAnalyticsTab();
-  if (tabName === 'admin') renderAdminSection('dashboard');
-  if (tabName === 'account') setTimeout(initAccountMapUI, 300);
-});
+  if (name === 'offers') renderOffersGrid();
+  if (name === 'invoice') renderInvoiceTab();
+  if (name === 'requests') renderRequestsTab();
+  if (name === 'dashboard' && currentMerchant) renderDashboard();
+  if (name === 'reports' && currentMerchant) renderReports('all');
+  if (name === 'analytics' && currentMerchant) renderAnalyticsTab();
+  if (name === 'admin') renderAdminSection('dashboard');
+  if (name === 'account') setTimeout(initAccountMapUI, 300);
+}
 
 // ============================================================
 // INVOICE
@@ -813,25 +797,25 @@ function getStatusBadge(status) {
   return map[status] || map.pending;
 }
 
-window.acceptOfferClick = async function (reqId, respId) {
+async function acceptOfferClick(reqId, respId) {
   if (!confirm('متأكد من قبول العرض؟')) return;
   try { await acceptOffer({ requestId: reqId, responseId: respId }); toast('✅ تم قبول العرض', 'success'); renderRequestsTab(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.cancelReqClick = async function (reqId) {
+async function cancelReqClick(reqId) {
   if (!confirm('متأكد من الإلغاء؟')) return;
   try { await cancelRequest(reqId); renderRequestsTab(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.deleteReqClick = async function (reqId) {
+async function deleteReqClick(reqId) {
   if (!confirm('متأكد من الحذف؟')) return;
   try { await deleteRequest(reqId); renderRequestsTab(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.askImageClick = async function (respId) {
+async function askImageClick(respId) {
   const msg = prompt('اكتب رسالتك للتاجر:');
   if (!msg) return;
   const req = myRequestsCache.find(r => (r.request_responses || []).some(x => x.id === respId));
@@ -842,7 +826,7 @@ window.askImageClick = async function (respId) {
     toast('✅ تم إرسال الرسالة', 'success');
     renderRequestsTab();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
 async function renderMerchantRequestsList() {
   const el = $('merchantRequestsList');
@@ -895,7 +879,7 @@ async function renderMerchantRequestsList() {
   }
 }
 
-window.replyToReq = async function (reqId) {
+async function replyToReq(reqId) {
   const price = prompt('اكتب السعر:'); if (price === null) return;
   const p = parseFloat(price); if (isNaN(p) || p <= 0) { toast('❌ سعر غير صحيح', 'error'); return; }
   const message = prompt('رسالة للعميل:', 'متوفر بسعر ممتاز'); if (message === null) return;
@@ -908,9 +892,9 @@ window.replyToReq = async function (reqId) {
     toast('✅ تم إرسال ردك', 'success');
     renderRequestsTab();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.sendExtraImage = async function (responseId) {
+async function sendExtraImage(responseId) {
   const imageBase64 = await pickImage();
   if (!imageBase64) return;
   const message = prompt('رسالة (اختياري):', 'دي صورة إضافية');
@@ -919,7 +903,7 @@ window.sendExtraImage = async function (responseId) {
     toast('✅ تم إرسال الصورة', 'success');
     renderRequestsTab();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
 function pickImage() {
   return new Promise((resolve) => {
@@ -936,12 +920,11 @@ function pickImage() {
   });
 }
 
-window.hideReq = async function (reqId) {
+async function hideReq(reqId) {
   if (!confirm('مسح الطلب من عندك؟')) return;
   try { await hideRequestForMerchant(reqId, currentMerchant.id); renderRequestsTab(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
-
+}
 // ============================================================
 // MERCHANT LOGO
 // ============================================================
@@ -1087,13 +1070,13 @@ async function renderDashboard() {
   } catch (e) { console.error(e); }
 }
 
-window.deleteOfferClick = async function (offerId) {
+async function deleteOfferClick(offerId) {
   if (!confirm('حذف العرض؟')) return;
   try { await deleteOffer(offerId); renderDashboard(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.editInvClick = async function (invId) {
+async function editInvClick(invId) {
   const inv = (await getMerchantInvoicesList(currentMerchant.id)).find(i => i.id === invId);
   if (!inv) return;
   const newAmount = prompt(`المبلغ الحالي: ${inv.amount} ج\nاكتب المبلغ الجديد:`, inv.amount);
@@ -1103,9 +1086,9 @@ window.editInvClick = async function (invId) {
   if (a > parseFloat(inv.amount)) { toast('❌ لا يمكن الزيادة', 'error'); return; }
   try { await editInvoice(invId, a, null); toast('✅ تم', 'success'); renderDashboard(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.returnInvClick = async function (invId) {
+async function returnInvClick(invId) {
   const amount = prompt("مبلغ المرتجع (أو 'الكل'):");
   if (amount === null) return;
   const inv = (await getMerchantInvoicesList(currentMerchant.id)).find(i => i.id === invId);
@@ -1114,7 +1097,7 @@ window.returnInvClick = async function (invId) {
   if (isNaN(r) || r <= 0) { toast('❌ غير صحيح', 'error'); return; }
   try { await processReturn(invId, r); toast('✅ تم', 'success'); renderDashboard(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
 async function handleAddOffer() {
   const title = $('offerTitle').value.trim();
@@ -1162,6 +1145,7 @@ function handleOfferImage(e) {
   };
   reader.readAsDataURL(file);
 }
+
 // ============================================================
 // REPORTS
 // ============================================================
@@ -1294,7 +1278,7 @@ async function renderAdminTraders() {
   }).join('');
 }
 
-window.adminEditMerchantFull = async function (id) {
+async function adminEditMerchantFull(id) {
   const m = adminData.merchants.find(x => x.id === id);
   if (!m) return;
 
@@ -1323,9 +1307,9 @@ window.adminEditMerchantFull = async function (id) {
     toast('✅ تم التعديل', 'success');
     renderAdminTraders();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.adminChangePassMerchant = async function (merchantId) {
+async function adminChangePassMerchant(merchantId) {
   const m = adminData.merchants.find(x => x.id === merchantId);
   if (!m || !m.owner_id) { toast('❌ التاجر ده مش مرتبط بحساب', 'error'); return; }
   const newPass = prompt('اكتب كلمة المرور الجديدة (6+ أحرف):');
@@ -1334,20 +1318,20 @@ window.adminChangePassMerchant = async function (merchantId) {
     await adminChangePassword(m.owner_id, newPass);
     toast('✅ تم تغيير كلمة المرور', 'success');
   } catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.toggleFreeze = async function (id) {
+async function toggleFreeze(id) {
   const m = adminData.merchants.find(x => x.id === id);
   if (!m) return;
   try { await freezeMerchant(id, !m.frozen); renderAdminTraders(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.delTrader = async function (id) {
+async function delTrader(id) {
   if (!confirm('متأكد من الحذف؟')) return;
   try { await deleteMerchant(id); renderAdminTraders(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
 async function renderAdminCustomers() {
   adminData.customers = await getAllCustomers();
@@ -1386,7 +1370,7 @@ async function renderAdminCustomers() {
     </div>`).join('');
 }
 
-window.adminEditCustomerFull = async function (phone) {
+async function adminEditCustomerFull(phone) {
   const c = adminData.customers.find(x => x.phone === phone);
   if (!c) return;
   const newName = prompt(`الاسم الحالي: ${c.name || 'مش محدد'}\nالجديد:`, c.name || '');
@@ -1398,18 +1382,18 @@ window.adminEditCustomerFull = async function (phone) {
     toast('✅ تم التعديل', 'success');
     renderAdminCustomers();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.adminChangePassCustomer = async function (userId) {
+async function adminChangePassCustomer(userId) {
   const newPass = prompt('اكتب كلمة المرور الجديدة (6+):');
   if (!newPass || newPass.length < 6) { toast('❌ قصيرة', 'error'); return; }
   try {
     await adminChangePassword(userId, newPass);
     toast('✅ تم', 'success');
   } catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.adminAdjustBal = async function (phone) {
+async function adminAdjustBal(phone) {
   const merchants = adminData.merchants.length ? adminData.merchants : await getAllMerchants();
   const list = merchants.map((m, i) => `${i + 1} - ${m.name}`).join('\n');
   const idx = prompt(`اختار التاجر (رقم):\n${list}`);
@@ -1422,19 +1406,19 @@ window.adminAdjustBal = async function (phone) {
   if (isNaN(a)) return;
   try { await adjustCustomerBalance(phone, m.id, a); toast('✅ تم', 'success'); renderAdminCustomers(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.adminResetBal = async function (phone) {
+async function adminResetBal(phone) {
   if (!confirm('تصفير كل الرصيد؟')) return;
   try { await resetCustomerBalance(phone); toast('✅ تم', 'success'); renderAdminCustomers(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.adminDelCustomer = async function (phone) {
+async function adminDelCustomer(phone) {
   if (!confirm(`حذف حساب العميل ${phone}؟`)) return;
   try { await deleteCustomer(phone); toast('✅ تم', 'success'); renderAdminCustomers(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
 async function renderAdminInvoices() {
   const search = $('adminInvoiceSearch')?.value || '';
@@ -1467,7 +1451,7 @@ async function renderAdminInvoices() {
   }).join('');
 }
 
-window.adminEditInv = async function (id) {
+async function adminEditInv(id) {
   const inv = adminData.invoices.find(i => i.id === id);
   if (!inv) return;
   const newAmount = prompt(`المبلغ الحالي: ${inv.amount} ج\nالجديد:`, inv.amount);
@@ -1477,9 +1461,9 @@ window.adminEditInv = async function (id) {
   if (a > parseFloat(inv.amount)) { toast('❌ لا يمكن الزيادة', 'error'); return; }
   try { await editInvoiceAdmin(id, a, null); toast('✅ تم', 'success'); renderAdminInvoices(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.adminReturnInv = async function (id) {
+async function adminReturnInv(id) {
   const inv = adminData.invoices.find(i => i.id === id);
   if (!inv) return;
   const amount = prompt("مبلغ المرتجع (أو 'الكل'):");
@@ -1488,13 +1472,13 @@ window.adminReturnInv = async function (id) {
   if (isNaN(r) || r <= 0) { toast('❌ غير صحيح', 'error'); return; }
   try { await returnInvoiceAdmin(id, r); toast('✅ تم', 'success'); renderAdminInvoices(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
-window.adminDelInv = async function (id) {
+async function adminDelInv(id) {
   if (!confirm('حذف الفاتورة؟')) return;
   try { await deleteInvoice(id); renderAdminInvoices(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
-};
+}
 
 async function renderAdminRequests() {
   const el = $('adminRequestsList');
@@ -2055,9 +2039,8 @@ onAuthChange(async (event, session) => {
 });
 
 // ============================================================
-// INIT - يعمل بعد تحميل كل الـ imports
+// INIT
 // ============================================================
-// ✅ ننتظر الـ DOM يخلص تحميل الأول
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', runInit);
 } else {
@@ -2096,82 +2079,33 @@ async function runInit() {
     showAuthScreen();
   }
 }
-// ✅ تشغيل مباشر للأزرار (حل سريع ومضمون)
-document.addEventListener('click', function(e) {
-  const btn = e.target.closest('.tab-btn');
-  if (!btn) return;
-  const tabName = btn.dataset.tab;
-  if (!tabName) return;
 
-  // شيل الـ active من كل الأزرار والتابات
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
-  // فعّل الزر والتاب الحاليين
-  btn.classList.add('active');
-  const tabEl = document.getElementById('tab-' + tabName);
-  if (tabEl) tabEl.classList.add('active');
-
-  // شغل الدوال المطلوبة
-  if (tabName === 'offers') renderOffersGrid();
-  if (tabName === 'invoice') renderInvoiceTab();
-  if (tabName === 'requests') renderRequestsTab();
-  if (tabName === 'dashboard' && currentMerchant) renderDashboard();
-  if (tabName === 'reports' && currentMerchant) renderReports('all');
-  if (tabName === 'analytics' && currentMerchant) renderAnalyticsTab();
-  if (tabName === 'admin') renderAdminSection('dashboard');
-  if (tabName === 'account') setTimeout(initAccountMapUI, 300);
-});
-// ✅ حل احتياطي — ربط مباشر على الأزرار (مستقل تماماً)
-document.addEventListener('click', function(e) {
-  const btn = e.target.closest('.tab-btn');
-  if (!btn || !btn.dataset.tab) return;
-
-  const name = btn.dataset.tab;
-
-  // فعّل الزر
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-
-  // فعّل التاب
-  document.querySelectorAll('.tab-content').forEach(c => {
-    const isTarget = c.id === 'tab-' + name;
-    c.classList.toggle('active', isTarget);
-    c.style.display = isTarget ? 'block' : 'none';
-  });
-
-  // شغل الدوال
-  if (name === 'offers') renderOffersGrid();
-  if (name === 'invoice') renderInvoiceTab();
-  if (name === 'requests') renderRequestsTab();
-  if (name === 'dashboard' && currentMerchant) renderDashboard();
-  if (name === 'reports' && currentMerchant) renderReports('all');
-  if (name === 'analytics' && currentMerchant) renderAnalyticsTab();
-  if (name === 'admin') renderAdminSection('dashboard');
-  if (name === 'account') setTimeout(initAccountMapUI, 300);
-});
-// 🔍 مراقبة من بيغير display بتاع tab-offers
-const target = document.getElementById('tab-offers');
-if (target) {
-  const observer = new MutationObserver((mutations) => {
-    mutations.forEach((m) => {
-      if (m.attributeName === 'style' || m.attributeName === 'class') {
-        console.log('🚨 tab-offers اتغير!', {
-          style: target.style.display,
-          classes: target.className,
-          stack: new Error().stack.split('\n').slice(1, 5).join('\n')
-        });
-      }
-    });
-  });
-  observer.observe(target, { attributes: true });
-}
-// ✅ كشف الدوال للـ HTML
+// ============================================================
+// ✅ كشف الدوال للـ HTML (حل مشكلة switchTab is not defined)
+// ============================================================
 window.switchTab = switchTab;
-window.renderOffersGrid = renderOffersGrid;
-window.renderRequestsTab = renderRequestsTab;
-window.renderInvoiceTab = renderInvoiceTab;
-window.renderDashboard = renderDashboard;
-window.renderReports = renderReports;
-window.renderAnalyticsTab = renderAnalyticsTab;
-window.renderAdminSection = renderAdminSection;
+window.openMerchant = openMerchant;
+window.closeMerchantModal = closeMerchantModal;
+window.closeModal = closeModal;
+window.acceptOfferClick = acceptOfferClick;
+window.cancelReqClick = cancelReqClick;
+window.deleteReqClick = deleteReqClick;
+window.askImageClick = askImageClick;
+window.replyToReq = replyToReq;
+window.sendExtraImage = sendExtraImage;
+window.hideReq = hideReq;
+window.deleteOfferClick = deleteOfferClick;
+window.editInvClick = editInvClick;
+window.returnInvClick = returnInvClick;
+window.toggleFreeze = toggleFreeze;
+window.delTrader = delTrader;
+window.adminEditMerchantFull = adminEditMerchantFull;
+window.adminChangePassMerchant = adminChangePassMerchant;
+window.adminEditCustomerFull = adminEditCustomerFull;
+window.adminChangePassCustomer = adminChangePassCustomer;
+window.adminAdjustBal = adminAdjustBal;
+window.adminResetBal = adminResetBal;
+window.adminDelCustomer = adminDelCustomer;
+window.adminEditInv = adminEditInv;
+window.adminReturnInv = adminReturnInv;
+window.adminDelInv = adminDelInv;
