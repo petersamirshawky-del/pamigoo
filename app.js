@@ -2083,3 +2083,29 @@ async function runInit() {
     showAuthScreen();
   }
 }
+// ✅ تشغيل مباشر للأزرار (حل سريع ومضمون)
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn) return;
+  const tabName = btn.dataset.tab;
+  if (!tabName) return;
+
+  // شيل الـ active من كل الأزرار والتابات
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+  // فعّل الزر والتاب الحاليين
+  btn.classList.add('active');
+  const tabEl = document.getElementById('tab-' + tabName);
+  if (tabEl) tabEl.classList.add('active');
+
+  // شغل الدوال المطلوبة
+  if (tabName === 'offers') renderOffersGrid();
+  if (tabName === 'invoice') renderInvoiceTab();
+  if (tabName === 'requests') renderRequestsTab();
+  if (tabName === 'dashboard' && currentMerchant) renderDashboard();
+  if (tabName === 'reports' && currentMerchant) renderReports('all');
+  if (tabName === 'analytics' && currentMerchant) renderAnalyticsTab();
+  if (tabName === 'admin') renderAdminSection('dashboard');
+  if (tabName === 'account') setTimeout(initAccountMapUI, 300);
+});
