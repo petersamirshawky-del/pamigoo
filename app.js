@@ -451,19 +451,32 @@ function updateTabsVisibility() {
   });
 }
 
-function switchTab(name) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + name));
+// ✅ تشغيل مباشر للأزرار (حل سريع ومضمون)
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn) return;
+  const tabName = btn.dataset.tab;
+  if (!tabName) return;
 
-  if (name === 'offers') renderOffersGrid();
-  if (name === 'invoice') renderInvoiceTab();
-  if (name === 'requests') renderRequestsTab();
-  if (name === 'dashboard' && currentMerchant) renderDashboard();
-  if (name === 'reports' && currentMerchant) renderReports('all');
-  if (name === 'analytics' && currentMerchant) renderAnalyticsTab();
-  if (name === 'admin') renderAdminSection('dashboard');
-  if (name === 'account') setTimeout(initAccountMapUI, 300);
-}
+  // شيل الـ active من كل الأزرار والتابات
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+  // فعّل الزر والتاب الحاليين
+  btn.classList.add('active');
+  const tabEl = document.getElementById('tab-' + tabName);
+  if (tabEl) tabEl.classList.add('active');
+
+  // شغل الدوال المطلوبة
+  if (tabName === 'offers') renderOffersGrid();
+  if (tabName === 'invoice') renderInvoiceTab();
+  if (tabName === 'requests') renderRequestsTab();
+  if (tabName === 'dashboard' && currentMerchant) renderDashboard();
+  if (tabName === 'reports' && currentMerchant) renderReports('all');
+  if (tabName === 'analytics' && currentMerchant) renderAnalyticsTab();
+  if (tabName === 'admin') renderAdminSection('dashboard');
+  if (tabName === 'account') setTimeout(initAccountMapUI, 300);
+});
 
 // ============================================================
 // INVOICE
@@ -2108,4 +2121,32 @@ document.addEventListener('click', function(e) {
   if (tabName === 'analytics' && currentMerchant) renderAnalyticsTab();
   if (tabName === 'admin') renderAdminSection('dashboard');
   if (tabName === 'account') setTimeout(initAccountMapUI, 300);
+});
+// ✅ حل احتياطي — ربط مباشر على الأزرار (مستقل تماماً)
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn || !btn.dataset.tab) return;
+
+  const name = btn.dataset.tab;
+
+  // فعّل الزر
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  // فعّل التاب
+  document.querySelectorAll('.tab-content').forEach(c => {
+    const isTarget = c.id === 'tab-' + name;
+    c.classList.toggle('active', isTarget);
+    c.style.display = isTarget ? 'block' : 'none';
+  });
+
+  // شغل الدوال
+  if (name === 'offers') renderOffersGrid();
+  if (name === 'invoice') renderInvoiceTab();
+  if (name === 'requests') renderRequestsTab();
+  if (name === 'dashboard' && currentMerchant) renderDashboard();
+  if (name === 'reports' && currentMerchant) renderReports('all');
+  if (name === 'analytics' && currentMerchant) renderAnalyticsTab();
+  if (name === 'admin') renderAdminSection('dashboard');
+  if (name === 'account') setTimeout(initAccountMapUI, 300);
 });
