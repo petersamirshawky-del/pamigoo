@@ -237,7 +237,7 @@ function renderMerchantsList() {
     }
 
     return `
-      <div class="store-item" onclick="window.openMerchant('${m.bank_code}')">
+      <div class="store-item" onclick="openMerchant('${m.bank_code}')">
         <div class="icon" style="overflow:hidden">${logoImgHtml(m)}</div>
         <div class="info">
           <h4>${m.name} <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></h4>
@@ -262,7 +262,7 @@ function renderTopDeals() {
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
     return `
-      <div class="deal-card" onclick="window.openMerchant('${m.bank_code}')">
+      <div class="deal-card" onclick="openMerchant('${m.bank_code}')">
         <div class="tier-badge">${tier.icon}</div>
         <div class="discount">${rate}%</div>
         <div class="icon" style="overflow:hidden;display:flex;align-items:center;justify-content:center;border-radius:16px">${logoImgHtml(m)}</div>
@@ -284,7 +284,7 @@ function renderOffersGrid() {
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
     return `
-      <div class="deal-card" onclick="window.openMerchant('${m.bank_code}')" style="min-width:auto;text-align:center">
+      <div class="deal-card" onclick="openMerchant('${m.bank_code}')" style="min-width:auto;text-align:center">
         <div class="tier-badge">${tier.icon}</div>
         <div style="width:70px;height:70px;margin:0 auto;border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-soft);font-size:48px">
           ${logoImgHtml(m)}
@@ -364,7 +364,6 @@ function renderOffersSubCategories() {
   });
 }
 
-// ✅ الدالة المعدّلة لفتح المتجر
 function openMerchant(bankCode) {
   const m = allMerchants.find(x => x.bank_code === bankCode);
   if (!m) return;
@@ -399,10 +398,7 @@ function openMerchant(bankCode) {
       }).join('')
     : '<p style="text-align:center;color:#6b7280;padding:20px">لا توجد عروض حالياً</p>';
 
-  // ✅ فعّل الـ Modal بكل الطرق
-  const modal = $('merchantModal');
-  modal.classList.add('active');
-  modal.style.display = 'flex';
+  $('merchantModal').classList.add('active');
 
   $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
   getMerchantRatings(m.id).then(ratings => {
@@ -424,11 +420,8 @@ function openMerchant(bankCode) {
   });
 }
 
-// ✅ دالة الإغلاق المعدّلة
 function closeMerchantModal() {
-  const modal = $('merchantModal');
-  modal.classList.remove('active');
-  modal.style.display = 'none';
+  $('merchantModal').classList.remove('active');
   currentModalMerchant = null;
 }
 
@@ -746,7 +739,7 @@ async function renderMyRequests() {
 
       const acceptBtn = isAccepted
         ? `<button class="accept-btn" style="background:#94a3b8;cursor:not-allowed">✅ مقبول</button>`
-        : (req.status === 'accepted' ? '' : `<button class="accept-btn" onclick="window.acceptOfferClick('${req.id}','${r.id}')">قبول</button>`);
+        : (req.status === 'accepted' ? '' : `<button class="accept-btn" onclick="acceptOfferClick('${req.id}','${r.id}')">قبول</button>`);
 
       const msgs = (r.customer_messages || []).map(msg =>
         `<div style="background:#dbeafe;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>👤 أنت:</strong> ${msg.text}</div>`
@@ -765,7 +758,7 @@ async function renderMyRequests() {
         <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
           ${m.lat && m.lng ? `<button class="admin-btn primary" onclick="window.open('https://www.google.com/maps?q=${m.lat},${m.lng}','_blank')">📍</button>` : ''}
           ${acceptBtn}
-          <button class="admin-btn purple" onclick="window.askImageClick('${r.id}')">📸 اسأل عن صورة</button>
+          <button class="admin-btn purple" onclick="askImageClick('${r.id}')">📸 اسأل عن صورة</button>
         </div>
         ${msgs}${replyHtml}
       </div>`;
@@ -776,9 +769,9 @@ async function renderMyRequests() {
 
     let actions = '';
     if (req.status === 'pending' || req.status === 'responded') {
-      actions = `<button class="admin-btn danger" onclick="window.cancelReqClick('${req.id}')" style="margin-top:8px">🚫 إلغاء</button>`;
+      actions = `<button class="admin-btn danger" onclick="cancelReqClick('${req.id}')" style="margin-top:8px">🚫 إلغاء</button>`;
     } else if (req.status === 'accepted' || req.status === 'cancelled') {
-      actions = `<button class="admin-btn danger" onclick="window.deleteReqClick('${req.id}')" style="margin-top:8px">🗑️ حذف</button>`;
+      actions = `<button class="admin-btn danger" onclick="deleteReqClick('${req.id}')" style="margin-top:8px">🗑️ حذف</button>`;
     }
 
     return `<div class="card" style="padding:14px">
@@ -875,9 +868,9 @@ async function renderMerchantRequestsList() {
         <div style="font-size:12px;color:#6b7280;margin-top:4px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
         ${customerMsgs}${replyHtml}
         <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-          ${!myReply ? `<button class="admin-btn primary" onclick="window.replyToReq('${req.id}')">📩 الرد</button>` : ''}
-          ${myReply ? `<button class="admin-btn purple" onclick="window.sendExtraImage('${myReply.id}')">📸 صورة إضافية</button>` : ''}
-          <button class="admin-btn danger" onclick="window.hideReq('${req.id}')">🗑️ مسح</button>
+          ${!myReply ? `<button class="admin-btn primary" onclick="replyToReq('${req.id}')">📩 الرد</button>` : ''}
+          ${myReply ? `<button class="admin-btn purple" onclick="sendExtraImage('${myReply.id}')">📸 صورة إضافية</button>` : ''}
+          <button class="admin-btn danger" onclick="hideReq('${req.id}')">🗑️ مسح</button>
         </div>
       </div>`;
     }).join('');
@@ -1030,7 +1023,7 @@ async function renderDashboard() {
       return `<div class="merchant-offer-card" style="background:#f9fafb;padding:10px;border-radius:12px;margin-bottom:8px;border-right:4px solid #ff6b35;display:flex;align-items:center;gap:10px">
         ${imgHtml}
         <div style="flex:1"><span style="font-weight:600">${o.title}</span><br><span style="color:#ff6b35;font-weight:700">${o.discount}</span></div>
-        <button class="del-btn" onclick="window.deleteOfferClick('${o.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
+        <button class="del-btn" onclick="deleteOfferClick('${o.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
       </div>`;
     }).join('') : '<p style="color:#6b7280">لا توجد عروض</p>';
   } catch (e) { console.error(e); }
@@ -1059,8 +1052,8 @@ async function renderDashboard() {
         </div>
         <div style="color:#6b7280;margin-top:2px">📱 ${inv.customer_phone || '-'} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج ${statusBadge}</div>
         ${inv.status === 'active' ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
-          <button class="admin-btn primary" onclick="window.editInvClick('${inv.id}')">✏️ تعديل</button>
-          <button class="admin-btn danger" onclick="window.returnInvClick('${inv.id}')">🔄 مرتجع</button>
+          <button class="admin-btn primary" onclick="editInvClick('${inv.id}')">✏️ تعديل</button>
+          <button class="admin-btn danger" onclick="returnInvClick('${inv.id}')">🔄 مرتجع</button>
         </div>` : ''}
       </div>`;
     }).join('') : '<p style="color:#6b7280">لا توجد فواتير</p>';
@@ -1276,10 +1269,10 @@ async function renderAdminTraders() {
       <div class="info">📍 ${m.lat?.toFixed(4) || '-'} , ${m.lng?.toFixed(4) || '-'}</div>
       <div class="info">📂 ${m.category} | 🎁 ${(m.offers || []).length} عرض</div>
       <div class="actions">
-        <button class="admin-btn primary" onclick="window.adminEditMerchantFull('${m.id}')">✏️ تعديل كامل</button>
-        <button class="admin-btn ${m.frozen ? 'success' : 'warning'}" onclick="window.toggleFreeze('${m.id}')">${m.frozen ? '✅ إلغاء' : '❄️ إيقاف'}</button>
-        <button class="admin-btn purple" onclick="window.adminChangePassMerchant('${m.id}')">🔒 كلمة المرور</button>
-        <button class="admin-btn danger" onclick="window.delTrader('${m.id}')">🗑️ حذف</button>
+        <button class="admin-btn primary" onclick="adminEditMerchantFull('${m.id}')">✏️ تعديل كامل</button>
+        <button class="admin-btn ${m.frozen ? 'success' : 'warning'}" onclick="toggleFreeze('${m.id}')">${m.frozen ? '✅ إلغاء' : '❄️ إيقاف'}</button>
+        <button class="admin-btn purple" onclick="adminChangePassMerchant('${m.id}')">🔒 كلمة المرور</button>
+        <button class="admin-btn danger" onclick="delTrader('${m.id}')">🗑️ حذف</button>
       </div>
     </div>`;
   }).join('');
@@ -1368,11 +1361,11 @@ async function renderAdminCustomers() {
       <div class="info">🏪 ${c.shops} تاجر | 💰 كسب: ${c.earned.toFixed(2)} | 💵 صرف: ${c.spent.toFixed(2)}</div>
       <div class="info">📊 الرصيد: <strong>${c.balance.toFixed(2)} ج</strong>${c.email ? ' | 📧 ' + c.email : ''}</div>
       <div class="actions">
-        <button class="admin-btn primary" onclick="window.adminEditCustomerFull('${c.phone}')">✏️ تعديل بيانات</button>
-        <button class="admin-btn purple" onclick="window.adminChangePassCustomer('${c.id}')">🔒 كلمة المرور</button>
-        <button class="admin-btn success" onclick="window.adminAdjustBal('${c.phone}')">💰 رصيد</button>
-        <button class="admin-btn warning" onclick="window.adminResetBal('${c.phone}')">🔄 تصفير</button>
-        <button class="admin-btn danger" onclick="window.adminDelCustomer('${c.phone}')">🗑️ حذف</button>
+        <button class="admin-btn primary" onclick="adminEditCustomerFull('${c.phone}')">✏️ تعديل بيانات</button>
+        <button class="admin-btn purple" onclick="adminChangePassCustomer('${c.id}')">🔒 كلمة المرور</button>
+        <button class="admin-btn success" onclick="adminAdjustBal('${c.phone}')">💰 رصيد</button>
+        <button class="admin-btn warning" onclick="adminResetBal('${c.phone}')">🔄 تصفير</button>
+        <button class="admin-btn danger" onclick="adminDelCustomer('${c.phone}')">🗑️ حذف</button>
       </div>
     </div>`).join('');
 }
@@ -1449,10 +1442,10 @@ async function renderAdminInvoices() {
       <div class="info" style="font-size:12px">🕒 ${new Date(inv.created_at).toLocaleString('ar-EG')}</div>
       <div class="actions">
         ${inv.status === 'active' ? `
-          <button class="admin-btn primary" onclick="window.adminEditInv('${inv.id}')">✏️ تعديل</button>
-          <button class="admin-btn danger" onclick="window.adminReturnInv('${inv.id}')">🔄 مرتجع</button>
+          <button class="admin-btn primary" onclick="adminEditInv('${inv.id}')">✏️ تعديل</button>
+          <button class="admin-btn danger" onclick="adminReturnInv('${inv.id}')">🔄 مرتجع</button>
         ` : ''}
-        <button class="admin-btn danger" onclick="window.adminDelInv('${inv.id}')">🗑️ حذف</button>
+        <button class="admin-btn danger" onclick="adminDelInv('${inv.id}')">🗑️ حذف</button>
       </div>
     </div>`;
   }).join('');
@@ -2088,20 +2081,12 @@ async function runInit() {
 }
 
 // ============================================================
-// ✅ كشف كل الدوال للـ HTML
+// ✅ كشف الدوال للـ HTML (حل مشكلة switchTab is not defined)
 // ============================================================
 window.switchTab = switchTab;
 window.openMerchant = openMerchant;
 window.closeMerchantModal = closeMerchantModal;
 window.closeModal = closeModal;
-window.renderOffersGrid = renderOffersGrid;
-window.renderMerchantsList = renderMerchantsList;
-window.renderRequestsTab = renderRequestsTab;
-window.renderInvoiceTab = renderInvoiceTab;
-window.renderDashboard = renderDashboard;
-window.renderReports = renderReports;
-window.renderAnalyticsTab = renderAnalyticsTab;
-window.renderAdminSection = renderAdminSection;
 window.acceptOfferClick = acceptOfferClick;
 window.cancelReqClick = cancelReqClick;
 window.deleteReqClick = deleteReqClick;
