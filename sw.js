@@ -1,14 +1,14 @@
 // ================================
-// PAMIGO - Service Worker
+// PAMIGO - Service Worker v2
 // ================================
 
-const CACHE_NAME = 'pamigo-v1';
+const CACHE_VERSION = 'v2';
+const CACHE_NAME = `pamigo-${CACHE_VERSION}`;
 
-// الملفات اللي هنخزنها في الكاش
 const urlsToCache = [
   './',
   './index.html',
-  './site.webmanifest', // تم التعديل عشان يطابق اسم ملفك
+  './site.webmanifest',
   './favicon.ico',
   './favicon.svg',
   './favicon-96x96.png',
@@ -31,13 +31,13 @@ const urlsToCache = [
   './web-app-manifest-512x512.png'
 ];
 
-// حدث التثبيت (Install)
+// ================================
+// Install
+// ================================
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('📦 Opening cache...');
-      // بنستخدم catch عشان لو ملف واحد مش موجود، العملية كلها متفشلش
       return cache.addAll(urlsToCache).catch((error) => {
         console.error('⚠️ Cache addAll error:', error);
       });
@@ -45,14 +45,15 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// حدث التنشيط (Activate)
+// ================================
+// Activate
+// ================================
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
-            console.log('🗑️ Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -61,19 +62,75 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// حدث الجلب (Fetch) - مهم جداً عشان المتصفح يسمح بالتثبيت
+// ================================
+// Fetch
+// ================================
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
+  // 1. Supabase API — دايماً من الشبكة
+  if (url.hostname.includes('supabase.co')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // 2. خدمات خارجية — دايماً من الشبكة
+  if (
+    url.hostname.includes('nominatim') ||
+    url.hostname.includes('arcgis') ||
+    url.hostname.includes('fonts.googleapis') ||
+    url.hostname.includes('fonts.gstatic') ||
+    url.hostname.includes('cdnjs') ||
+    url.hostname.includes('unpkg') ||
+    url.hostname.includes('esm.sh')
+  ) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // 3. HTML / JS / CSS — Network-First (عشان التحديثات توصل فوراً)
+  if (
+    event.request.mode === 'navigate' ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css') ||
+    url.pathname.endsWith('.html') ||
+    url.pathname === '/' ||
+    url.pathname.endsWith('/')
+  ) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((r) => {
+            return r || new Response('Offline', { status: 503, statusText: 'Offline' });
+          });
+        })
+    );
+    return;
+  }
+
+  // 4. الصور والملفات الثابتة — Cache-First
   event.respondWith(
     caches.match(event.request).then((response) => {
-      // لو الملف موجود في الكاش، رجعه
-      if (response) {
-        return response;
-      }
-      // لو مش موجود، هاته من النت
-      return fetch(event.request).catch(() => {
-        // لو مفيش نت وملف مش موجود، ممكن ترجع صفحة offline هنا لو حبيت
-        console.log('❌ Fetch failed for:', event.request.url);
-      });
+      if (response) return response;
+
+      return fetch(event.request)
+        .then((res) => {
+          const responseClone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+          return res;
+        })
+        .catch(() => {
+          return new Response('Not found', { status: 404, statusText: 'Not Found' });
+        });
     })
   );
 });
