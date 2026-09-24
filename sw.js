@@ -1,28 +1,51 @@
-﻿// ============================================================
+// ================================
 // PAMIGO - Service Worker
-// ============================================================
+// ================================
+
 const CACHE_NAME = 'pamigo-v1';
+
+// الملفات اللي هنخزنها في الكاش
 const urlsToCache = [
   './',
   './index.html',
+  './site.webmanifest', // تم التعديل عشان يطابق اسم ملفك
+  './favicon.ico',
   './favicon.svg',
-  './manifest.json',
+  './favicon-96x96.png',
   './css/base.css',
   './css/components.css',
-  './css/layout.css'
+  './css/layout.css',
+  './app.js',
+  './config.js',
+  './auth.js',
+  './account.js',
+  './admin.js',
+  './dashboard.js',
+  './i18n.js',
+  './invoices.js',
+  './ratings.js',
+  './requests.js',
+  './supabase.js',
+  './ui.js',
+  './web-app-manifest-192x192.png',
+  './web-app-manifest-512x512.png'
 ];
 
+// حدث التثبيت (Install)
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache).catch(err => {
-        console.log('⚠️ Cache addAll error:', err);
+      console.log('📦 Opening cache...');
+      // بنستخدم catch عشان لو ملف واحد مش موجود، العملية كلها متفشلش
+      return cache.addAll(urlsToCache).catch((error) => {
+        console.error('⚠️ Cache addAll error:', error);
       });
     })
   );
 });
 
+// حدث التنشيط (Activate)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -34,46 +57,22 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
+// حدث الجلب (Fetch) - مهم جداً عشان المتصفح يسمح بالتثبيت
 self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  const url = new URL(request.url);
-
-  // ✅ متتجاهلش طلبات Supabase
-  if (url.hostname.includes('supabase')) return;
-
-  // ✅ متتجاهلش طلبات esm.sh و CDN
-  if (url.hostname.includes('esm.sh') ||
-      url.hostname.includes('cdnjs') ||
-      url.hostname.includes('unpkg') ||
-      url.hostname.includes('fonts.googleapis') ||
-      url.hostname.includes('fonts.gstatic')) return;
-
-  // ✅ JS files: جيبها من الشبكة على طول
-  if (url.pathname.endsWith('.js')) return;
-
-  if (request.method !== 'GET') return;
-
-  // ✅ Network First مع Fallback للكاش
   event.respondWith(
-    fetch(request).then((networkResponse) => {
-      if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-        const responseClone = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, responseClone);
-        });
+    caches.match(event.request).then((response) => {
+      // لو الملف موجود في الكاش، رجعه
+      if (response) {
+        return response;
       }
-      return networkResponse;
-    }).catch(() => {
-      return caches.match(request).then((response) => {
-        if (response) return response;
-        if (request.destination === 'document') {
-          return caches.match('./index.html');
-        }
+      // لو مش موجود، هاته من النت
+      return fetch(event.request).catch(() => {
+        // لو مفيش نت وملف مش موجود، ممكن ترجع صفحة offline هنا لو حبيت
+        console.log('❌ Fetch failed for:', event.request.url);
       });
     })
   );
