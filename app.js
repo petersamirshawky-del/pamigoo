@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // PAMIGO - Main Entry
 // ============================================================
 
@@ -35,7 +35,8 @@ const {
   getMerchantInvoicesList, editInvoice, processReturn,
   getReportData, getAnalytics,
   uploadMerchantLogo, deleteMerchantLogo,
-  uploadProductImage, deleteProductImage
+  uploadProductImage, deleteProductImage,
+  trackOfferEvent, getOfferEventsStats
 } = await import('./dashboard.js');
 
 const {
@@ -44,7 +45,8 @@ const {
   adjustCustomerBalance, resetCustomerBalance, deleteCustomer,
   editInvoiceAdmin, returnInvoiceAdmin, deleteInvoice,
   sendNotification, getNotifications,
-  adminUpdateMerchant, adminUpdateCustomer, adminGetAllRequests
+  adminUpdateMerchant, adminUpdateCustomer, adminGetAllRequests,
+  getOfferEventsStats: getAdminOfferEventsStats
 } = await import('./admin.js');
 
 const {
@@ -133,12 +135,10 @@ function getTier(rate) {
   return { name: 'عادي', icon: '🥉', cls: 'tier-bronze' };
 }
 
+// ✅ معدّلة لاستخدام discount_value
 function getMaxDiscount(m) {
   if (!m.offers || !m.offers.length) return 0;
-  return Math.max(...m.offers.map(o => {
-    const x = (o.discount || '').match(/(\d+)/);
-    return x ? parseInt(x[1]) : 0;
-  }));
+  return Math.max(...m.offers.map(o => parseInt(o.discount_value) || 0));
 }
 
 function getAvgRating(m) {
@@ -205,11 +205,13 @@ function renderMerchantsList() {
 
   list = list.filter(m => matchesCatSubs(m, homeCategories, homeSubCategories));
 
+  const radius = parseFloat(homeRadius) || 2;
+
   if (userLat !== null && userLng !== null) {
-    list = list.filter(m => {
-      m._dist = calcDistance(userLat, userLng, m.lat, m.lng);
-      return m._dist <= homeRadius;
-    });
+    list = list.map(m => ({
+      ...m,
+      _dist: calcDistance(userLat, userLng, m.lat, m.lng)
+    })).filter(m => m._dist <= radius);
   }
 
   if (homeSort === 'nearest' && userLat !== null) {
@@ -221,7 +223,10 @@ function renderMerchantsList() {
   }
 
   const el = $('merchantsList');
-  if (!list.length) { el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج</div>`; return; }
+  if (!list.length) {
+    el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج في نطاق ${radius} كم</div>`;
+    return;
+  }
 
   el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
@@ -283,13 +288,14 @@ function renderOffersGrid() {
   el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
+    const maxDisc = getMaxDiscount(m);
     return `
       <div class="deal-card" onclick="window.openMerchant('${m.bank_code}')" style="min-width:auto;text-align:center">
         <div class="tier-badge">${tier.icon}</div>
         <div style="width:70px;height:70px;margin:0 auto;border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-soft);font-size:48px">
           ${logoImgHtml(m)}
         </div>
-        <div class="discount" style="font-size:20px">${rate}%</div>
+        <div class="discount" style="font-size:20px">${maxDisc > 0 ? maxDisc + '%' : '—'}</div>
         <div style="font-size:13px;font-weight:600">${m.name}</div>
         <div style="font-size:11px;color:#ff6b35;margin-top:4px">كاش باك ${rate}%</div>
         <div style="font-size:11px;color:#6b7280;margin-top:2px">${(m.offers || []).length} عرض</div>
@@ -364,11 +370,13 @@ function renderOffersSubCategories() {
   });
 }
 
-// ✅ الدالة المعدّلة لفتح المتجر
 function openMerchant(bankCode) {
   const m = allMerchants.find(x => x.bank_code === bankCode);
   if (!m) return;
   currentModalMerchant = m;
+
+  // ✅ تسجيل المشاهدة
+  trackOfferEvent({ offerId: null, merchantId: m.id, eventType: 'click' });
 
   const rate = m.cashback_rate || 15;
   const tier = getTier(rate);
@@ -385,13 +393,15 @@ function openMerchant(bankCode) {
         const imgHtml = o.image_url
           ? `<img src="${o.image_url}" style="width:100%;max-width:120px;height:80px;object-fit:cover;border-radius:8px;margin-bottom:6px">`
           : '';
+        const descHtml = o.description ? `<p style="font-size:12px;color:#4b5563;margin-top:4px">${o.description}</p>` : '';
         return `
           <div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:10px;border-right:4px solid #ff6b35">
             ${imgHtml}
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
               <div style="flex:1">
                 <h5 style="font-size:15px;margin-bottom:4px;color:var(--primary)">${o.title}</h5>
-                <p style="font-size:12px;color:#6b7280">عرض ${i + 1} من ${m.offers.length}</p>
+                ${descHtml}
+                <p style="font-size:11px;color:#9ca3af">عرض ${i + 1} من ${m.offers.length}</p>
               </div>
               <div style="background:#1a2a6c;color:#fff;padding:6px 14px;border-radius:30px;font-weight:700;font-size:14px;white-space:nowrap">${o.discount}</div>
             </div>
@@ -399,10 +409,22 @@ function openMerchant(bankCode) {
       }).join('')
     : '<p style="text-align:center;color:#6b7280;padding:20px">لا توجد عروض حالياً</p>';
 
-  // ✅ فعّل الـ Modal بكل الطرق
   const modal = $('merchantModal');
   modal.classList.add('active');
   modal.style.display = 'flex';
+
+  // أزرار الاتصال والموقع
+  const oldActions = modal.querySelector('.modal-actions-bar');
+  if (oldActions) oldActions.remove();
+
+  const actionsBar = document.createElement('div');
+  actionsBar.className = 'modal-actions-bar';
+  actionsBar.style.cssText = 'margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #eee;padding-top:14px';
+  actionsBar.innerHTML = `
+    ${m.phone ? `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="flex:1;background:#10b981;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📞 اتصل بالتاجر</button>` : ''}
+    ${m.lat && m.lng ? `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>` : ''}
+  `;
+  modal.querySelector('.modal-box').appendChild(actionsBar);
 
   $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
   getMerchantRatings(m.id).then(ratings => {
@@ -424,7 +446,6 @@ function openMerchant(bankCode) {
   });
 }
 
-// ✅ دالة الإغلاق المعدّلة
 function closeMerchantModal() {
   const modal = $('merchantModal');
   modal.classList.remove('active');
@@ -1029,7 +1050,11 @@ async function renderDashboard() {
         ? `<img src="${o.image_url}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0">` : '';
       return `<div class="merchant-offer-card" style="background:#f9fafb;padding:10px;border-radius:12px;margin-bottom:8px;border-right:4px solid #ff6b35;display:flex;align-items:center;gap:10px">
         ${imgHtml}
-        <div style="flex:1"><span style="font-weight:600">${o.title}</span><br><span style="color:#ff6b35;font-weight:700">${o.discount}</span></div>
+        <div style="flex:1">
+          <span style="font-weight:600">${o.title}</span><br>
+          <span style="color:#ff6b35;font-weight:700">${o.discount}</span>
+          ${o.description ? `<div style="font-size:11px;color:#6b7280;margin-top:2px">${o.description}</div>` : ''}
+        </div>
         <button class="del-btn" onclick="window.deleteOfferClick('${o.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
       </div>`;
     }).join('') : '<p style="color:#6b7280">لا توجد عروض</p>';
@@ -1106,15 +1131,55 @@ async function returnInvClick(invId) {
   catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
+// ✅ دالة إضافة عرض جديدة
 async function handleAddOffer() {
   const title = $('offerTitle').value.trim();
-  const discount = $('offerDiscount').value.trim();
+  const type = $('offerType') ? $('offerType').value : 'percent';
+  const percent = parseInt($('offerPercent')?.value) || 0;
+  const custom = $('offerCustom')?.value.trim() || '';
+  const description = $('offerDescription')?.value.trim() || '';
   const res = $('offerResult');
-  if (!title || !discount) { res.style.color = 'red'; res.innerText = '❌ املأ البيانات'; return; }
+
+  if (!title) { res.style.color = 'red'; res.innerText = '❌ اكتب اسم العرض'; return; }
+
+  let discountText = '';
+  let discountValue = 0;
+
+  if (type === 'percent') {
+    if (!percent || percent < 1 || percent > 100) { res.style.color = 'red'; res.innerText = '❌ النسبة لازم بين 1 و 100'; return; }
+    discountText = percent + '% OFF';
+    discountValue = percent;
+  } else if (type === '1+1') {
+    discountText = '1+1';
+    discountValue = 50;
+  } else if (type === '2+1') {
+    discountText = '2+1';
+    discountValue = 33;
+  } else if (type === '3+1') {
+    discountText = '3+1';
+    discountValue = 25;
+  } else if (type === 'custom') {
+    if (!custom) { res.style.color = 'red'; res.innerText = '❌ اكتب وصف الخصم'; return; }
+    discountText = custom;
+    discountValue = 0;
+  }
+
   try {
-    await addOffer({ merchantId: currentMerchant.id, title, discount, imageBase64: uploadedOfferImage });
+    await addOffer({
+      merchantId: currentMerchant.id,
+      title,
+      discount: discountText,
+      discountValue,
+      description,
+      imageBase64: uploadedOfferImage
+    });
     res.style.color = 'green'; res.innerText = '✅ تم نشر العرض';
-    $('offerTitle').value = ''; $('offerDiscount').value = '';
+    $('offerTitle').value = '';
+    if ($('offerPercent')) $('offerPercent').value = '20';
+    if ($('offerCustom')) $('offerCustom').value = '';
+    if ($('offerDescription')) $('offerDescription').value = '';
+    if ($('offerType')) $('offerType').value = 'percent';
+    if (window.onOfferTypeChange) window.onOfferTypeChange('percent');
     uploadedOfferImage = null;
     const p = $('offerImagePreview'); if (p) { p.style.display = 'none'; p.src = ''; }
     const f = $('offerFileName'); if (f) f.innerText = 'لم يتم اختيار ملف';
@@ -1219,7 +1284,8 @@ async function renderAdminSection(section) {
     b.classList.toggle('active', b.dataset.admin === section));
   document.querySelectorAll('.admin-section').forEach(s =>
     s.classList.remove('active'));
-  $('admin-' + section).classList.add('active');
+  const el = $('admin-' + section);
+  if (el) el.classList.add('active');
 
   if (section === 'dashboard') await renderAdminDashboard();
   if (section === 'traders') await renderAdminTraders();
@@ -1227,6 +1293,7 @@ async function renderAdminSection(section) {
   if (section === 'invoices') await renderAdminInvoices();
   if (section === 'requests') await renderAdminRequests();
   if (section === 'notifications') await renderAdminNotifHistory();
+  if (section === 'events') await renderOfferEventsTable();
 }
 
 async function renderAdminDashboard() {
@@ -1526,6 +1593,36 @@ async function renderAdminNotifHistory() {
       <div class="info">${n.message}</div>
       <div class="info" style="font-size:12px">🕒 ${new Date(n.created_at).toLocaleString('ar-EG')}</div>
     </div>`).join('');
+}
+
+// ✅ جدول تفاعل العروض
+async function renderOfferEventsTable() {
+  const container = $('adminOfferEventsList');
+  if (!container) return;
+  container.innerHTML = '<p style="text-align:center;padding:20px;color:#6b7280">جاري التحميل...</p>';
+
+  const events = await getAdminOfferEventsStats();
+
+  if (!events.length) {
+    container.innerHTML = '<p style="text-align:center;padding:20px;color:#6b7280">مفيش تفاعل لحد دلوقتي</p>';
+    return;
+  }
+
+  container.innerHTML = events.map(e => `
+    <div class="admin-item">
+      <div class="head">
+        <span class="title">${e.merchant_icon} ${e.merchant_name}</span>
+        <span style="background:#dbeafe;color:#1e40af;font-size:12px;padding:3px 12px;border-radius:20px;font-weight:700">${e.total} تفاعل</span>
+      </div>
+      <div class="info">📦 ${e.offer_title} | 💰 ${e.offer_discount}</div>
+      <div class="info" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px">
+        <span>👁️ مشاهدات: <strong>${e.views}</strong></span>
+        <span>👆 ضغطات: <strong>${e.clicks}</strong></span>
+        <span>📞 تواصل: <strong>${e.contacts}</strong></span>
+        <span>📍 خرائط: <strong>${e.maps}</strong></span>
+      </div>
+    </div>
+  `).join('');
 }
 
 async function handleSendNotif() {
@@ -1925,6 +2022,7 @@ function bindEvents() {
   $('forgotPassLink').addEventListener('click', (e) => {
     e.preventDefault();
     $('forgotModal').classList.add('active');
+    $('forgotModal').style.display = 'flex';
   });
 
   $('sendResetBtn').addEventListener('click', handleSendReset);
@@ -2124,3 +2222,31 @@ window.adminDelCustomer = adminDelCustomer;
 window.adminEditInv = adminEditInv;
 window.adminReturnInv = adminReturnInv;
 window.adminDelInv = adminDelInv;
+window.renderOfferEventsTable = renderOfferEventsTable;
+
+// ✅ تتبع تفاعل العملاء
+window.contactMerchant = function(phone, merchantId) {
+  trackOfferEvent({ offerId: null, merchantId, eventType: 'contact' });
+  window.location.href = 'tel:' + phone;
+};
+
+window.openMerchantMap = function(lat, lng, merchantId) {
+  trackOfferEvent({ offerId: null, merchantId, eventType: 'maps' });
+  window.open('https://www.google.com/maps?q=' + lat + ',' + lng, '_blank');
+};
+
+window.onOfferTypeChange = function(value) {
+  const percentWrap = document.getElementById('offerPercentWrap');
+  const customWrap = document.getElementById('offerCustomWrap');
+  if (!percentWrap || !customWrap) return;
+  if (value === 'percent') {
+    percentWrap.style.display = 'block';
+    customWrap.style.display = 'none';
+  } else if (value === 'custom') {
+    percentWrap.style.display = 'none';
+    customWrap.style.display = 'block';
+  } else {
+    percentWrap.style.display = 'none';
+    customWrap.style.display = 'none';
+  }
+};

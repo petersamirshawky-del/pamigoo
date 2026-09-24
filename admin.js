@@ -9,6 +9,7 @@ export async function getAdminStats() {
   const { data: invoices } = await supabase.from('invoices').select('amount, cashback, status, return_amount, returned_cashback');
   const { data: redemptions } = await supabase.from('redemptions').select('used_cashback');
   const { data: offers } = await supabase.from('offers').select('id');
+  const { data: events } = await supabase.from('offer_events').select('event_type');
 
   let sales = 0, cbGiven = 0;
   (invoices || []).forEach(i => {
@@ -20,6 +21,15 @@ export async function getAdminStats() {
   });
   const cbSpent = (redemptions || []).reduce((s, r) => s + parseFloat(r.used_cashback || 0), 0);
 
+  // إحصائيات التفاعل
+  const eventsCount = {
+    total: (events || []).length,
+    views: (events || []).filter(e => e.event_type === 'view').length,
+    clicks: (events || []).filter(e => e.event_type === 'click').length,
+    contacts: (events || []).filter(e => e.event_type === 'contact').length,
+    maps: (events || []).filter(e => e.event_type === 'maps').length
+  };
+
   return {
     tradersCount: (merchants || []).length,
     customersCount: (profiles || []).length,
@@ -28,7 +38,8 @@ export async function getAdminStats() {
     cbGiven,
     cbSpent,
     cbRemaining: cbGiven - cbSpent,
-    offersCount: (offers || []).length
+    offersCount: (offers || []).length,
+    eventsCount
   };
 }
 
@@ -219,4 +230,48 @@ export async function adminResetUserPassword(userId, newPassword) {
   if (error) throw error;
   if (!data.ok) throw new Error(data.error);
   return data;
+}
+
+// ============================================================
+// ✅ إحصائيات تفاعل العروض (جديد)
+// ============================================================
+export async function getOfferEventsStats() {
+  const { data, error } = await supabase
+    .from('offer_events')
+    .select(`
+      event_type,
+      offer_id,
+      merchant_id,
+      offers ( id, title, discount, image_url ),
+      merchants ( id, name, icon, logo_url )
+    `);
+  if (error) { console.error(error); return []; }
+  
+  // تجميع الإحصائيات لكل عرض
+  const stats = {};
+  (data || []).forEach(e => {
+    const key = e.offer_id || e.merchant_id;
+    if (!stats[key]) {
+      stats[key] = {
+        offer_id: e.offer_id,
+        merchant_id: e.merchant_id,
+        offer_title: e.offers?.title || '—',
+        offer_discount: e.offers?.discount || '—',
+        merchant_name: e.merchants?.name || '—',
+        merchant_icon: e.merchants?.icon || '🏪',
+        views: 0,
+        clicks: 0,
+        contacts: 0,
+        maps: 0,
+        total: 0
+      };
+    }
+    if (e.event_type === 'view') stats[key].views++;
+    if (e.event_type === 'click') stats[key].clicks++;
+    if (e.event_type === 'contact') stats[key].contacts++;
+    if (e.event_type === 'maps') stats[key].maps++;
+    stats[key].total++;
+  });
+
+  return Object.values(stats).sort((a, b) => b.total - a.total);
 }

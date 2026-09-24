@@ -11,25 +11,19 @@
   <meta name="mobile-web-app-capable" content="yes">
   <title>PAMIGO</title>
 
-  <!-- ✅ PWA Manifest -->
-  <link rel="manifest" href="manifest.json">
-
-  <!-- ✅ الأيقونات -->
+  <link rel="manifest" href="site.webmanifest">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-  <!-- Icons + Maps -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
-  <!-- PAMIGO CSS -->
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/layout.css">
@@ -403,10 +397,34 @@
         <button id="saveRateBtn" style="margin-top:10px;background:#10b981">💾 حفظ النسبة</button>
         <div id="rateSaveResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
       </div>
+
+      <!-- ✅ فورم إضافة عرض جديد -->
       <div class="card">
         <h5 style="margin-bottom:10px">➕ إضافة عرض جديد</h5>
-        <input type="text" id="offerTitle" placeholder="اسم العرض">
-        <input type="text" id="offerDiscount" placeholder="الخصم (مثل: 20% OFF)">
+        <input type="text" id="offerTitle" placeholder="اسم العرض (مثل: خصم الصيف)">
+
+        <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">🏷️ نوع الخصم:</label>
+        <select id="offerType" onchange="window.onOfferTypeChange(this.value)">
+          <option value="percent">نسبة مئوية (%)</option>
+          <option value="1+1">1+1 (اشترِ 1 واحصل على 1)</option>
+          <option value="2+1">2+1 (اشترِ 2 واحصل على 1)</option>
+          <option value="3+1">3+1 (اشترِ 3 واحصل على 1)</option>
+          <option value="custom">عرض خاص (نص حر)</option>
+        </select>
+
+        <div id="offerPercentWrap">
+          <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">النسبة:</label>
+          <input type="number" id="offerPercent" placeholder="مثال: 30" min="1" max="100" value="20">
+        </div>
+
+        <div id="offerCustomWrap" style="display:none">
+          <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">الوصف:</label>
+          <input type="text" id="offerCustom" placeholder="مثال: خصم كبير جداً">
+        </div>
+
+        <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">📝 وصف إضافي (اختياري):</label>
+        <textarea id="offerDescription" placeholder="مثال: على كل الملابس الصيفية" style="min-height:60px"></textarea>
+
         <label style="margin-top:10px;font-size:13px;font-weight:600;display:block">📸 صورة العرض (اختياري)</label>
         <div style="border:2px dashed #ddd;padding:14px;text-align:center;border-radius:10px;cursor:pointer;margin:6px 0" onclick="document.getElementById('offerImage').click()">
           <i class="fas fa-camera" style="font-size:20px;color:var(--primary)"></i>
@@ -417,6 +435,7 @@
         <img id="offerImagePreview" style="display:none;width:100%;max-width:180px;margin-top:8px;border-radius:10px;border:2px solid #ddd">
         <button id="addOfferBtn" style="margin-top:10px">📤 نشر العرض</button>
         <div id="offerResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
+
         <div style="border-bottom:1px solid #ddd;margin:15px 0"></div>
         <h5 style="margin-bottom:10px">📋 عروضي المنشورة</h5>
         <div id="myOffersList"><p style="color:#6b7280">لا توجد عروض</p></div>
@@ -480,6 +499,7 @@
         <button class="admin-subtab" data-admin="customers">👥 العملاء</button>
         <button class="admin-subtab" data-admin="invoices">🧾 الفواتير</button>
         <button class="admin-subtab" data-admin="requests">📋 الطلبات</button>
+        <button class="admin-subtab" data-admin="events">📊 تفاعل العروض</button>
         <button class="admin-subtab" data-admin="notifications">📢 إشعارات</button>
       </div>
 
@@ -559,6 +579,14 @@
         <div class="card">
           <h4 style="margin-bottom:15px">📋 كل الطلبات</h4>
           <div id="adminRequestsList"><p style="color:#6b7280;font-size:14px">جاري التحميل...</p></div>
+        </div>
+      </div>
+
+      <div class="admin-section" id="admin-events">
+        <div class="card">
+          <h4 style="margin-bottom:15px">📊 تفاعل العملاء مع العروض</h4>
+          <p style="font-size:13px;color:#6b7280;margin-bottom:12px">هنا بتشوف كل عرض: كام واحد شافه، كام واحد داس عليه، وكام واحد تواصل مع التاجر.</p>
+          <div id="adminOfferEventsList"><p style="text-align:center;padding:20px;color:#6b7280">جاري التحميل...</p></div>
         </div>
       </div>
 
@@ -687,11 +715,11 @@
     };
     window.closeForgotModal = function(e) {
       if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
-      document.getElementById('forgotModal').classList.remove('active');
-      document.getElementById('forgotModal').style.display = 'none';
+      const modal = document.getElementById('forgotModal');
+      modal.classList.remove('active');
+      modal.style.display = 'none';
     };
 
-    // ✅ تسجيل Service Worker للـ PWA
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')

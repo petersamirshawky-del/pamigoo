@@ -53,12 +53,15 @@ export async function getMerchantOffers(merchantId) {
   return data || [];
 }
 
-export async function addOffer({ merchantId, title, discount, imageBase64 }) {
+// ✅ إضافة عرض جديد (مع discount_value و description)
+export async function addOffer({ merchantId, title, discount, discountValue, description, imageBase64 }) {
   const { error } = await supabase
     .from('offers').insert({
       merchant_id: merchantId,
       title,
       discount,
+      discount_value: discountValue || 0,
+      description: description || '',
       image_url: imageBase64 || null
     });
   if (error) throw error;
@@ -328,4 +331,36 @@ export async function deleteProductImage(imageUrl) {
   if (!imageUrl) return;
   const fileName = imageUrl.split('/').pop();
   await supabase.storage.from('product-images').remove([fileName]);
+}
+
+// ============================================================
+// ✅ Track Offer Events (تتبع تفاعل العروض)
+// ============================================================
+export async function trackOfferEvent({ offerId, merchantId, eventType }) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from('offer_events').insert({
+      offer_id: offerId || null,
+      merchant_id: merchantId,
+      customer_id: user?.id || null,
+      event_type: eventType
+    });
+  } catch (e) {
+    console.error('Track event error:', e);
+  }
+}
+
+// ============================================================
+// ✅ Get Offer Events Stats (للأدمن والتاجر)
+// ============================================================
+export async function getOfferEventsStats() {
+  const { data, error } = await supabase
+    .from('offer_events')
+    .select(`
+      *,
+      offers ( id, title, discount, image_url ),
+      merchants ( id, name, icon, logo_url )
+    `);
+  if (error) { console.error(error); return []; }
+  return data || [];
 }
