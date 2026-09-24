@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // PAMIGO - Admin Panel
 // ============================================================
 import { supabase } from './supabase.js';
@@ -21,7 +21,6 @@ export async function getAdminStats() {
   });
   const cbSpent = (redemptions || []).reduce((s, r) => s + parseFloat(r.used_cashback || 0), 0);
 
-  // إحصائيات التفاعل
   const eventsCount = {
     total: (events || []).length,
     views: (events || []).filter(e => e.event_type === 'view').length,
@@ -187,9 +186,15 @@ export async function returnInvoiceAdmin(invoiceId, returnAmount) {
   return data;
 }
 
-export async function deleteInvoice(invoiceId) {
-  const { error } = await supabase.from('invoices').delete().eq('id', invoiceId);
+// ✅ معدّلة: بتاخد p_with_cashback
+export async function deleteInvoice(invoiceId, withCashback = false) {
+  const { data, error } = await supabase.rpc('admin_delete_invoice', {
+    p_invoice_id: invoiceId,
+    p_with_cashback: withCashback
+  });
   if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data;
 }
 
 export async function sendNotification({ title, message, target }) {
@@ -233,7 +238,7 @@ export async function adminResetUserPassword(userId, newPassword) {
 }
 
 // ============================================================
-// ✅ إحصائيات تفاعل العروض (جديد)
+// إحصائيات تفاعل العروض
 // ============================================================
 export async function getOfferEventsStats() {
   const { data, error } = await supabase
@@ -246,8 +251,7 @@ export async function getOfferEventsStats() {
       merchants ( id, name, icon, logo_url )
     `);
   if (error) { console.error(error); return []; }
-  
-  // تجميع الإحصائيات لكل عرض
+
   const stats = {};
   (data || []).forEach(e => {
     const key = e.offer_id || e.merchant_id;
