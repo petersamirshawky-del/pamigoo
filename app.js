@@ -213,14 +213,10 @@ function renderMerchantsList() {
   }
 
   const el = $('merchantsList');
-if (!list.length) {
-  el.innerHTML = `<div style="text-align:center;padding:30px;color:#6b7280">
-    <div style="font-size:48px;margin-bottom:10px">🎁</div>
-    <p style="margin-bottom:15px">لا توجد عروض حالياً</p>
-    <button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer">➕ أضف عرضك</button>
-  </div>`;
-  return;
-}
+  if (!list.length) {
+    el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج في نطاق ${radius} كم</div>`;
+    return;
+  }
 
   el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
@@ -277,7 +273,14 @@ function renderOffersGrid() {
     .filter(m => matchesCatSubs(m, offersCategories, offersSubCategories));
 
   const el = $('offersGrid');
-  if (!list.length) { el.innerHTML = `<p style="text-align:center;padding:20px;color:#6b7280">لا توجد عروض</p>`; return; }
+  if (!list.length) {
+    el.innerHTML = `<div style="text-align:center;padding:30px;color:#6b7280">
+      <div style="font-size:48px;margin-bottom:10px">🎁</div>
+      <p style="margin-bottom:15px">لا توجد عروض حالياً</p>
+      <button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer">➕ أضف عرضك</button>
+    </div>`;
+    return;
+  }
 
   el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
@@ -408,7 +411,7 @@ function openMerchant(bankCode) {
   actionsBar.innerHTML = `
     ${m.phone ? `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="flex:1;background:#10b981;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📞 اتصل بالتاجر</button>` : ''}
     ${m.lat && m.lng ? `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>` : ''}
-    ${m.delivery_available && m.delivery_phone ? `<button onclick="window.contactDelivery('${m.delivery_phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
+    ${m.delivery_available ? `<button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
   `;
   modal.querySelector('.modal-box').appendChild(actionsBar);
 
@@ -1323,27 +1326,45 @@ async function adminEditMerchantFull(id) {
   if (newName === null) return;
   const newPhone = prompt(`الموبايل الحالي: ${m.phone}\nالجديد:`, m.phone || '');
   if (newPhone === null) return;
-const newLat = prompt(`Latitude الحالي: ${m.lat}\n\n💡 اكتب رقم، أو "auto" لموقعك الحالي:`, m.lat);
-if (newLat === null) return;
 
-let latValue = parseFloat(newLat);
-let lngValue = parseFloat(m.lng);
+  const catsList = `1- ملابس\n2- مطاعم\n3- وجبات\n4- إلكترونيات\n5- قطع غيار\n6- كماليات\n7- صيانة\n8- عيادات\n9- معامل\n10- أشعة\n11- مستشفيات\n12- مستحضرات تجميل`;
+  const currentCatIdx = Object.keys({
+    fashion:'', restaurants:'', bigfood:'', electronics:'', car_parts:'', car_accessories:'',
+    car_repair:'', clinics:'', labs:'', radiology:'', hospitals:'', cosmetics:''
+  }).indexOf(m.category) + 1;
 
-if (newLat.trim().toLowerCase() === 'auto') {
-  const loc = await getUserLocation();
-  if (loc) {
-    latValue = loc.lat;
-    lngValue = loc.lng;
-    toast('📍 تم استخدام موقعك الحالي', 'success');
+  const newCategory = prompt(`التصنيف الحالي: ${currentCatIdx > 0 ? currentCatIdx + '-' + m.category : m.category}\n\nاختار رقم التصنيف الجديد:\n${catsList}`, currentCatIdx > 0 ? String(currentCatIdx) : '');
+  if (newCategory === null) return;
+
+  const categoriesMap = {
+    '1': 'fashion', '2': 'restaurants', '3': 'bigfood', '4': 'electronics',
+    '5': 'car_parts', '6': 'car_accessories', '7': 'car_repair', '8': 'clinics',
+    '9': 'labs', '10': 'radiology', '11': 'hospitals', '12': 'cosmetics'
+  };
+  const newCategoryValue = categoriesMap[newCategory.trim()] || m.category;
+
+  const newLat = prompt(`Latitude الحالي: ${m.lat}\n\n💡 اكتب رقم، أو "auto" لموقعك الحالي:`, m.lat);
+  if (newLat === null) return;
+
+  let latValue = parseFloat(newLat);
+  let lngValue = parseFloat(m.lng);
+
+  if (newLat.trim().toLowerCase() === 'auto') {
+    const loc = await getUserLocation();
+    if (loc) {
+      latValue = loc.lat;
+      lngValue = loc.lng;
+      toast('📍 تم استخدام موقعك الحالي', 'success');
+    } else {
+      toast('❌ تعذر تحديد موقعك', 'error');
+      return;
+    }
   } else {
-    toast('❌ تعذر تحديد موقعك', 'error');
-    return;
+    const newLng = prompt(`Longitude الحالي: ${m.lng}\nالجديد:`, m.lng);
+    if (newLng === null) return;
+    lngValue = parseFloat(newLng);
   }
-} else {
-  const newLng = prompt(`Longitude الحالي: ${m.lng}\nالجديد:`, m.lng);
-  if (newLng === null) return;
-  lngValue = parseFloat(newLng);
-}
+
   const newRate = prompt(`النسبة الحالية: ${m.cashback_rate}%\nالجديدة (1-50):`, m.cashback_rate);
   if (newRate === null) return;
 
@@ -1359,6 +1380,7 @@ if (newLat.trim().toLowerCase() === 'auto') {
       bankCode: newBankCode.trim() || m.bank_code,
       name: newName.trim() || m.name,
       phone: newPhone.trim() || m.phone,
+      category: newCategoryValue,
       lat: latValue,
       lng: lngValue,
       rate: parseInt(newRate),
@@ -1659,9 +1681,9 @@ async function handleAddTrader() {
   const deliveryPhone = $('newTraderDeliveryPhone')?.value.trim() || null;
 
   if (!name || !bankCode || !phone) { res.style.color = 'red'; res.innerText = '❌ املأ الحقول'; return; }
-  if (deliveryAvailable && !deliveryPhone) { res.style.color = 'red'; res.innerText = '❌ اكتب رقم التوصيل'; return; }
   if (isNaN(lat) || isNaN(lng)) { res.style.color = 'red'; res.innerText = '❌ إحداثيات'; return; }
   if (isNaN(rate) || rate < 1 || rate > 50) { res.style.color = 'red'; res.innerText = '❌ نسبة غير صحيحة'; return; }
+  if (deliveryAvailable && !deliveryPhone) { res.style.color = 'red'; res.innerText = '❌ اكتب رقم التوصيل'; return; }
 
   const subs = [];
   $('newTraderSubs').querySelectorAll('.category-chip.active').forEach(b => subs.push(b.dataset.sub));
@@ -1679,6 +1701,22 @@ async function handleAddTrader() {
     res.style.color = 'green'; res.innerText = `✅ تم إضافة ${name}`;
     setTimeout(() => { $('addTraderForm').style.display = 'none'; res.innerText = ''; renderAdminTraders(); }, 1500);
   } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
+}
+
+async function handleGetLocation() {
+  const btn = $('newTraderGetLocation');
+  if (!btn) return;
+  btn.innerText = '⏳ جاري التحديد...';
+  const loc = await getUserLocation();
+  if (loc) {
+    $('newTraderLat').value = loc.lat.toFixed(4);
+    $('newTraderLng').value = loc.lng.toFixed(4);
+    btn.innerText = '✅ تم تحديد موقعك';
+    setTimeout(() => btn.innerText = '📍 استخدم موقعي الحالي', 2000);
+  } else {
+    btn.innerText = '❌ تعذر التحديد';
+    setTimeout(() => btn.innerText = '📍 استخدم موقعي الحالي', 2000);
+  }
 }
 
 // ============================================================
@@ -1998,7 +2036,6 @@ function bindEvents() {
   $('showAddTraderBtn').addEventListener('click', () => {
     $('addTraderForm').style.display = 'block';
     renderNewTraderSubs();
-    // ✅ Reset التوصيل
     const dc = $('newTraderDelivery');
     if (dc) { dc.checked = false; dc.onchange = () => {
       $('newTraderDeliveryWrap').style.display = dc.checked ? 'block' : 'none';
@@ -2011,22 +2048,9 @@ function bindEvents() {
   });
   $('newTraderCategory').addEventListener('change', renderNewTraderSubs);
   $('addTraderConfirmBtn').addEventListener('click', handleAddTrader);
+
   const getLocBtn = $('newTraderGetLocation');
-if (getLocBtn) {
-  getLocBtn.addEventListener('click', async () => {
-    getLocBtn.innerText = '⏳ جاري التحديد...';
-    const loc = await getUserLocation();
-    if (loc) {
-      $('newTraderLat').value = loc.lat.toFixed(4);
-      $('newTraderLng').value = loc.lng.toFixed(4);
-      getLocBtn.innerText = '✅ تم تحديد موقعك';
-      setTimeout(() => getLocBtn.innerText = '📍 استخدم موقعي الحالي', 2000);
-    } else {
-      getLocBtn.innerText = '❌ تعذر التحديد';
-      setTimeout(() => getLocBtn.innerText = '📍 استخدم موقعي الحالي', 2000);
-    }
-  });
-}
+  if (getLocBtn) getLocBtn.addEventListener('click', handleGetLocation);
 
   $('adminInvoiceSearch').addEventListener('input', () => renderAdminInvoices());
   $('sendNotifBtn').addEventListener('click', handleSendNotif);
@@ -2128,7 +2152,11 @@ if (getLocBtn) {
 onAuthChange(async (event, session) => {
   if (session?.user) {
     const profile = await getProfile();
-    if (!profile) return;
+    if (!profile) {
+      await signOut();
+      setTimeout(() => showMessage('❌ الحساب ده اتحذف'), 300);
+      return;
+    }
 
     if (expectedLogin) {
       const exp = expectedLogin;
