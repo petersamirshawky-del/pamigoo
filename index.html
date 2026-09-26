@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
@@ -398,7 +398,6 @@
         <div id="rateSaveResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
       </div>
 
-      <!-- ✅ فورم إضافة عرض جديد -->
       <div class="card">
         <h5 style="margin-bottom:10px">➕ إضافة عرض جديد</h5>
         <input type="text" id="offerTitle" placeholder="اسم العرض (مثل: خصم الصيف)">
@@ -549,6 +548,13 @@
             <input type="number" id="newTraderLat" placeholder="Latitude" step="0.0001">
             <input type="number" id="newTraderLng" placeholder="Longitude" step="0.0001">
             <input type="number" id="newTraderRate" placeholder="نسبة الكاش باك" min="1" max="50" value="15">
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:10px">
+              <input type="checkbox" id="newTraderDelivery" style="width:auto;margin-left:6px">
+              🛵 التوصيل متاح
+            </label>
+            <div id="newTraderDeliveryWrap" style="display:none">
+              <input type="tel" id="newTraderDeliveryPhone" placeholder="📞 رقم التوصيل (اختياري)">
+            </div>
             <div style="display:flex;gap:8px;margin-top:10px">
               <button id="addTraderConfirmBtn" style="flex:1;background:#27ae60">✅ إضافة</button>
               <button id="hideAddTraderBtn" style="flex:1;background:#95a5a6">❌ إلغاء</button>
