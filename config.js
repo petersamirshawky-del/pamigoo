@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // PAMIGO Configuration
 // ⚠️ الـ anon key ده public وآمن إنه يبان في الكود
 // ⚠️ متحطش الـ service_role key هنا أبداً
@@ -23,7 +23,8 @@ export const CATEGORY_ICONS = {
   clinics: '🩺',
   labs: '🧪',
   radiology: '📡',
-  hospitals: '🏨'
+  hospitals: '🏨',
+  cosmetics: '💄'
 };
 
 // أسماء التصنيفات بالعربي
@@ -38,7 +39,8 @@ export const CATEGORY_NAMES = {
   clinics: '🩺 عيادات',
   labs: '🧪 معامل',
   radiology: '📡 أشعة',
-  hospitals: '🏨 مستشفيات'
+  hospitals: '🏨 مستشفيات',
+  cosmetics: '💄 مستحضرات تجميل'
 };
 
 // التصنيفات الفرعية
@@ -101,7 +103,7 @@ export const SUB_CATEGORIES = {
     { id: 'blood', name: '🩸 تحاليل دم' },
     { id: 'urine', name: '🧪 تحاليل بول' },
     { id: 'hormones', name: '💉 هرمونات' },
-    { id: 'micro', name: '🔬 ميكروبيولوجي' }
+    { id: 'micro', name: '🔬 ميكروبولوجي' }
   ],
   radiology: [
     { id: 'xray', name: '📷 أشعة عادية' },
@@ -114,6 +116,12 @@ export const SUB_CATEGORIES = {
     { id: 'surgery', name: '🏥 عمليات' },
     { id: 'internal', name: '🛏️ أقسام داخلية' },
     { id: 'outpatient', name: '🚶 عيادات خارجية' }
+  ],
+  cosmetics: [
+    { id: 'makeup', name: '💄 مكياج' },
+    { id: 'skincare', name: '🧴 عناية بالبشرة' },
+    { id: 'haircare', name: '💇 عناية بالشعر' },
+    { id: 'perfumes', name: '🌸 عطور' },
+    { id: 'nails', name: '💅 أظافر' }
   ]
 };
-  cosmetics: '💄',
