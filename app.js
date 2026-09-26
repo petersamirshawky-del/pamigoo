@@ -237,6 +237,7 @@ function renderMerchantsList() {
           <h4>${m.name} <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></h4>
           <div class="desc">${dist ? dist + ' • ' : ''}${(m.offers || []).length} عرض • كاش باك ${rate}%${maxDisc ? ' • خصم لحد ' + maxDisc + '%' : ''}</div>
           ${subNames ? `<div style="font-size:11px;color:#8b5cf6;margin-top:2px">${subNames}</div>` : ''}
+          ${m.delivery_available ? '<div style="font-size:11px;color:#10b981;margin-top:2px">🛵 التوصيل متاح</div>' : ''}
           <div style="font-size:12px;color:#f59e0b;margin-top:2px">${rating ? '⭐'.repeat(Math.floor(rating)) + ' ' + rating : '⭐ لا تقييمات'}</div>
         </div>
         <div class="badge">${rate}%</div>
@@ -368,7 +369,7 @@ function openMerchant(bankCode) {
     : `<div style="font-size:60px;text-align:center">${m.icon || '🏪'}</div>`;
 
   $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${m.name}</div>`;
-  $('modalMerchantInfo').innerHTML = `${m.icon || '🏪'} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>`;
+  $('modalMerchantInfo').innerHTML = `${m.icon || '🏪'} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}`;
   $('modalOffersList').innerHTML = (m.offers || []).length
     ? m.offers.map((o, i) => {
         const imgHtml = o.image_url
@@ -403,6 +404,7 @@ function openMerchant(bankCode) {
   actionsBar.innerHTML = `
     ${m.phone ? `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="flex:1;background:#10b981;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📞 اتصل بالتاجر</button>` : ''}
     ${m.lat && m.lng ? `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>` : ''}
+    ${m.delivery_available && m.delivery_phone ? `<button onclick="window.contactDelivery('${m.delivery_phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
   `;
   modal.querySelector('.modal-box').appendChild(actionsBar);
 
@@ -1286,7 +1288,6 @@ async function renderAdminTraders() {
 
   el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
-    const tier = getTier(rate);
     const logo = m.logo_url
       ? `<img src="${m.logo_url}" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle">`
       : (m.icon || '🏪');
@@ -1297,7 +1298,7 @@ async function renderAdminTraders() {
       </div>
       <div class="info">🔑 ${m.bank_code} | 📱 ${m.phone || '-'} | 💰 ${rate}%</div>
       <div class="info">📍 ${m.lat?.toFixed(4) || '-'} , ${m.lng?.toFixed(4) || '-'}</div>
-      <div class="info">📂 ${m.category} | 🎁 ${(m.offers || []).length} عرض</div>
+      <div class="info">📂 ${m.category} | 🎁 ${(m.offers || []).length} عرض${m.delivery_available ? ' | 🛵 توصيل' : ''}</div>
       <div class="actions">
         <button class="admin-btn primary" onclick="window.adminEditMerchantFull('${m.id}')">✏️ تعديل كامل</button>
         <button class="admin-btn ${m.frozen ? 'success' : 'warning'}" onclick="window.toggleFreeze('${m.id}')">${m.frozen ? '✅ إلغاء' : '❄️ إيقاف'}</button>
@@ -1325,6 +1326,13 @@ async function adminEditMerchantFull(id) {
   const newRate = prompt(`النسبة الحالية: ${m.cashback_rate}%\nالجديدة (1-50):`, m.cashback_rate);
   if (newRate === null) return;
 
+  const hasDelivery = confirm('التوصيل متاح؟ (OK = أيوة، Cancel = لأ)');
+  let deliveryPhone = null;
+  if (hasDelivery) {
+    deliveryPhone = prompt('رقم التوصيل (اختياري):', m.delivery_phone || '');
+    if (deliveryPhone === null) deliveryPhone = m.delivery_phone || null;
+  }
+
   try {
     await adminUpdateMerchant(id, {
       bankCode: newBankCode.trim() || m.bank_code,
@@ -1332,7 +1340,9 @@ async function adminEditMerchantFull(id) {
       phone: newPhone.trim() || m.phone,
       lat: parseFloat(newLat),
       lng: parseFloat(newLng),
-      rate: parseInt(newRate)
+      rate: parseInt(newRate),
+      deliveryAvailable: hasDelivery,
+      deliveryPhone: deliveryPhone
     });
     toast('✅ تم التعديل', 'success');
     renderAdminTraders();
@@ -1624,6 +1634,9 @@ async function handleAddTrader() {
   const rate = parseInt($('newTraderRate').value);
   const res = $('addTraderResult');
 
+  const deliveryAvailable = $('newTraderDelivery')?.checked || false;
+  const deliveryPhone = $('newTraderDeliveryPhone')?.value.trim() || null;
+
   if (!name || !bankCode || !phone) { res.style.color = 'red'; res.innerText = '❌ املأ الحقول'; return; }
   if (isNaN(lat) || isNaN(lng)) { res.style.color = 'red'; res.innerText = '❌ إحداثيات'; return; }
   if (isNaN(rate) || rate < 1 || rate > 50) { res.style.color = 'red'; res.innerText = '❌ نسبة غير صحيحة'; return; }
@@ -1637,7 +1650,9 @@ async function handleAddTrader() {
       bankCode, name, phone, category,
       subCategories: subs,
       icon: CATEGORY_ICONS[category] || '🏪',
-      lat, lng, rate
+      lat, lng, rate,
+      deliveryAvailable,
+      deliveryPhone
     });
     res.style.color = 'green'; res.innerText = `✅ تم إضافة ${name}`;
     setTimeout(() => { $('addTraderForm').style.display = 'none'; res.innerText = ''; renderAdminTraders(); }, 1500);
@@ -1961,6 +1976,13 @@ function bindEvents() {
   $('showAddTraderBtn').addEventListener('click', () => {
     $('addTraderForm').style.display = 'block';
     renderNewTraderSubs();
+    // ✅ Reset التوصيل
+    const dc = $('newTraderDelivery');
+    if (dc) { dc.checked = false; dc.onchange = () => {
+      $('newTraderDeliveryWrap').style.display = dc.checked ? 'block' : 'none';
+    }; }
+    $('newTraderDeliveryWrap').style.display = 'none';
+    $('newTraderDeliveryPhone').value = '';
   });
   $('hideAddTraderBtn').addEventListener('click', () => {
     $('addTraderForm').style.display = 'none';
@@ -2185,6 +2207,11 @@ window.adminDeleteOnly = adminDeleteOnly;
 window.renderOfferEventsTable = renderOfferEventsTable;
 
 window.contactMerchant = function(phone, merchantId) {
+  trackOfferEvent({ offerId: null, merchantId, eventType: 'contact' });
+  window.location.href = 'tel:' + phone;
+};
+
+window.contactDelivery = function(phone, merchantId) {
   trackOfferEvent({ offerId: null, merchantId, eventType: 'contact' });
   window.location.href = 'tel:' + phone;
 };
