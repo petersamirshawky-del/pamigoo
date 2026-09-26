@@ -172,6 +172,7 @@
             <button class="category-chip" data-cat="labs"><i class="fas fa-flask"></i> معامل</button>
             <button class="category-chip" data-cat="radiology"><i class="fas fa-x-ray"></i> أشعة</button>
             <button class="category-chip" data-cat="hospitals"><i class="fas fa-hospital"></i> مستشفيات</button>
+            <button class="category-chip" data-cat="cosmetics"><i class="fas fa-spa"></i> مستحضرات تجميل</button>
           </div>
         </div>
         <div id="homeSubWrapper" style="margin-top:12px;border-top:1px solid #eee;padding-top:12px;display:none">
@@ -206,6 +207,7 @@
             <button class="category-chip" data-cat="labs"><i class="fas fa-flask"></i> معامل</button>
             <button class="category-chip" data-cat="radiology"><i class="fas fa-x-ray"></i> أشعة</button>
             <button class="category-chip" data-cat="hospitals"><i class="fas fa-hospital"></i> مستشفيات</button>
+            <button class="category-chip" data-cat="cosmetics"><i class="fas fa-spa"></i> مستحضرات تجميل</button>
           </div>
         </div>
         <div id="offersSubWrapper" style="margin-top:14px;border-top:1px solid #eee;padding-top:12px;display:none">
@@ -309,6 +311,7 @@
           <option value="labs">🧪 معامل</option>
           <option value="radiology">📡 أشعة</option>
           <option value="hospitals">🏨 مستشفيات</option>
+          <option value="cosmetics">💄 مستحضرات تجميل</option>
         </select>
         <input type="text" id="reqProduct" placeholder="اسم المنتج أو الخدمة">
         <textarea id="reqDetails" placeholder="تفاصيل إضافية..."></textarea>
@@ -538,6 +541,7 @@
               <option value="labs">🧪 معامل</option>
               <option value="radiology">📡 أشعة</option>
               <option value="hospitals">🏨 مستشفيات</option>
+              <option value="cosmetics">💄 مستحضرات تجميل</option>
             </select>
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيفات الفرعية:</label>
             <div id="newTraderSubs" class="categories" style="margin-bottom:0"></div>
@@ -723,29 +727,15 @@
       modal.style.display = 'none';
     };
 
- if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').then((reg) => {
-        console.log('✅ SW registered:', reg.scope);
-
-        // ✅ كل ساعة، دوّر على تحديث
-        setInterval(() => reg.update(), 60 * 60 * 1000);
-
-        // ✅ أول ما التطبيق يفتح، دوّر على تحديث
-        reg.update();
-
-        // ✅ لو فيه SW جديد
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'activated') {
-              console.log('🔄 SW updated');
-            }
-          });
-        });
-      }).catch(err => console.log('❌ SW failed:', err));
-    });
-  }
-</script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').then((reg) => {
+          console.log('✅ SW registered:', reg.scope);
+          setInterval(() => reg.update(), 60 * 60 * 1000);
+          reg.update();
+        }).catch(err => console.log('❌ SW failed:', err));
+      });
+    }
+  </script>
 </body>
 </html>
