@@ -91,7 +91,9 @@ export async function addTrader(data) {
     p_icon: data.icon,
     p_lat: data.lat,
     p_lng: data.lng,
-    p_cashback_rate: data.rate
+    p_cashback_rate: data.rate,
+    p_delivery_available: data.deliveryAvailable || false,
+    p_delivery_phone: data.deliveryPhone || null
   });
   if (error) throw error;
   if (!res.ok) throw new Error(res.error);
@@ -126,7 +128,9 @@ export async function adminUpdateMerchant(merchantId, data) {
     p_new_lng: data.lng ?? null,
     p_new_rate: data.rate ?? null,
     p_new_sub_categories: data.subCategories || null,
-    p_new_bank_code: data.bankCode || null
+    p_new_bank_code: data.bankCode || null,
+    p_new_delivery_available: data.deliveryAvailable ?? null,
+    p_new_delivery_phone: data.deliveryPhone ?? null
   });
   if (error) throw error;
   if (!res.ok) throw new Error(res.error);
@@ -161,11 +165,12 @@ export async function resetCustomerBalance(phone) {
 }
 
 export async function deleteCustomer(phone) {
-  const { data: prof } = await supabase.from('profiles').select('id').eq('phone', phone).single();
-  if (prof) {
-    await supabase.from('wallets').delete().eq('customer_id', prof.id);
-    await supabase.from('invoices').update({ customer_id: null }).eq('customer_id', prof.id);
-  }
+  const { data, error } = await supabase.rpc('admin_delete_customer', {
+    p_customer_phone: phone
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error);
+  return data;
 }
 
 export async function editInvoiceAdmin(invoiceId, newAmount, newPhone) {
@@ -186,7 +191,6 @@ export async function returnInvoiceAdmin(invoiceId, returnAmount) {
   return data;
 }
 
-// ✅ معدّلة: بتاخد p_with_cashback
 export async function deleteInvoice(invoiceId, withCashback = false) {
   const { data, error } = await supabase.rpc('admin_delete_invoice', {
     p_invoice_id: invoiceId,
@@ -237,9 +241,6 @@ export async function adminResetUserPassword(userId, newPassword) {
   return data;
 }
 
-// ============================================================
-// إحصائيات تفاعل العروض
-// ============================================================
 export async function getOfferEventsStats() {
   const { data, error } = await supabase
     .from('offer_events')
