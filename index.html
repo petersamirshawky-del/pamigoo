@@ -727,13 +727,29 @@
       modal.style.display = 'none';
     };
 
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('✅ SW registered:', reg.scope))
-          .catch(err => console.log('❌ SW failed:', err));
-      });
-    }
-  </script>
+ if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        console.log('✅ SW registered:', reg.scope);
+
+        // ✅ كل ساعة، دوّر على تحديث
+        setInterval(() => reg.update(), 60 * 60 * 1000);
+
+        // ✅ أول ما التطبيق يفتح، دوّر على تحديث
+        reg.update();
+
+        // ✅ لو فيه SW جديد
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'activated') {
+              console.log('🔄 SW updated');
+            }
+          });
+        });
+      }).catch(err => console.log('❌ SW failed:', err));
+    });
+  }
+</script>
 </body>
 </html>
