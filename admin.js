@@ -36,7 +36,7 @@ export async function getAdminStats() {
     sales,
     cbGiven,
     cbSpent,
-    cbRemaining: cbGiven - cbSpent,
+    cbRemaining: Math.max(0, cbGiven - cbSpent),
     offersCount: (offers || []).length,
     eventsCount
   };
@@ -130,7 +130,8 @@ export async function adminUpdateMerchant(merchantId, data) {
     p_new_sub_categories: data.subCategories || null,
     p_new_bank_code: data.bankCode || null,
     p_new_delivery_available: data.deliveryAvailable ?? null,
-    p_new_delivery_phone: data.deliveryPhone ?? null
+    p_new_delivery_phone: data.deliveryPhone ?? null,
+    p_new_category: data.category || null
   });
   if (error) throw error;
   if (!res.ok) throw new Error(res.error);
