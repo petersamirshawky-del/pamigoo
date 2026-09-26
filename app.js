@@ -1990,6 +1990,22 @@ function bindEvents() {
   });
   $('newTraderCategory').addEventListener('change', renderNewTraderSubs);
   $('addTraderConfirmBtn').addEventListener('click', handleAddTrader);
+  const getLocBtn = $('newTraderGetLocation');
+if (getLocBtn) {
+  getLocBtn.addEventListener('click', async () => {
+    getLocBtn.innerText = '⏳ جاري التحديد...';
+    const loc = await getUserLocation();
+    if (loc) {
+      $('newTraderLat').value = loc.lat.toFixed(4);
+      $('newTraderLng').value = loc.lng.toFixed(4);
+      getLocBtn.innerText = '✅ تم تحديد موقعك';
+      setTimeout(() => getLocBtn.innerText = '📍 استخدم موقعي الحالي', 2000);
+    } else {
+      getLocBtn.innerText = '❌ تعذر التحديد';
+      setTimeout(() => getLocBtn.innerText = '📍 استخدم موقعي الحالي', 2000);
+    }
+  });
+}
 
   $('adminInvoiceSearch').addEventListener('input', () => renderAdminInvoices());
   $('sendNotifBtn').addEventListener('click', handleSendNotif);
