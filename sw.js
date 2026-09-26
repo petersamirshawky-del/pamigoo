@@ -2,7 +2,7 @@
 // PAMIGO - Service Worker v2
 // ================================
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = Date.now().toString();
 const CACHE_NAME = `pamigo-${CACHE_VERSION}`;
 
 const urlsToCache = [
