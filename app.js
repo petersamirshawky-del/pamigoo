@@ -1638,6 +1638,7 @@ async function handleAddTrader() {
   const deliveryPhone = $('newTraderDeliveryPhone')?.value.trim() || null;
 
   if (!name || !bankCode || !phone) { res.style.color = 'red'; res.innerText = '❌ املأ الحقول'; return; }
+  if (deliveryAvailable && !deliveryPhone) { res.style.color = 'red'; res.innerText = '❌ اكتب رقم التوصيل'; return; }
   if (isNaN(lat) || isNaN(lng)) { res.style.color = 'red'; res.innerText = '❌ إحداثيات'; return; }
   if (isNaN(rate) || rate < 1 || rate > 50) { res.style.color = 'red'; res.innerText = '❌ نسبة غير صحيحة'; return; }
 
