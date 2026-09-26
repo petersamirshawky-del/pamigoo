@@ -404,8 +404,7 @@ function openMerchant(bankCode) {
   actionsBar.innerHTML = `
     ${m.phone ? `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="flex:1;background:#10b981;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📞 اتصل بالتاجر</button>` : ''}
     ${m.lat && m.lng ? `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>` : ''}
-    ${m.delivery_available && m.delivery_phone ? `<button onclick="window.contactDelivery('${m.delivery_phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
-  `;
+    ${m.delivery_available ? `<button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
   modal.querySelector('.modal-box').appendChild(actionsBar);
 
   $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
