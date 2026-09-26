@@ -97,7 +97,7 @@
   white-space: nowrap;
 }
 .category-chip:hover { background: var(--bg-soft); }
-.category-chip.active { background: var(--primary); color: #fff; }
+.category-chip.active { background: #ff6b35; color: #fff; font-weight: 700; box-shadow: 0 2px 8px rgba(255, 107, 53, 0.4); }
 .categories { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
 
 /* Tier Chips */
