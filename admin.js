@@ -5,7 +5,7 @@ import { supabase } from './supabase.js';
 
 export async function getAdminStats() {
   const { data: merchants } = await supabase.from('merchants').select('id');
-  const { data: profiles } = await supabase.from('profiles').select('id');
+  const { data: profiles } = await supabase.from('profiles').select('id').eq('role', 'customer');
   const { data: invoices } = await supabase.from('invoices').select('amount, cashback, status, return_amount, returned_cashback');
   const { data: redemptions } = await supabase.from('redemptions').select('used_cashback');
   const { data: offers } = await supabase.from('offers').select('id');
