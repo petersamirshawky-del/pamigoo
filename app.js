@@ -1319,10 +1319,27 @@ async function adminEditMerchantFull(id) {
   if (newName === null) return;
   const newPhone = prompt(`الموبايل الحالي: ${m.phone}\nالجديد:`, m.phone || '');
   if (newPhone === null) return;
-  const newLat = prompt(`Latitude الحالي: ${m.lat}\nالجديد:`, m.lat);
-  if (newLat === null) return;
+const newLat = prompt(`Latitude الحالي: ${m.lat}\n\n💡 اكتب رقم، أو "auto" لموقعك الحالي:`, m.lat);
+if (newLat === null) return;
+
+let latValue = parseFloat(newLat);
+let lngValue = parseFloat(m.lng);
+
+if (newLat.trim().toLowerCase() === 'auto') {
+  const loc = await getUserLocation();
+  if (loc) {
+    latValue = loc.lat;
+    lngValue = loc.lng;
+    toast('📍 تم استخدام موقعك الحالي', 'success');
+  } else {
+    toast('❌ تعذر تحديد موقعك', 'error');
+    return;
+  }
+} else {
   const newLng = prompt(`Longitude الحالي: ${m.lng}\nالجديد:`, m.lng);
   if (newLng === null) return;
+  lngValue = parseFloat(newLng);
+}
   const newRate = prompt(`النسبة الحالية: ${m.cashback_rate}%\nالجديدة (1-50):`, m.cashback_rate);
   if (newRate === null) return;
 
@@ -1338,8 +1355,8 @@ async function adminEditMerchantFull(id) {
       bankCode: newBankCode.trim() || m.bank_code,
       name: newName.trim() || m.name,
       phone: newPhone.trim() || m.phone,
-      lat: parseFloat(newLat),
-      lng: parseFloat(newLng),
+      lat: latValue,
+      lng: lngValue,
       rate: parseInt(newRate),
       deliveryAvailable: hasDelivery,
       deliveryPhone: deliveryPhone
