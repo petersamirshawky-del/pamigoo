@@ -116,3 +116,4 @@ export const SUB_CATEGORIES = {
     { id: 'outpatient', name: '🚶 عيادات خارجية' }
   ]
 };
+  cosmetics: '💄',
