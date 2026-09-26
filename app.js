@@ -213,10 +213,14 @@ function renderMerchantsList() {
   }
 
   const el = $('merchantsList');
-  if (!list.length) {
-    el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج في نطاق ${radius} كم</div>`;
-    return;
-  }
+if (!list.length) {
+  el.innerHTML = `<div style="text-align:center;padding:30px;color:#6b7280">
+    <div style="font-size:48px;margin-bottom:10px">🎁</div>
+    <p style="margin-bottom:15px">لا توجد عروض حالياً</p>
+    <button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer">➕ أضف عرضك</button>
+  </div>`;
+  return;
+}
 
   el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
