@@ -586,10 +586,13 @@ async function handleSubmitInvoice() {
   const num = $('invNumber').value.trim();
   const phone = $('invCustomerPhone').value.trim();
   const amount = parseFloat($('invAmount').value);
+  const usedCashback = parseFloat($('invUsedCashback')?.value) || 0;
   const bankCode = $('invBankCode') ? getRealValue('invBankCode') : '';
   const res = $('invoiceResult');
 
   if (!num || !phone || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
+
+  if (usedCashback > amount) { res.style.color = '#ef4444'; res.innerText = '❌ رصيد الكاش باك أكبر من مبلغ الفاتورة'; return; }
 
   const isMerchant = currentProfile.role === 'merchant' && currentMerchant;
   if (!isMerchant && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ ادخل البنكود'; return; }
@@ -598,13 +601,13 @@ async function handleSubmitInvoice() {
     let merchantId = null;
     let merchantName = '';
     if (isMerchant) {
-      const r = await createInvoice({ number: num, customerPhone: phone, amount, merchantId: currentMerchant.id });
+      const r = await createInvoice({ number: num, customerPhone: phone, amount, merchantId: currentMerchant.id, usedCashback });
       merchantId = currentMerchant.id;
       merchantName = currentMerchant.name;
-      res.style.color = '#10b981'; res.innerText = `✅ كاش باك ${parseFloat(r.cashback).toFixed(2)} ج`;
+      res.style.color = '#10b981'; res.innerText = `✅ كاش باك ${parseFloat(r.cashback).toFixed(2)} ج${usedCashback > 0 ? ` (استُخدم ${usedCashback} ج من الرصيد)` : ''}`;
     } else {
-      const r = await createInvoiceByBankCode({ number: num, customerPhone: phone, amount, bankCode });
-      res.style.color = '#10b981'; res.innerText = `✅ كاش باك ${parseFloat(r.cashback).toFixed(2)} ج`;
+      const r = await createInvoiceByBankCode({ number: num, customerPhone: phone, amount, bankCode, usedCashback });
+      res.style.color = '#10b981'; res.innerText = `✅ كاش باك ${parseFloat(r.cashback).toFixed(2)} ج${usedCashback > 0 ? ` (استُخدم ${usedCashback} ج من الرصيد)` : ''}`;
       const m = allMerchants.find(x => (x.bank_code || '').toUpperCase() === bankCode.toUpperCase());
       if (m) { merchantId = m.id; merchantName = m.name; }
     }
@@ -621,6 +624,7 @@ async function handleSubmitInvoice() {
     }
 
     $('invNumber').value = ''; $('invCustomerPhone').value = ''; $('invAmount').value = '';
+    if ($('invUsedCashback')) $('invUsedCashback').value = '0';
     if ($('invBankCode')) { $('invBankCode').value = ''; $('invBankCode').dataset.realValue = ''; }
     setTimeout(() => renderInvoiceTab(), 1500);
   } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
