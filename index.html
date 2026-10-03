@@ -727,15 +727,12 @@
       modal.style.display = 'none';
     };
 
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').then((reg) => {
-          console.log('✅ SW registered:', reg.scope);
-          setInterval(() => reg.update(), 60 * 60 * 1000);
-          reg.update();
-        }).catch(err => console.log('❌ SW failed:', err));
-      });
-    }
+    // مؤقتًا: وقفنا الـ Service Worker لحد ما نحل المشكلة
+// if ('serviceWorker' in navigator) {
+//   window.addEventListener('load', () => {
+//     navigator.serviceWorker.register('sw.js')...
+//   });
+// }
   </script>
 </body>
 </html>
