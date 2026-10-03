@@ -624,7 +624,7 @@ async function handleSubmitInvoice() {
     }
 
     $('invNumber').value = ''; $('invCustomerPhone').value = ''; $('invAmount').value = '';
-    if ($('invUsedCashback')) $('invUsedCashback').value = '0';
+    if ($('invUsedCashback')) $('invUsedCashback').value = '';
     if ($('invBankCode')) { $('invBankCode').value = ''; $('invBankCode').dataset.realValue = ''; }
     setTimeout(() => renderInvoiceTab(), 1500);
   } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
