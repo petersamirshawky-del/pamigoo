@@ -3,26 +3,28 @@
 // ============================================================
 import { supabase } from './supabase.js';
 
-export async function createInvoiceByBankCode({ number, customerPhone, amount, bankCode }) {
+export async function createInvoiceByBankCode({ number, customerPhone, amount, bankCode, usedCashback = 0 }) {
   const { data, error } = await supabase.rpc('create_invoice_by_bankcode', {
     p_number: number.trim(),
     p_customer_phone: customerPhone.trim(),
     p_amount: parseFloat(amount),
-    p_bank_code: bankCode.trim()
+    p_bank_code: bankCode.trim(),
+    p_used_cashback: parseFloat(usedCashback) || 0
   });
   if (error) throw error;
   if (!data.ok) throw new Error(data.error || 'فشل رفع الفاتورة');
   return data;
 }
 
-export async function createInvoice({ number, customerPhone, amount, merchantId }) {
+export async function createInvoice({ number, customerPhone, amount, merchantId, usedCashback = 0 }) {
   const { data, error } = await supabase
     .from('invoices')
     .insert({
       number: number.trim(),
       customer_phone: customerPhone.trim(),
       amount: parseFloat(amount),
-      merchant_id: merchantId
+      merchant_id: merchantId,
+      used_cashback: parseFloat(usedCashback) || 0
     })
     .select()
     .single();
