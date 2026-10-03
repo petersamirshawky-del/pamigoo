@@ -596,12 +596,12 @@ async function handleSubmitInvoice() {
   // ✅ تحقق من رقم العميل
 if (usedCashback > 0) {
   try {
-    const isValid = await checkCustomerPhone(phone);
-    if (!isValid) {
-      res.style.color = '#ef4444';
-      res.innerText = '❌ الرقم ده مش مسجل كعميل. رصيد الكاش باك المستخدم مش هيتخصم.';
-      return;
-    }
+const check = await checkCustomerPhone(phone);
+if (!check || !check.ok) {
+  res.style.color = '#ef4444';
+  res.innerText = '❌ ' + (check?.error || 'الرقم ده مش مسجل كعميل');
+  return;
+}
   } catch (err) {
     console.error('Check phone error:', err);
   }
