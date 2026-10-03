@@ -118,3 +118,10 @@ export async function getMerchantCashbackSummary(merchantId) {
     totalSales: sales
   };
 }
+export async function checkCustomerPhone(phone) {
+  const { data, error } = await supabase.rpc('check_customer_phone', {
+    p_phone: phone
+  });
+  if (error) throw error;
+  return data;
+}
