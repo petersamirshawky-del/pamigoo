@@ -19,7 +19,7 @@ const {
   createInvoice, createInvoiceByBankCode,
   getMerchantInvoices, getMyInvoices,
   getMyWallets, redeemCashback, getMerchantCustomerWallets,
-  getMerchantCashbackSummary
+  getMerchantCashbackSummary, checkCustomerPhone
 } = await import('./invoices.js');
 
 const {
@@ -593,6 +593,19 @@ async function handleSubmitInvoice() {
   if (!num || !phone || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
 
   if (usedCashback > amount) { res.style.color = '#ef4444'; res.innerText = '❌ رصيد الكاش باك أكبر من مبلغ الفاتورة'; return; }
+  // ✅ تحقق من رقم العميل
+if (usedCashback > 0) {
+  try {
+    const isValid = await checkCustomerPhone(phone);
+    if (!isValid) {
+      res.style.color = '#ef4444';
+      res.innerText = '❌ الرقم ده مش مسجل كعميل. رصيد الكاش باك المستخدم مش هيتخصم.';
+      return;
+    }
+  } catch (err) {
+    console.error('Check phone error:', err);
+  }
+}
 
   const isMerchant = currentProfile.role === 'merchant' && currentMerchant;
   if (!isMerchant && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ ادخل البنكود'; return; }
