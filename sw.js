@@ -1,5 +1,5 @@
 // ================================
-// PAMIGO - Service Worker v2
+// PAMIGO - Service Worker v3
 // ================================
 
 const CACHE_VERSION = Date.now().toString();
