@@ -593,18 +593,19 @@ async function handleSubmitInvoice() {
   if (!num || !phone || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
 
   if (usedCashback > amount) { res.style.color = '#ef4444'; res.innerText = '❌ رصيد الكاش باك أكبر من مبلغ الفاتورة'; return; }
-  // ✅ تحقق من رقم العميل
-if (usedCashback > 0) {
-  try {
-const check = await checkCustomerPhone(phone);
-if (!check || !check.ok) {
-  res.style.color = '#ef4444';
-  res.innerText = '❌ ' + (check?.error || 'الرقم ده مش مسجل كعميل');
-  return;
-}
-  } catch (err) {
-    console.error('Check phone error:', err);
+// ✅ تحقق من رقم العميل (دايماً - للتاجر والعميل)
+try {
+  const check = await checkCustomerPhone(phone);
+  if (!check || !check.ok) {
+    res.style.color = '#ef4444';
+    res.innerText = '❌ ' + (check?.error || 'الرقم ده مش مسجل كعميل');
+    return;
   }
+} catch (err) {
+  console.error('Check phone error:', err);
+  res.style.color = '#ef4444';
+  res.innerText = '❌ فشل التحقق من الرقم';
+  return;
 }
 
   const isMerchant = currentProfile.role === 'merchant' && currentMerchant;
