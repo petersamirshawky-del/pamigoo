@@ -2240,12 +2240,18 @@ async function runInit() {
   applyPeekEffect('loginAdminCode');
   applyPeekEffect('invBankCode');
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user) {
-    const profile = await getProfile();
-    if (profile) await showMainScreen(profile);
-  } else {
-    showAuthScreen();
+  // ✅ اعرض شاشة اللوجين فورًا (مش بنستنى Supabase)
+  showAuthScreen();
+
+  // ✅ جيب الـ session في الخلفية
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const profile = await getProfile();
+      if (profile) await showMainScreen(profile);
+    }
+  } catch (e) {
+    console.log('getSession error:', e);
   }
 }
 
