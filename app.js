@@ -1917,15 +1917,29 @@ async function handleLogin(e) {
   btn.disabled = true; btn.innerText = '⏳ جاري الدخول...';
   expectedLogin = { role, bankCode, adminCode };
 
-  try {
-    const email = await findEmailByPhone(phone);
-    if (!email) throw new Error('الموبايل مش مسجل');
-    await signInWithEmail({ email, password });
-  } catch (err) {
-    expectedLogin = null;
-    showMessage('❌ ' + translateError(err.message));
-    btn.disabled = false; btn.innerText = '🚀 دخول';
+try {
+  const email = await findEmailByPhone(phone);
+  if (!email) throw new Error('الموبايل مش مسجل');
+  
+  await signInWithEmail({ email, password });
+  
+  // ✅ بعد اللوجين، جيب البروفايل واعرض الشاشة الرئيسية فورًا
+  const profile = await getProfile();
+  if (!profile) throw new Error('الحساب مش موجود');
+  
+  // ✅ تحقق من الدور
+  if (profile.role !== role) {
+    await signOut();
+    throw new Error('الدور مش متطابق - حسابك ' + getRoleName(profile.role));
   }
+  
+  // ✅ اعرض الشاشة الرئيسية
+  await showMainScreen(profile);
+  
+} catch (err) {
+  expectedLogin = null;
+  showMessage('❌ ' + translateError(err.message));
+  btn.disabled = false; btn.innerText = '🚀 دخول';
 }
 
 async function handleSignup(e) {
