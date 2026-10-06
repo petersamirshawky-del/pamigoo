@@ -2181,63 +2181,7 @@ function bindEvents() {
 // ============================================================
 // AUTH STATE
 // ============================================================
-async function handleLogin(e) {
-  e.preventDefault();
-  const role = $('loginRole').value;
-  const phone = $('loginPhone').value.trim();
-  const password = $('loginPassword').value;
-  const bankCode = $('loginBankCode') ? getRealValue('loginBankCode') : '';
-  const adminCode = $('loginAdminCode') ? getRealValue('loginAdminCode') : '';
 
-  if (!phone || !password) return showMessage('❌ املأ البيانات');
-  if (role === 'merchant' && !bankCode) return showMessage('❌ لازم بنكود التاجر');
-  if (role === 'admin' && !adminCode) return showMessage('❌ لازم بنكود الأدمن');
-
-  const btn = $('loginBtn');
-  btn.disabled = true; btn.innerText = '⏳ جاري الدخول...';
-
-  // ✅ منع onAuthChange من التدخل
-  expectedLogin = null;
-
-  try {
-    const email = await findEmailByPhone(phone);
-    if (!email) throw new Error('الموبايل مش مسجل');
-
-    await signInWithEmail({ email, password });
-
-    // ✅ جيب البروفايل واعرض الشاشة
-    const profile = await getProfile();
-    if (!profile) throw new Error('الحساب مش موجود');
-
-    // ✅ تحقق من الدور
-    if (profile.role !== role) {
-      await signOut();
-      throw new Error('الدور مش متطابق - حسابك ' + getRoleName(profile.role));
-    }
-
-    // ✅ تحقق من بنكود التاجر
-    if (role === 'merchant') {
-      const m = await getMyMerchant();
-      if (!m || (m.bank_code || '').toUpperCase() !== bankCode.toUpperCase()) {
-        await signOut();
-        throw new Error('البنكود مش بتاع حسابك');
-      }
-    }
-
-    // ✅ تحقق من بنكود الأدمن
-    if (role === 'admin' && adminCode !== 'PETAD-12321') {
-      await signOut();
-      throw new Error('بنكود الأدمن غير صحيح');
-    }
-
-    await showMainScreen(profile);
-
-  } catch (err) {
-    expectedLogin = null;
-    showMessage('❌ ' + translateError(err.message));
-    btn.disabled = false; btn.innerText = '🚀 دخول';
-  }
-}
 // ============================================================
 // INIT
 // ============================================================
