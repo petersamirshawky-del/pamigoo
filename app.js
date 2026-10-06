@@ -1941,6 +1941,7 @@ try {
   showMessage('❌ ' + translateError(err.message));
   btn.disabled = false; btn.innerText = '🚀 دخول';
 }
+}
 
 async function handleSignup(e) {
   e.preventDefault();
