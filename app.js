@@ -2181,47 +2181,63 @@ function bindEvents() {
 // ============================================================
 // AUTH STATE
 // ============================================================
-onAuthChange(async (event, session) => {
-  if (session?.user) {
+async function handleLogin(e) {
+  e.preventDefault();
+  const role = $('loginRole').value;
+  const phone = $('loginPhone').value.trim();
+  const password = $('loginPassword').value;
+  const bankCode = $('loginBankCode') ? getRealValue('loginBankCode') : '';
+  const adminCode = $('loginAdminCode') ? getRealValue('loginAdminCode') : '';
+
+  if (!phone || !password) return showMessage('❌ املأ البيانات');
+  if (role === 'merchant' && !bankCode) return showMessage('❌ لازم بنكود التاجر');
+  if (role === 'admin' && !adminCode) return showMessage('❌ لازم بنكود الأدمن');
+
+  const btn = $('loginBtn');
+  btn.disabled = true; btn.innerText = '⏳ جاري الدخول...';
+
+  // ✅ منع onAuthChange من التدخل
+  expectedLogin = null;
+
+  try {
+    const email = await findEmailByPhone(phone);
+    if (!email) throw new Error('الموبايل مش مسجل');
+
+    await signInWithEmail({ email, password });
+
+    // ✅ جيب البروفايل واعرض الشاشة
     const profile = await getProfile();
-    if (!profile) {
+    if (!profile) throw new Error('الحساب مش موجود');
+
+    // ✅ تحقق من الدور
+    if (profile.role !== role) {
       await signOut();
-      setTimeout(() => showMessage('❌ الحساب ده اتحذف'), 300);
-      return;
+      throw new Error('الدور مش متطابق - حسابك ' + getRoleName(profile.role));
     }
 
-    if (expectedLogin) {
-      const exp = expectedLogin;
-      expectedLogin = null;
-
-      if (profile.role !== exp.role) {
+    // ✅ تحقق من بنكود التاجر
+    if (role === 'merchant') {
+      const m = await getMyMerchant();
+      if (!m || (m.bank_code || '').toUpperCase() !== bankCode.toUpperCase()) {
         await signOut();
-        setTimeout(() => showMessage(`❌ الدور مش متطابق - حسابك ${getRoleName(profile.role)}`), 300);
-        return;
+        throw new Error('البنكود مش بتاع حسابك');
       }
+    }
 
-      if (exp.role === 'admin' && exp.adminCode !== 'PETAD-12321') {
-        await signOut();
-        setTimeout(() => showMessage('❌ بنكود الأدمن غير صحيح'), 300);
-        return;
-      }
-
-      if (exp.role === 'merchant') {
-        const m = await getMyMerchant();
-        if (!m || (m.bank_code || '').toUpperCase() !== exp.bankCode.toUpperCase()) {
-          await signOut();
-          setTimeout(() => showMessage('❌ البنكود مش بتاع حسابك'), 300);
-          return;
-        }
-      }
+    // ✅ تحقق من بنكود الأدمن
+    if (role === 'admin' && adminCode !== 'PETAD-12321') {
+      await signOut();
+      throw new Error('بنكود الأدمن غير صحيح');
     }
 
     await showMainScreen(profile);
-  } else {
-    showAuthScreen();
-  }
-});
 
+  } catch (err) {
+    expectedLogin = null;
+    showMessage('❌ ' + translateError(err.message));
+    btn.disabled = false; btn.innerText = '🚀 دخول';
+  }
+}
 // ============================================================
 // INIT
 // ============================================================
