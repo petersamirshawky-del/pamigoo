@@ -172,6 +172,7 @@
             <button class="category-chip" data-cat="labs"><i class="fas fa-flask"></i> معامل</button>
             <button class="category-chip" data-cat="radiology"><i class="fas fa-x-ray"></i> أشعة</button>
             <button class="category-chip" data-cat="hospitals"><i class="fas fa-hospital"></i> مستشفيات</button>
+            <button class="category-chip" data-cat="pharmacies"><i class="fas fa-pills"></i> صيدليات</button>
             <button class="category-chip" data-cat="cosmetics"><i class="fas fa-spa"></i> مستحضرات تجميل</button>
           </div>
         </div>
@@ -207,6 +208,7 @@
             <button class="category-chip" data-cat="labs"><i class="fas fa-flask"></i> معامل</button>
             <button class="category-chip" data-cat="radiology"><i class="fas fa-x-ray"></i> أشعة</button>
             <button class="category-chip" data-cat="hospitals"><i class="fas fa-hospital"></i> مستشفيات</button>
+            <button class="category-chip" data-cat="pharmacies"><i class="fas fa-pills"></i> صيدليات</button>
             <button class="category-chip" data-cat="cosmetics"><i class="fas fa-spa"></i> مستحضرات تجميل</button>
           </div>
         </div>
@@ -225,7 +227,8 @@
         <input type="text" id="invNumber" placeholder="رقم الفاتورة">
         <input type="tel" id="invCustomerPhone" placeholder="📱 رقم موبايل العميل">
         <input type="number" id="invAmount" placeholder="💰 المبلغ (جنيه)" min="1" step="0.01">
-        <input type="number" id="invUsedCashback" placeholder="💰 رصيد الكاش باك المستخدم (اختياري)" min="0" step="0.01">        <div id="invBankCodeGroup">
+        <input type="number" id="invUsedCashback" placeholder="💰 رصيد الكاش باك المستخدم (اختياري)" min="0" step="0.01">
+        <div id="invBankCodeGroup">
           <div class="password-wrap">
             <input type="password" id="invBankCode" placeholder="🔑 البنكود" autocomplete="off" style="text-transform:uppercase">
             <button type="button" class="eye-btn" onclick="togglePass('invBankCode', this)" tabindex="-1">👁️</button>
@@ -311,6 +314,7 @@
           <option value="labs">🧪 معامل</option>
           <option value="radiology">📡 أشعة</option>
           <option value="hospitals">🏨 مستشفيات</option>
+          <option value="pharmacies">💊 صيدليات</option>
           <option value="cosmetics">💄 مستحضرات تجميل</option>
         </select>
         <input type="text" id="reqProduct" placeholder="اسم المنتج أو الخدمة">
@@ -541,6 +545,7 @@
               <option value="labs">🧪 معامل</option>
               <option value="radiology">📡 أشعة</option>
               <option value="hospitals">🏨 مستشفيات</option>
+              <option value="pharmacies">💊 صيدليات</option>
               <option value="cosmetics">💄 مستحضرات تجميل</option>
             </select>
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيفات الفرعية:</label>
