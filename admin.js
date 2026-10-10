@@ -81,6 +81,7 @@ export async function getAllInvoices(search) {
   return list;
 }
 
+// ✅ addTrader: ضفنا merchantType و whatsapp
 export async function addTrader(data) {
   const { data: res, error } = await supabase.rpc('admin_add_merchant', {
     p_bank_code: data.bankCode,
@@ -93,7 +94,9 @@ export async function addTrader(data) {
     p_lng: data.lng,
     p_cashback_rate: data.rate,
     p_delivery_available: data.deliveryAvailable || false,
-    p_delivery_phone: data.deliveryPhone || null
+    p_delivery_phone: data.deliveryPhone || null,
+    p_merchant_type: data.merchantType || 'shop',
+    p_whatsapp: data.whatsapp || null
   });
   if (error) throw error;
   if (!res.ok) throw new Error(res.error);
@@ -119,6 +122,7 @@ export async function deleteMerchant(merchantId) {
   if (error) throw error;
 }
 
+// ✅ adminUpdateMerchant: ضفنا merchantType و whatsapp
 export async function adminUpdateMerchant(merchantId, data) {
   const { data: res, error } = await supabase.rpc('admin_update_merchant', {
     p_merchant_id: merchantId,
@@ -131,7 +135,9 @@ export async function adminUpdateMerchant(merchantId, data) {
     p_new_bank_code: data.bankCode || null,
     p_new_delivery_available: data.deliveryAvailable ?? null,
     p_new_delivery_phone: data.deliveryPhone ?? null,
-    p_new_category: data.category || null
+    p_new_category: data.category || null,
+    p_new_merchant_type: data.merchantType || null,
+    p_new_whatsapp: data.whatsapp || null
   });
   if (error) throw error;
   if (!res.ok) throw new Error(res.error);
