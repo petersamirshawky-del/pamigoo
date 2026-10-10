@@ -533,6 +533,7 @@
           <h4 style="margin-bottom:15px">🏪 إدارة التجار</h4>
           <input type="text" id="adminTraderSearch" placeholder="🔍 ابحث باسم التاجر أو رقم الموبايل أو البنكود..." style="margin-bottom:12px">
           <button id="showAddTraderBtn" style="background:#27ae60;margin-bottom:15px">➕ إضافة تاجر جديد</button>
+
           <div id="addTraderForm" style="display:none;background:#f9fafb;padding:15px;border-radius:12px;margin-bottom:15px;border-right:4px solid #27ae60">
             <h5 style="margin-bottom:10px;color:var(--primary)">➕ إضافة تاجر جديد</h5>
             <input type="text" id="newTraderName" placeholder="اسم التاجر">
@@ -581,6 +582,74 @@
             </div>
             <div id="addTraderResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
           </div>
+
+          <div id="editTraderForm" style="display:none;background:#f9fafb;padding:15px;border-radius:12px;margin-bottom:15px;border-right:4px solid #1a2a6c">
+            <h5 style="margin-bottom:10px;color:var(--primary)">✏️ تعديل بيانات التاجر</h5>
+            
+            <input type="hidden" id="editTraderId">
+            
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">اسم التاجر:</label>
+            <input type="text" id="editTraderName">
+            
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">البنكود:</label>
+            <input type="text" id="editTraderBankCode" style="text-transform:uppercase">
+            
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">رقم الموبايل:</label>
+            <input type="text" id="editTraderPhone">
+            
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيف:</label>
+            <select id="editTraderCategory">
+              <option value="fashion">👗 ملابس</option>
+              <option value="restaurants">🍕 مطاعم</option>
+              <option value="bigfood">🍔 وجبات</option>
+              <option value="electronics">📱 إلكترونيات</option>
+              <option value="car_parts">🛞 قطع غيار</option>
+              <option value="car_accessories">🪞 كماليات</option>
+              <option value="car_repair">🔧 صيانة</option>
+              <option value="clinics">🩺 عيادات</option>
+              <option value="labs">🧪 معامل</option>
+              <option value="radiology">📡 أشعة</option>
+              <option value="hospitals">🏨 مستشفيات</option>
+              <option value="pharmacies">💊 صيدليات</option>
+              <option value="cosmetics">💄 مستحضرات تجميل</option>
+            </select>
+            
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيفات الفرعية:</label>
+            <div id="editTraderSubs" class="categories" style="margin-bottom:0"></div>
+            
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:10px">🏪 نوع النشاط:</label>
+            <select id="editTraderType">
+              <option value="shop">🏪 محل (له عنوان وخريطة)</option>
+              <option value="warehouse">📦 مخزن (بدون عنوان)</option>
+              <option value="both">🔄 الاتنين</option>
+            </select>
+            
+            <input type="tel" id="editTraderWhatsapp" placeholder="💬 رقم الواتساب (اختياري)">
+            
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">Latitude:</label>
+            <input type="number" id="editTraderLat" step="0.0001">
+            
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">Longitude:</label>
+            <input type="number" id="editTraderLng" step="0.0001">
+            
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">نسبة الكاش باك (1-50):</label>
+            <input type="number" id="editTraderRate" min="1" max="50">
+            
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:10px">
+              <input type="checkbox" id="editTraderDelivery" style="width:auto;margin-left:6px">
+              🛵 التوصيل متاح
+            </label>
+            <div id="editTraderDeliveryWrap" style="display:none">
+              <input type="tel" id="editTraderDeliveryPhone" placeholder="📞 رقم التوصيل (اختياري)">
+            </div>
+            
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button id="saveTraderBtn" style="flex:1;background:#27ae60">💾 حفظ التعديلات</button>
+              <button id="cancelEditTraderBtn" style="flex:1;background:#95a5a6">❌ إلغاء</button>
+            </div>
+            <div id="editTraderResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
+          </div>
+
           <div id="adminTradersList"></div>
         </div>
       </div>
@@ -745,7 +814,6 @@
       modal.classList.remove('active');
       modal.style.display = 'none';
     };
-
   </script>
   <script type="module">
   setTimeout(async () => {
