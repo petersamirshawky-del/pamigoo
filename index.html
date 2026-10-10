@@ -146,6 +146,11 @@
     </div>
 
     <div class="tab-content active" id="tab-home">
+      <div class="categories" id="viewModeOptions" style="margin-bottom:15px">
+        <button class="category-chip active" data-mode="all">🔄 الكل</button>
+        <button class="category-chip" data-mode="shop">🏪 محلات</button>
+        <button class="category-chip" data-mode="online">📦 أونلاين</button>
+      </div>
       <div class="radius-control">
         <label>🔍 نطاق البحث: <span id="homeRadiusValue">2</span> كم</label>
         <input type="range" id="homeRadiusSlider" min="0.5" max="10" step="0.5" value="2">
@@ -550,6 +555,15 @@
             </select>
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيفات الفرعية:</label>
             <div id="newTraderSubs" class="categories" style="margin-bottom:0"></div>
+
+            <label style="font-size:13px;font-weight:600;display:block;margin-top:10px">🏪 نوع النشاط:</label>
+            <select id="newTraderType">
+              <option value="shop">🏪 محل (له عنوان وخريطة)</option>
+              <option value="warehouse">📦 مخزن (بدون عنوان)</option>
+              <option value="both">🔄 الاتنين</option>
+            </select>
+            <input type="tel" id="newTraderWhatsapp" placeholder="💬 رقم الواتساب (اختياري)">
+
             <input type="number" id="newTraderLat" placeholder="Latitude" step="0.0001">
             <input type="number" id="newTraderLng" placeholder="Longitude" step="0.0001">
             <button type="button" id="newTraderGetLocation" style="background:#1a2a6c;margin-top:6px">📍 استخدم موقعي الحالي</button>
