@@ -77,7 +77,7 @@ let uploadedOfferImage = null;
 let selectedRating = 0;
 let lastRatedMerchantId = null;
 let lastRatedMerchantName = '';
-let viewMode = 'all'; // 'all' أو 'shop' أو 'online'
+let viewMode = 'all';
 
 // ============================================================
 // Load merchants
@@ -197,12 +197,10 @@ function renderMerchantsList() {
   }
   list = list.filter(m => matchesCatSubs(m, homeCategories, homeSubCategories));
 
-  // ✅ فلتر حسب viewMode
   if (viewMode === 'shop') {
     list = list.filter(m => m.merchant_type !== 'warehouse');
   } else if (viewMode === 'online') {
     list = list.filter(m => m.merchant_type !== 'shop');
-    // نخفي سلايدر المسافة
     const radiusControl = document.querySelector('.radius-control');
     if (radiusControl) radiusControl.style.display = 'none';
   } else {
@@ -425,7 +423,6 @@ function openMerchant(bankCode) {
   actionsBar.className = 'modal-actions-bar';
   actionsBar.style.cssText = 'margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #eee;padding-top:14px';
 
-  // ✅ لو مخزن: أزرار الاتصال + الواتساب بس (من غير خريطة)
   if (isWarehouse) {
     actionsBar.innerHTML = `
       ${m.phone ? `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="flex:1;background:#10b981;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📞 اتصل</button>` : ''}
@@ -433,7 +430,6 @@ function openMerchant(bankCode) {
       ${m.delivery_available ? `<button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
     `;
   } else {
-    // محل: أزرار عادية + خريطة
     actionsBar.innerHTML = `
       ${m.phone ? `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="flex:1;background:#10b981;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📞 اتصل بالتاجر</button>` : ''}
       ${m.lat && m.lng ? `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>` : ''}
@@ -622,7 +618,6 @@ async function handleSubmitInvoice() {
 
   if (usedCashback > amount) { res.style.color = '#ef4444'; res.innerText = '❌ رصيد الكاش باك أكبر من مبلغ الفاتورة'; return; }
 
-  // ✅ تحقق من رقم العميل (دايماً - للتاجر والعميل)
   try {
     const check = await checkCustomerPhone(phone);
     if (!check || !check.ok) {
@@ -1346,9 +1341,10 @@ async function renderAdminTraders() {
     const logo = m.logo_url
       ? `<img src="${m.logo_url}" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle">`
       : (m.icon || '🏪');
+    const typeBadge = m.merchant_type === 'warehouse' ? '📦' : (m.merchant_type === 'both' ? '🔄' : '🏪');
     return `<div class="admin-item">
       <div class="head">
-        <span class="title">${logo} ${m.name}</span>
+        <span class="title">${logo} ${m.name} ${typeBadge}</span>
         ${m.frozen ? '<span class="frozen-badge">❄️ موقوف</span>' : '<span class="active-badge">✅ نشط</span>'}
       </div>
       <div class="info">🔑 ${m.bank_code} | 📱 ${m.phone || '-'} | 💰 ${rate}%</div>
@@ -1364,90 +1360,29 @@ async function renderAdminTraders() {
   }).join('');
 }
 
-async function adminEditMerchantFull(id) {
+function adminEditMerchantFull(id) {
   const m = adminData.merchants.find(x => x.id === id);
   if (!m) return;
 
-  const newBankCode = prompt(`البنكود الحالي: ${m.bank_code}\nالجديد:`, m.bank_code);
-  if (newBankCode === null) return;
-  const newName = prompt(`اسم التاجر الحالي: ${m.name}\nالجديد:`, m.name);
-  if (newName === null) return;
-  const newPhone = prompt(`الموبايل الحالي: ${m.phone}\nالجديد:`, m.phone || '');
-  if (newPhone === null) return;
+  $('editTraderId').value = m.id;
+  $('editTraderName').value = m.name || '';
+  $('editTraderBankCode').value = m.bank_code || '';
+  $('editTraderPhone').value = m.phone || '';
+  $('editTraderCategory').value = m.category || 'fashion';
+  $('editTraderType').value = m.merchant_type || 'shop';
+  $('editTraderWhatsapp').value = m.whatsapp || '';
+  $('editTraderLat').value = m.lat || '';
+  $('editTraderLng').value = m.lng || '';
+  $('editTraderRate').value = m.cashback_rate || 15;
+  $('editTraderDelivery').checked = m.delivery_available || false;
+  $('editTraderDeliveryPhone').value = m.delivery_phone || '';
 
-  const catsList = `1- ملابس\n2- مطاعم\n3- وجبات\n4- إلكترونيات\n5- قطع غيار\n6- كماليات\n7- صيانة\n8- عيادات\n9- معامل\n10- أشعة\n11- مستشفيات\n12- صيدليات\n13- مستحضرات تجميل`;
-  const currentCatIdx = Object.keys({
-    fashion:'', restaurants:'', bigfood:'', electronics:'', car_parts:'', car_accessories:'',
-    car_repair:'', clinics:'', labs:'', radiology:'', hospitals:'',pharmacies:'', cosmetics:''
-  }).indexOf(m.category) + 1;
+  renderEditTraderSubs(m.sub_categories || []);
+  $('editTraderDeliveryWrap').style.display = m.delivery_available ? 'block' : 'none';
 
-  const newCategory = prompt(`التصنيف الحالي: ${currentCatIdx > 0 ? currentCatIdx + '-' + m.category : m.category}\n\nاختار رقم التصنيف الجديد:\n${catsList}`, currentCatIdx > 0 ? String(currentCatIdx) : '');
-  if (newCategory === null) return;
-
-  const categoriesMap = {
-    '1': 'fashion', '2': 'restaurants', '3': 'bigfood', '4': 'electronics',
-    '5': 'car_parts', '6': 'car_accessories', '7': 'car_repair', '8': 'clinics',
-    '9': 'labs', '10': 'radiology', '11': 'hospitals', '12': 'pharmacies',
-    '13': 'cosmetics'
-  };
-  const newCategoryValue = categoriesMap[newCategory.trim()] || m.category;
-
-  const newLat = prompt(`Latitude الحالي: ${m.lat}\n\n💡 اكتب رقم، أو "auto" لموقعك الحالي:`, m.lat);
-  if (newLat === null) return;
-
-  let latValue = parseFloat(newLat);
-  let lngValue = parseFloat(m.lng);
-
-  if (newLat.trim().toLowerCase() === 'auto') {
-    const loc = await getUserLocation();
-    if (loc) {
-      latValue = loc.lat;
-      lngValue = loc.lng;
-      toast('📍 تم استخدام موقعك الحالي', 'success');
-    } else {
-      toast('❌ تعذر تحديد موقعك', 'error');
-      return;
-    }
-  } else {
-    const newLng = prompt(`Longitude الحالي: ${m.lng}\nالجديد:`, m.lng);
-    if (newLng === null) return;
-    lngValue = parseFloat(newLng);
-  }
-
-  const newRate = prompt(`النسبة الحالية: ${m.cashback_rate}%\nالجديدة (1-50):`, m.cashback_rate);
-  if (newRate === null) return;
-
-  const hasDelivery = confirm('التوصيل متاح؟ (OK = أيوة، Cancel = لأ)');
-  let deliveryPhone = null;
-  if (hasDelivery) {
-    deliveryPhone = prompt('رقم التوصيل (اختياري):', m.delivery_phone || '');
-    if (deliveryPhone === null) deliveryPhone = m.delivery_phone || null;
-  }
-
-  // ✅ نوع النشاط
-  const newType = prompt(`نوع النشاط الحالي: ${m.merchant_type || 'shop'}\n\nاختار:\n1- محل (shop)\n2- مخزن (warehouse)\n3- الاتنين (both)`, m.merchant_type || 'shop');
-  const typeMap = { '1': 'shop', '2': 'warehouse', '3': 'both' };
-  const newTypeValue = typeMap[newType?.trim()] || m.merchant_type || 'shop';
-
-  const newWhatsapp = prompt(`رقم الواتساب الحالي: ${m.whatsapp || 'مش موجود'}\nالجديد:`, m.whatsapp || '');
-
-  try {
-    await adminUpdateMerchant(id, {
-      bankCode: newBankCode.trim() || m.bank_code,
-      name: newName.trim() || m.name,
-      phone: newPhone.trim() || m.phone,
-      category: newCategoryValue,
-      lat: latValue,
-      lng: lngValue,
-      rate: parseInt(newRate),
-      deliveryAvailable: hasDelivery,
-      deliveryPhone: deliveryPhone,
-      merchantType: newTypeValue,
-      whatsapp: newWhatsapp?.trim() || null
-    });
-    toast('✅ تم التعديل', 'success');
-    renderAdminTraders();
-  } catch (e) { toast('❌ ' + e.message, 'error'); }
+  $('addTraderForm').style.display = 'none';
+  $('editTraderForm').style.display = 'block';
+  $('editTraderForm').scrollIntoView({ behavior: 'smooth' });
 }
 
 async function adminChangePassMerchant(merchantId) {
@@ -1725,6 +1660,61 @@ function renderNewTraderSubs() {
   });
 }
 
+function renderEditTraderSubs(selected = []) {
+  const cat = $('editTraderCategory').value;
+  const subs = SUB_CATEGORIES[cat] || [];
+  $('editTraderSubs').innerHTML = subs.map(s =>
+    `<button type="button" class="category-chip ${selected.includes(s.id) ? 'active' : ''}" data-sub="${s.id}">${s.name}</button>`
+  ).join('');
+  $('editTraderSubs').querySelectorAll('.category-chip').forEach(btn => {
+    btn.onclick = () => btn.classList.toggle('active');
+  });
+}
+
+async function handleSaveTraderEdit() {
+  const id = $('editTraderId').value;
+  const res = $('editTraderResult');
+
+  const name = $('editTraderName').value.trim();
+  const bankCode = $('editTraderBankCode').value.trim();
+  const phone = $('editTraderPhone').value.trim();
+  const category = $('editTraderCategory').value;
+  const merchantType = $('editTraderType').value;
+  const whatsapp = $('editTraderWhatsapp').value.trim() || null;
+  const lat = parseFloat($('editTraderLat').value);
+  const lng = parseFloat($('editTraderLng').value);
+  const rate = parseInt($('editTraderRate').value);
+  const deliveryAvailable = $('editTraderDelivery').checked;
+  const deliveryPhone = $('editTraderDeliveryPhone').value.trim() || null;
+
+  if (!name || !bankCode || !phone) { res.style.color = 'red'; res.innerText = '❌ املأ الحقول الأساسية'; return; }
+  if (isNaN(rate) || rate < 1 || rate > 50) { res.style.color = 'red'; res.innerText = '❌ نسبة غير صحيحة'; return; }
+
+  const subs = [];
+  $('editTraderSubs').querySelectorAll('.category-chip.active').forEach(b => subs.push(b.dataset.sub));
+  if (!subs.length) { res.style.color = 'red'; res.innerText = '❌ اختار تصنيف فرعي'; return; }
+
+  try {
+    await adminUpdateMerchant(id, {
+      name, phone, bankCode, category,
+      subCategories: subs,
+      lat: isNaN(lat) ? null : lat,
+      lng: isNaN(lng) ? null : lng,
+      rate,
+      deliveryAvailable,
+      deliveryPhone,
+      merchantType,
+      whatsapp
+    });
+    res.style.color = 'green'; res.innerText = '✅ تم الحفظ';
+    setTimeout(() => {
+      $('editTraderForm').style.display = 'none';
+      res.innerText = '';
+      renderAdminTraders();
+    }, 1500);
+  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
+}
+
 async function handleAddTrader() {
   const name = $('newTraderName').value.trim();
   const bankCode = $('newTraderBankCode').value.trim();
@@ -1741,7 +1731,6 @@ async function handleAddTrader() {
   const deliveryPhone = $('newTraderDeliveryPhone')?.value.trim() || null;
 
   if (!name || !bankCode || !phone) { res.style.color = 'red'; res.innerText = '❌ املأ الحقول'; return; }
-  // ✅ المخزن مش محتاج إحداثيات
   if (merchantType !== 'warehouse' && (isNaN(lat) || isNaN(lng))) {
     res.style.color = 'red'; res.innerText = '❌ إحداثيات'; return;
   }
@@ -1975,13 +1964,11 @@ async function handleLogin(e) {
     const profile = await getProfile();
     if (!profile) throw new Error('الحساب مش موجود');
 
-    // ✅ تحقق من الدور
     if (profile.role !== role) {
       await signOut();
       throw new Error('الدور مش متطابق - حسابك ' + getRoleName(profile.role));
     }
 
-    // ✅ تحقق من بنكود التاجر
     if (role === 'merchant') {
       const m = await getMyMerchant();
       if (!m || (m.bank_code || '').toUpperCase() !== bankCode.toUpperCase()) {
@@ -1990,13 +1977,11 @@ async function handleLogin(e) {
       }
     }
 
-    // ✅ تحقق من بنكود الأدمن
     if (role === 'admin' && adminCode !== 'PETAD-12321') {
       await signOut();
       throw new Error('بنكود الأدمن غير صحيح');
     }
 
-    // ✅ اعرض الشاشة الرئيسية
     await showMainScreen(profile);
 
   } catch (err) {
@@ -2131,6 +2116,7 @@ function bindEvents() {
 
   $('showAddTraderBtn').addEventListener('click', () => {
     $('addTraderForm').style.display = 'block';
+    $('editTraderForm').style.display = 'none';
     renderNewTraderSubs();
     const dc = $('newTraderDelivery');
     if (dc) { dc.checked = false; dc.onchange = () => {
@@ -2144,6 +2130,24 @@ function bindEvents() {
   });
   $('newTraderCategory').addEventListener('change', renderNewTraderSubs);
   $('addTraderConfirmBtn').addEventListener('click', handleAddTrader);
+
+  // ✅ فورم تعديل التاجر
+  const editCat = $('editTraderCategory');
+  if (editCat) editCat.addEventListener('change', () => renderEditTraderSubs());
+  
+  const editDel = $('editTraderDelivery');
+  if (editDel) editDel.addEventListener('change', (e) => {
+    $('editTraderDeliveryWrap').style.display = e.target.checked ? 'block' : 'none';
+  });
+  
+  const saveBtn = $('saveTraderBtn');
+  if (saveBtn) saveBtn.addEventListener('click', handleSaveTraderEdit);
+  
+  const cancelBtn = $('cancelEditTraderBtn');
+  if (cancelBtn) cancelBtn.addEventListener('click', () => {
+    $('editTraderForm').style.display = 'none';
+    $('editTraderResult').innerText = '';
+  });
 
   const getLocBtn = $('newTraderGetLocation');
   if (getLocBtn) getLocBtn.addEventListener('click', handleGetLocation);
@@ -2210,7 +2214,6 @@ function bindEvents() {
     });
   });
 
-  // ✅ أزرار "الكل / محلات / أونلاين"
   document.querySelectorAll('#viewModeOptions .category-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       document.querySelectorAll('#viewModeOptions .category-chip').forEach(c => c.classList.remove('active'));
@@ -2285,10 +2288,8 @@ async function runInit() {
   applyPeekEffect('loginAdminCode');
   applyPeekEffect('invBankCode');
 
-  // ✅ اعرض شاشة اللوجين فورًا (مش بنستنى Supabase)
   showAuthScreen();
 
-  // ✅ جيب الـ session في الخلفية
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
