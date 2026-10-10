@@ -1345,20 +1345,21 @@ async function adminEditMerchantFull(id) {
   const newPhone = prompt(`الموبايل الحالي: ${m.phone}\nالجديد:`, m.phone || '');
   if (newPhone === null) return;
 
-  const catsList = `1- ملابس\n2- مطاعم\n3- وجبات\n4- إلكترونيات\n5- قطع غيار\n6- كماليات\n7- صيانة\n8- عيادات\n9- معامل\n10- أشعة\n11- مستشفيات\n12- مستحضرات تجميل`;
+  const catsList = `1- ملابس\n2- مطاعم\n3- وجبات\n4- إلكترونيات\n5- قطع غيار\n6- كماليات\n7- صيانة\n8- عيادات\n9- معامل\n10- أشعة\n11- مستشفيات\n12- صيدليات\n13- مستحضرات تجميل`;
   const currentCatIdx = Object.keys({
     fashion:'', restaurants:'', bigfood:'', electronics:'', car_parts:'', car_accessories:'',
-    car_repair:'', clinics:'', labs:'', radiology:'', hospitals:'', cosmetics:''
+    car_repair:'', clinics:'', labs:'', radiology:'', hospitals:'',pharmacies:'', cosmetics:''
   }).indexOf(m.category) + 1;
 
   const newCategory = prompt(`التصنيف الحالي: ${currentCatIdx > 0 ? currentCatIdx + '-' + m.category : m.category}\n\nاختار رقم التصنيف الجديد:\n${catsList}`, currentCatIdx > 0 ? String(currentCatIdx) : '');
   if (newCategory === null) return;
 
-  const categoriesMap = {
-    '1': 'fashion', '2': 'restaurants', '3': 'bigfood', '4': 'electronics',
-    '5': 'car_parts', '6': 'car_accessories', '7': 'car_repair', '8': 'clinics',
-    '9': 'labs', '10': 'radiology', '11': 'hospitals', '12': 'cosmetics'
-  };
+const categoriesMap = {
+  '1': 'fashion', '2': 'restaurants', '3': 'bigfood', '4': 'electronics',
+  '5': 'car_parts', '6': 'car_accessories', '7': 'car_repair', '8': 'clinics',
+  '9': 'labs', '10': 'radiology', '11': 'hospitals', '12': 'cosmetics',
+  '13': 'pharmacies'
+};
   const newCategoryValue = categoriesMap[newCategory.trim()] || m.category;
 
   const newLat = prompt(`Latitude الحالي: ${m.lat}\n\n💡 اكتب رقم، أو "auto" لموقعك الحالي:`, m.lat);
