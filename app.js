@@ -77,6 +77,7 @@ let uploadedOfferImage = null;
 let selectedRating = 0;
 let lastRatedMerchantId = null;
 let lastRatedMerchantName = '';
+let viewMode = 'all'; // 'all' أو 'shop' أو 'online'
 
 // ============================================================
 // Load merchants
@@ -196,12 +197,25 @@ function renderMerchantsList() {
   }
   list = list.filter(m => matchesCatSubs(m, homeCategories, homeSubCategories));
 
+  // ✅ فلتر حسب viewMode
+  if (viewMode === 'shop') {
+    list = list.filter(m => m.merchant_type !== 'warehouse');
+  } else if (viewMode === 'online') {
+    list = list.filter(m => m.merchant_type !== 'shop');
+    // نخفي سلايدر المسافة
+    const radiusControl = document.querySelector('.radius-control');
+    if (radiusControl) radiusControl.style.display = 'none';
+  } else {
+    const radiusControl = document.querySelector('.radius-control');
+    if (radiusControl) radiusControl.style.display = 'block';
+  }
+
   const radius = parseFloat(homeRadius) || 2;
-  if (userLat !== null && userLng !== null) {
+  if (viewMode !== 'online' && userLat !== null && userLng !== null) {
     list = list.map(m => ({
       ...m,
-      _dist: calcDistance(userLat, userLng, m.lat, m.lng)
-    })).filter(m => m._dist <= radius);
+      _dist: (m.lat && m.lng) ? calcDistance(userLat, userLng, m.lat, m.lng) : null
+    })).filter(m => m._dist === null || m._dist <= radius);
   }
 
   if (homeSort === 'nearest' && userLat !== null) {
@@ -223,7 +237,8 @@ function renderMerchantsList() {
     const tier = getTier(rate);
     const maxDisc = getMaxDiscount(m);
     const rating = getAvgRating(m);
-    const dist = m._dist ? m._dist.toFixed(2) + ' كم' : '';
+    const isWarehouse = m.merchant_type === 'warehouse';
+    const dist = (!isWarehouse && m._dist) ? m._dist.toFixed(2) + ' كم' : (isWarehouse ? '📦 مخزن' : '');
     let subNames = '';
     if (m.sub_categories && m.sub_categories.length) {
       const l = SUB_CATEGORIES[m.category] || [];
@@ -371,12 +386,13 @@ function openMerchant(bankCode) {
 
   const rate = m.cashback_rate || 15;
   const tier = getTier(rate);
+  const isWarehouse = m.merchant_type === 'warehouse';
   const logoHtml = m.logo_url
     ? `<img src="${m.logo_url}" style="width:70px;height:70px;object-fit:cover;border-radius:16px;margin:0 auto 10px;display:block">`
     : `<div style="font-size:60px;text-align:center">${m.icon || '🏪'}</div>`;
 
   $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${m.name}</div>`;
-  $('modalMerchantInfo').innerHTML = `${m.icon || '🏪'} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}`;
+  $('modalMerchantInfo').innerHTML = `${m.icon || '🏪'} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}${isWarehouse ? ' • 📦 مخزن' : ''}`;
   $('modalOffersList').innerHTML = (m.offers || []).length
     ? m.offers.map((o, i) => {
         const imgHtml = o.image_url
@@ -408,11 +424,23 @@ function openMerchant(bankCode) {
   const actionsBar = document.createElement('div');
   actionsBar.className = 'modal-actions-bar';
   actionsBar.style.cssText = 'margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #eee;padding-top:14px';
-  actionsBar.innerHTML = `
-    ${m.phone ? `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="flex:1;background:#10b981;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📞 اتصل بالتاجر</button>` : ''}
-    ${m.lat && m.lng ? `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>` : ''}
-    ${m.delivery_available ? `<button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
-  `;
+
+  // ✅ لو مخزن: أزرار الاتصال + الواتساب بس (من غير خريطة)
+  if (isWarehouse) {
+    actionsBar.innerHTML = `
+      ${m.phone ? `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="flex:1;background:#10b981;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📞 اتصل</button>` : ''}
+      ${m.whatsapp ? `<button onclick="window.open('https://wa.me/${m.whatsapp}','_blank')" style="flex:1;background:#25D366;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">💬 واتساب</button>` : ''}
+      ${m.delivery_available ? `<button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
+    `;
+  } else {
+    // محل: أزرار عادية + خريطة
+    actionsBar.innerHTML = `
+      ${m.phone ? `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="flex:1;background:#10b981;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📞 اتصل بالتاجر</button>` : ''}
+      ${m.lat && m.lng ? `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>` : ''}
+      ${m.whatsapp ? `<button onclick="window.open('https://wa.me/${m.whatsapp}','_blank')" style="flex:1;background:#25D366;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">💬 واتساب</button>` : ''}
+      ${m.delivery_available ? `<button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
+    `;
+  }
   modal.querySelector('.modal-box').appendChild(actionsBar);
 
   $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
@@ -593,20 +621,21 @@ async function handleSubmitInvoice() {
   if (!num || !phone || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
 
   if (usedCashback > amount) { res.style.color = '#ef4444'; res.innerText = '❌ رصيد الكاش باك أكبر من مبلغ الفاتورة'; return; }
-// ✅ تحقق من رقم العميل (دايماً - للتاجر والعميل)
-try {
-  const check = await checkCustomerPhone(phone);
-  if (!check || !check.ok) {
+
+  // ✅ تحقق من رقم العميل (دايماً - للتاجر والعميل)
+  try {
+    const check = await checkCustomerPhone(phone);
+    if (!check || !check.ok) {
+      res.style.color = '#ef4444';
+      res.innerText = '❌ ' + (check?.error || 'الرقم ده مش مسجل كعميل');
+      return;
+    }
+  } catch (err) {
+    console.error('Check phone error:', err);
     res.style.color = '#ef4444';
-    res.innerText = '❌ ' + (check?.error || 'الرقم ده مش مسجل كعميل');
+    res.innerText = '❌ فشل التحقق من الرقم';
     return;
   }
-} catch (err) {
-  console.error('Check phone error:', err);
-  res.style.color = '#ef4444';
-  res.innerText = '❌ فشل التحقق من الرقم';
-  return;
-}
 
   const isMerchant = currentProfile.role === 'merchant' && currentMerchant;
   if (!isMerchant && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ ادخل البنكود'; return; }
@@ -1260,6 +1289,7 @@ async function renderAnalyticsTab() {
     $('anaGrowth').innerText = a.growth;
   } catch (e) { console.error(e); }
 }
+
 // ============================================================
 // ADMIN
 // ============================================================
@@ -1354,12 +1384,12 @@ async function adminEditMerchantFull(id) {
   const newCategory = prompt(`التصنيف الحالي: ${currentCatIdx > 0 ? currentCatIdx + '-' + m.category : m.category}\n\nاختار رقم التصنيف الجديد:\n${catsList}`, currentCatIdx > 0 ? String(currentCatIdx) : '');
   if (newCategory === null) return;
 
-const categoriesMap = {
-  '1': 'fashion', '2': 'restaurants', '3': 'bigfood', '4': 'electronics',
-  '5': 'car_parts', '6': 'car_accessories', '7': 'car_repair', '8': 'clinics',
-  '9': 'labs', '10': 'radiology', '11': 'hospitals', '12': 'cosmetics',
-  '13': 'pharmacies'
-};
+  const categoriesMap = {
+    '1': 'fashion', '2': 'restaurants', '3': 'bigfood', '4': 'electronics',
+    '5': 'car_parts', '6': 'car_accessories', '7': 'car_repair', '8': 'clinics',
+    '9': 'labs', '10': 'radiology', '11': 'hospitals', '12': 'pharmacies',
+    '13': 'cosmetics'
+  };
   const newCategoryValue = categoriesMap[newCategory.trim()] || m.category;
 
   const newLat = prompt(`Latitude الحالي: ${m.lat}\n\n💡 اكتب رقم، أو "auto" لموقعك الحالي:`, m.lat);
@@ -1394,6 +1424,13 @@ const categoriesMap = {
     if (deliveryPhone === null) deliveryPhone = m.delivery_phone || null;
   }
 
+  // ✅ نوع النشاط
+  const newType = prompt(`نوع النشاط الحالي: ${m.merchant_type || 'shop'}\n\nاختار:\n1- محل (shop)\n2- مخزن (warehouse)\n3- الاتنين (both)`, m.merchant_type || 'shop');
+  const typeMap = { '1': 'shop', '2': 'warehouse', '3': 'both' };
+  const newTypeValue = typeMap[newType?.trim()] || m.merchant_type || 'shop';
+
+  const newWhatsapp = prompt(`رقم الواتساب الحالي: ${m.whatsapp || 'مش موجود'}\nالجديد:`, m.whatsapp || '');
+
   try {
     await adminUpdateMerchant(id, {
       bankCode: newBankCode.trim() || m.bank_code,
@@ -1404,7 +1441,9 @@ const categoriesMap = {
       lng: lngValue,
       rate: parseInt(newRate),
       deliveryAvailable: hasDelivery,
-      deliveryPhone: deliveryPhone
+      deliveryPhone: deliveryPhone,
+      merchantType: newTypeValue,
+      whatsapp: newWhatsapp?.trim() || null
     });
     toast('✅ تم التعديل', 'success');
     renderAdminTraders();
@@ -1691,6 +1730,8 @@ async function handleAddTrader() {
   const bankCode = $('newTraderBankCode').value.trim();
   const phone = $('newTraderPhone').value.trim();
   const category = $('newTraderCategory').value;
+  const merchantType = $('newTraderType')?.value || 'shop';
+  const whatsapp = $('newTraderWhatsapp')?.value.trim() || null;
   const lat = parseFloat($('newTraderLat').value);
   const lng = parseFloat($('newTraderLng').value);
   const rate = parseInt($('newTraderRate').value);
@@ -1700,7 +1741,10 @@ async function handleAddTrader() {
   const deliveryPhone = $('newTraderDeliveryPhone')?.value.trim() || null;
 
   if (!name || !bankCode || !phone) { res.style.color = 'red'; res.innerText = '❌ املأ الحقول'; return; }
-  if (isNaN(lat) || isNaN(lng)) { res.style.color = 'red'; res.innerText = '❌ إحداثيات'; return; }
+  // ✅ المخزن مش محتاج إحداثيات
+  if (merchantType !== 'warehouse' && (isNaN(lat) || isNaN(lng))) {
+    res.style.color = 'red'; res.innerText = '❌ إحداثيات'; return;
+  }
   if (isNaN(rate) || rate < 1 || rate > 50) { res.style.color = 'red'; res.innerText = '❌ نسبة غير صحيحة'; return; }
   if (deliveryAvailable && !deliveryPhone) { res.style.color = 'red'; res.innerText = '❌ اكتب رقم التوصيل'; return; }
 
@@ -1713,9 +1757,13 @@ async function handleAddTrader() {
       bankCode, name, phone, category,
       subCategories: subs,
       icon: CATEGORY_ICONS[category] || '🏪',
-      lat, lng, rate,
+      lat: isNaN(lat) ? null : lat,
+      lng: isNaN(lng) ? null : lng,
+      rate,
       deliveryAvailable,
-      deliveryPhone
+      deliveryPhone,
+      merchantType,
+      whatsapp
     });
     res.style.color = 'green'; res.innerText = `✅ تم إضافة ${name}`;
     setTimeout(() => { $('addTraderForm').style.display = 'none'; res.innerText = ''; renderAdminTraders(); }, 1500);
@@ -1957,6 +2005,7 @@ async function handleLogin(e) {
     btn.disabled = false; btn.innerText = '🚀 دخول';
   }
 }
+
 async function handleSignup(e) {
   e.preventDefault();
   const name = $('signupName').value.trim();
@@ -2161,6 +2210,16 @@ function bindEvents() {
     });
   });
 
+  // ✅ أزرار "الكل / محلات / أونلاين"
+  document.querySelectorAll('#viewModeOptions .category-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#viewModeOptions .category-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      viewMode = chip.dataset.mode;
+      renderMerchantsList();
+    });
+  });
+
   document.querySelectorAll('#homeCategories .category-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       toggleCategoryGeneric({
@@ -2192,10 +2251,6 @@ function bindEvents() {
     });
   });
 }
-
-// ============================================================
-// AUTH STATE
-// ============================================================
 
 // ============================================================
 // INIT
