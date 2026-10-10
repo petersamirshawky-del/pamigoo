@@ -118,6 +118,14 @@ export const SUB_CATEGORIES = {
     { id: 'internal', name: '🛏️ أقسام داخلية' },
     { id: 'outpatient', name: '🚶 عيادات خارجية' }
   ],
+  pharmacies: [
+  { id: 'medicines', name: 'أدوية' },
+  { id: 'supplements', name: 'مكملات غذائية' },
+  { id: 'skincare', name: 'عناية بالبشرة' },
+  { id: 'baby', name: 'مستلزمات أطفال' },
+  { id: 'medical_devices', name: 'أجهزة طبية' },
+  { id: 'personal_care', name: 'عناية شخصية' }
+  ],
   cosmetics: [
     { id: 'makeup', name: '💄 مكياج' },
     { id: 'skincare', name: '🧴 عناية بالبشرة' },
