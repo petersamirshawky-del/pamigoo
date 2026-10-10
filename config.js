@@ -41,6 +41,7 @@ export const CATEGORY_NAMES = {
   labs: '🧪 معامل',
   radiology: '📡 أشعة',
   hospitals: '🏨 مستشفيات',
+  pharmacies: '🏨 صيدليات',
   cosmetics: '💄 مستحضرات تجميل'
 };
 
