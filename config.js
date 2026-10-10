@@ -24,6 +24,7 @@ export const CATEGORY_ICONS = {
   labs: '🧪',
   radiology: '📡',
   hospitals: '🏨',
+  pharmacies: '💊',
   cosmetics: '💄'
 };
 
