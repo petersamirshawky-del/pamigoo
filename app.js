@@ -391,24 +391,30 @@ function openMerchant(bankCode) {
 
   $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${m.name}</div>`;
   $('modalMerchantInfo').innerHTML = `${m.icon || '🏪'} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}${isWarehouse ? ' • 📦 مخزن' : ''}`;
-  $('modalOffersList').innerHTML = (m.offers || []).length
+ $('modalOffersList').innerHTML = (m.offers || []).length
     ? m.offers.map((o, i) => {
         const imgHtml = o.image_url
-          ? `<img src="${o.image_url}" style="width:100%;max-width:120px;height:80px;object-fit:cover;border-radius:8px;margin-bottom:6px">`
+          ? `<img src="${o.image_url}" 
+                 onclick="event.stopPropagation(); window.openImageLightbox('${o.image_url}')"
+                 style="width:100%;max-width:220px;height:140px;object-fit:cover;border-radius:10px;margin-bottom:8px;cursor:zoom-in;display:block">`
           : '';
-        const descHtml = o.description ? `<p style="font-size:12px;color:#4b5563;margin-top:4px">${o.description}</p>` : '';
-        const priceHtml = o.price ? `<div style="font-size:14px;color:#10b981;font-weight:700;margin-bottom:4px">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : '';
+        const descHtml = o.description ? `<p style="font-size:13px;color:#4b5563;margin-top:6px">${o.description}</p>` : '';
+        const priceHtml = o.price ? `<div style="font-size:15px;color:#10b981;font-weight:700;margin-bottom:4px">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : '';
+        
         return `
-          <div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:10px;border-right:4px solid #ff6b35">
+          <div onclick="window.trackOfferView('${o.id}','${m.id}')" 
+               style="background:#f9fafb;padding:16px;border-radius:14px;margin-bottom:14px;border-right:4px solid #ff6b35;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.05)"
+               onmouseover="this.style.background='#f0f4ff'"
+               onmouseout="this.style.background='#f9fafb'">
             ${imgHtml}
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
               <div style="flex:1">
-                <h5 style="font-size:15px;margin-bottom:4px;color:var(--primary)">${o.title}</h5>
+                <h5 style="font-size:16px;margin-bottom:6px;color:var(--primary);font-weight:700">${o.title}</h5>
                 ${priceHtml}
                 ${descHtml}
-                <p style="font-size:11px;color:#9ca3af">عرض ${i + 1} من ${m.offers.length}</p>
+                <p style="font-size:11px;color:#9ca3af;margin-top:6px">عرض ${i + 1} من ${m.offers.length}</p>
               </div>
-              <div style="background:#1a2a6c;color:#fff;padding:6px 14px;border-radius:30px;font-weight:700;font-size:14px;white-space:nowrap">${o.discount}</div>
+              <div style="background:#1a2a6c;color:#fff;padding:8px 16px;border-radius:30px;font-weight:700;font-size:15px;white-space:nowrap">${o.discount}</div>
             </div>
           </div>`;
       }).join('')
@@ -2359,6 +2365,50 @@ window.contactDelivery = function(phone, merchantId) {
 window.openMerchantMap = function(lat, lng, merchantId) {
   trackOfferEvent({ offerId: null, merchantId, eventType: 'maps' });
   window.open('https://www.google.com/maps?q=' + lat + ',' + lng, '_blank');
+};
+
+// ✅ فتح الصورة في Lightbox
+window.openImageLightbox = function(imageUrl) {
+  const old = document.getElementById('pamigoLightbox');
+  if (old) old.remove();
+
+  const lightbox = document.createElement('div');
+  lightbox.id = 'pamigoLightbox';
+  lightbox.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.92);
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+    padding: 20px;
+    box-sizing: border-box;
+  `;
+
+  lightbox.innerHTML = `
+    <img src="${imageUrl}" 
+         style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 0 30px rgba(0,0,0,0.5)">
+    <button onclick="document.getElementById('pamigoLightbox').remove()"
+            style="position:absolute;top:20px;left:20px;background:#fff;color:#000;border:none;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;font-weight:bold;line-height:1">
+      ✕
+    </button>
+  `;
+
+  lightbox.onclick = function(e) {
+    if (e.target === lightbox) lightbox.remove();
+  };
+
+  document.body.appendChild(lightbox);
+};
+
+// ✅ تسجيل مشاهدة العرض
+window.trackOfferView = function(offerId, merchantId) {
+  trackOfferEvent({ offerId, merchantId, eventType: 'view' });
 };
 
 window.onOfferTypeChange = function(value) {
