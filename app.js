@@ -35,7 +35,8 @@ const {
   getReportData, getAnalytics,
   uploadMerchantLogo, deleteMerchantLogo,
   uploadProductImage, deleteProductImage,
-  trackOfferEvent, getOfferEventsStats
+  trackOfferEvent, getOfferEventsStats,
+  getMerchantTopOffers, getMerchantOffersViews
 } = await import('./dashboard.js');
 
 const {
@@ -375,7 +376,7 @@ function renderOffersSubCategories() {
   });
 }
 
-function openMerchant(bankCode) {
+async function openMerchant(bankCode) {
   const m = allMerchants.find(x => x.bank_code === bankCode);
   if (!m) return;
   currentModalMerchant = m;
@@ -391,28 +392,46 @@ function openMerchant(bankCode) {
 
   $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${m.name}</div>`;
   $('modalMerchantInfo').innerHTML = `${m.icon || '🏪'} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}${isWarehouse ? ' • 📦 مخزن' : ''}`;
- $('modalOffersList').innerHTML = (m.offers || []).length
-    ? m.offers.map((o, i) => {
+
+  // ✅ نجيب عدد المشاهدات لكل عرض
+  const offerViews = await getMerchantOffersViews(m.id);
+
+  // ✅ نرتب العروض حسب المشاهدات (الأعلى أول)
+  const sortedOffers = [...(m.offers || [])].sort((a, b) =>
+    (offerViews[b.id] || 0) - (offerViews[a.id] || 0)
+  );
+  const topOfferId = sortedOffers.length > 0 && (offerViews[sortedOffers[0].id] || 0) > 0
+    ? sortedOffers[0].id
+    : null;
+
+  $('modalOffersList').innerHTML = (sortedOffers || []).length
+    ? sortedOffers.map((o, i) => {
         const imgHtml = o.image_url
-          ? `<img src="${o.image_url}" 
+          ? `<img src="${o.image_url}"
                  onclick="event.stopPropagation(); window.openImageLightbox('${o.image_url}')"
                  style="width:100%;max-width:220px;height:140px;object-fit:cover;border-radius:10px;margin-bottom:8px;cursor:zoom-in;display:block">`
           : '';
         const descHtml = o.description ? `<p style="font-size:13px;color:#4b5563;margin-top:6px">${o.description}</p>` : '';
         const priceHtml = o.price ? `<div style="font-size:15px;color:#10b981;font-weight:700;margin-bottom:4px">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : '';
-        
+        const viewsCount = offerViews[o.id] || 0;
+        const viewsHtml = viewsCount > 0 ? `<span style="font-size:11px;color:#f59e0b;margin-right:8px">👁️ ${viewsCount} مشاهدة</span>` : '';
+        const hotBadge = o.id === topOfferId
+          ? `<div style="background:#ff6b35;color:#fff;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;display:inline-block;margin-bottom:6px">🔥 الأكثر مشاهدة</div>`
+          : '';
+
         return `
-          <div onclick="window.trackOfferView('${o.id}','${m.id}')" 
+          <div onclick="window.trackOfferView('${o.id}','${m.id}')"
                style="background:#f9fafb;padding:16px;border-radius:14px;margin-bottom:14px;border-right:4px solid #ff6b35;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.05)"
                onmouseover="this.style.background='#f0f4ff'"
                onmouseout="this.style.background='#f9fafb'">
+            ${hotBadge}
             ${imgHtml}
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
               <div style="flex:1">
                 <h5 style="font-size:16px;margin-bottom:6px;color:var(--primary);font-weight:700">${o.title}</h5>
                 ${priceHtml}
                 ${descHtml}
-                <p style="font-size:11px;color:#9ca3af;margin-top:6px">عرض ${i + 1} من ${m.offers.length}</p>
+                <p style="font-size:11px;color:#9ca3af;margin-top:6px">عرض ${i + 1} من ${m.offers.length} • ${viewsHtml}</p>
               </div>
               <div style="background:#1a2a6c;color:#fff;padding:8px 16px;border-radius:30px;font-weight:700;font-size:15px;white-space:nowrap">${o.discount}</div>
             </div>
@@ -1088,6 +1107,33 @@ async function renderDashboard() {
         <button class="del-btn" onclick="window.deleteOfferClick('${o.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
       </div>`;
     }).join('') : '<p style="color:#6b7280">لا توجد عروض</p>';
+  } catch (e) { console.error(e); }
+
+  // ✅ عروضي الأكثر تفاعلًا
+  try {
+    const topOffers = await getMerchantTopOffers(currentMerchant.id);
+    const el = $('myTopOffersList');
+    if (el) {
+      if (!topOffers.length) {
+        el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد بيانات</p>';
+      } else {
+        el.innerHTML = topOffers.slice(0, 5).map((o, i) => `
+          <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:8px;border-right:4px solid #f59e0b;display:flex;align-items:center;gap:10px">
+            <div style="font-size:20px;font-weight:700;color:#f59e0b;min-width:30px">#${i + 1}</div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:14px">${o.title}</div>
+              <div style="display:flex;gap:12px;margin-top:4px;font-size:12px;color:#6b7280;flex-wrap:wrap">
+                <span>👁️ ${o.views}</span>
+                <span>👆 ${o.clicks}</span>
+                <span>📞 ${o.contacts}</span>
+                <span>📍 ${o.maps}</span>
+              </div>
+            </div>
+            <div style="background:#1a2a6c;color:#fff;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700">${o.discount}</div>
+          </div>
+        `).join('');
+      }
+    }
   } catch (e) { console.error(e); }
 
   try {
@@ -2391,7 +2437,7 @@ window.openImageLightbox = function(imageUrl) {
   `;
 
   lightbox.innerHTML = `
-    <img src="${imageUrl}" 
+    <img src="${imageUrl}"
          style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 0 30px rgba(0,0,0,0.5)">
     <button onclick="document.getElementById('pamigoLightbox').remove()"
             style="position:absolute;top:20px;left:20px;background:#fff;color:#000;border:none;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;font-weight:bold;line-height:1">
