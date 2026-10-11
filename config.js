@@ -1,17 +1,14 @@
 // ============================================================
 // PAMIGO Configuration
-// ⚠️ الـ anon key ده public وآمن إنه يبان في الكود
-// ⚠️ متحطش الـ service_role key هنا أبداً
 // ============================================================
-
 export const SUPABASE_URL = 'https://mzyzyfxvnjwufupaweab.supabase.co';
-export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16eXp5Znh2bmp3dWZ1cGF3ZWFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5NjY1OTAsImV4cCI6MjEwNTU0MjU5MH0.XxLxPf6GfJMovCJJVYW3SjlKRM4ID98-Zs_XGOxOBi0';
+export const SUPABASE_ANON_KEY = 'ضع-المفتاح-الأصلي-هنا-كامل'; // ← انسخ المفتاح من GitHub القديم
 
 export const ADMIN_BANK_CODE = 'PETAD-12321';
 export const DEFAULT_RADIUS_KM = 2;
 export const STORAGE_BUCKET = 'pamigo-media';
 
-// أيقونات التصنيفات الرئيسية
+// أيقونات التصنيفات
 export const CATEGORY_ICONS = {
   fashion: '👗',
   restaurants: '🍕',
@@ -25,113 +22,133 @@ export const CATEGORY_ICONS = {
   radiology: '📡',
   hospitals: '🏨',
   pharmacies: '💊',
-  cosmetics: '💄'
+  cosmetics: '💄',
+  stationery: '📚',
+  toys: '🧸'
 };
 
 // أسماء التصنيفات بالعربي
 export const CATEGORY_NAMES = {
-  fashion: '👗 ملابس',
-  restaurants: '🍕 مطاعم',
-  bigfood: '🍔 وجبات',
-  electronics: '📱 إلكترونيات',
-  car_parts: '🛞 قطع غيار',
-  car_accessories: '🪞 كماليات',
-  car_repair: '🔧 صيانة',
-  clinics: '🩺 عيادات',
-  labs: '🧪 معامل',
-  radiology: '📡 أشعة',
-  hospitals: '🏨 مستشفيات',
-  pharmacies: '🏨 صيدليات',
-  cosmetics: '💄 مستحضرات تجميل'
+  fashion: 'ملابس',
+  restaurants: 'مطاعم',
+  bigfood: 'وجبات',
+  electronics: 'إلكترونيات',
+  car_parts: 'قطع غيار',
+  car_accessories: 'كماليات',
+  car_repair: 'صيانة',
+  clinics: 'عيادات',
+  labs: 'معامل',
+  radiology: 'أشعة',
+  hospitals: 'مستشفيات',
+  pharmacies: 'صيدليات',
+  cosmetics: 'مستحضرات تجميل',
+  stationery: 'مكتبات',
+  toys: 'ألعاب أطفال'
 };
 
 // التصنيفات الفرعية
 export const SUB_CATEGORIES = {
   fashion: [
-    { id: 'men', name: '👔 رجالي' },
-    { id: 'women', name: '👗 حريمي' },
-    { id: 'kids', name: '🧒 أطفال' },
-    { id: 'shoes', name: '👟 أحذية' },
-    { id: 'accessories', name: '👜 إكسسوارات' }
+    { id: 'men', name: 'رجالي' },
+    { id: 'women', name: 'حريمي' },
+    { id: 'kids', name: 'أطفال' },
+    { id: 'shoes', name: 'أحذية' },
+    { id: 'accessories', name: 'اكسسوارات' }
   ],
   restaurants: [
-    { id: 'grills', name: '🍖 مشويات' },
-    { id: 'pizza', name: '🍕 بيتزا' },
-    { id: 'koshary', name: '🍲 كشري' },
-    { id: 'seafood', name: '🐟 بحري' },
-    { id: 'desserts', name: '🍰 حلويات' }
+    { id: 'grills', name: 'مشويات' },
+    { id: 'pizza', name: 'بيتزا' },
+    { id: 'koshary', name: 'كشري' },
+    { id: 'seafood', name: 'بحري' },
+    { id: 'desserts', name: 'حلويات' }
   ],
   bigfood: [
-    { id: 'supermarket', name: '🛒 سوبر ماركت' },
-    { id: 'grocery', name: '🏪 بقالة' },
-    { id: 'veggies', name: '🥬 خضار وفاكهة' },
-    { id: 'meat', name: '🥩 لحوم' },
-    { id: 'dairy', name: '🥛 ألبان' }
+    { id: 'supermarket', name: 'سوبر ماركت' },
+    { id: 'grocery', name: 'بقالة' },
+    { id: 'veggies', name: 'خضار وفاكهة' },
+    { id: 'meat', name: 'لحوم' },
+    { id: 'dairy', name: 'ألبان' }
   ],
   electronics: [
-    { id: 'mobiles', name: '📱 موبايلات' },
-    { id: 'laptops', name: '💻 لابتوبات' },
-    { id: 'headphones', name: '🎧 سماعات' },
-    { id: 'chargers', name: '🔌 شواحن' },
-    { id: 'accessories', name: '🖱️ إكسسوارات' }
+    { id: 'mobiles', name: 'موبايلات' },
+    { id: 'laptops', name: 'لابتوبات' },
+    { id: 'headphones', name: 'سماعات' },
+    { id: 'chargers', name: 'شواحن' },
+    { id: 'accessories', name: 'اكسسوارات' }
   ],
   car_parts: [
-    { id: 'engines', name: '⚙️ محركات' },
-    { id: 'brakes', name: '🛑 فرامل' },
-    { id: 'electrical', name: '🔌 كهرباء' },
-    { id: 'tires', name: '🛞 إطارات' },
-    { id: 'oils', name: '🛢️ زيوت' }
+    { id: 'engines', name: 'محركات' },
+    { id: 'brakes', name: 'فرامل' },
+    { id: 'electrical', name: 'كهرباء' },
+    { id: 'tires', name: 'إطارات' },
+    { id: 'oils', name: 'زيوت' }
   ],
   car_accessories: [
-    { id: 'interior', name: '🪑 كماليات داخلية' },
-    { id: 'exterior', name: '🚗 كماليات خارجية' },
-    { id: 'audio', name: '🔊 صوتيات' },
-    { id: 'floor', name: '🧶 فرش' }
+    { id: 'interior', name: 'داخلي' },
+    { id: 'exterior', name: 'خارجي' },
+    { id: 'audio', name: 'صوتيات' },
+    { id: 'lighting', name: 'إضاءة' }
   ],
   car_repair: [
-    { id: 'mechanics', name: '🔧 ميكانيكا' },
-    { id: 'electrical', name: '⚡ كهرباء سيارات' },
-    { id: 'bodywork', name: '🔨 سمكرة' },
-    { id: 'paint', name: '🎨 دهان' }
+    { id: 'mechanics', name: 'ميكانيكا' },
+    { id: 'electrical', name: 'كهرباء سيارات' },
+    { id: 'bodywork', name: 'سمكرة' },
+    { id: 'paint', name: 'دهان' }
   ],
   clinics: [
-    { id: 'dental', name: '🦷 أسنان' },
-    { id: 'internal', name: '🩺 باطنة' },
-    { id: 'pediatric', name: '👶 أطفال' },
-    { id: 'derma', name: '🧴 جلدية' },
-    { id: 'eyes', name: '👁️ عيون' }
+    { id: 'dental', name: 'أسنان' },
+    { id: 'internal', name: 'باطنة' },
+    { id: 'pediatric', name: 'أطفال' },
+    { id: 'derma', name: 'جلدية' },
+    { id: 'eyes', name: 'عيون' }
   ],
   labs: [
-    { id: 'blood', name: '🩸 تحاليل دم' },
-    { id: 'urine', name: '🧪 تحاليل بول' },
-    { id: 'hormones', name: '💉 هرمونات' },
-    { id: 'micro', name: '🔬 ميكروبولوجي' }
+    { id: 'blood', name: 'تحاليل دم' },
+    { id: 'urine', name: 'تحاليل بول' },
+    { id: 'hormones', name: 'هرمونات' },
+    { id: 'micro', name: 'ميكروبيولوجي' }
   ],
   radiology: [
-    { id: 'xray', name: '📷 أشعة عادية' },
-    { id: 'ct', name: '📡 مقطعية' },
-    { id: 'mri', name: '🧲 رنين مغناطيسي' },
-    { id: 'ultrasound', name: '🫀 موجات صوتية' }
+    { id: 'xray', name: 'أشعة عادية' },
+    { id: 'ct', name: 'أشعة مقطعية' },
+    { id: 'mri', name: 'رنين مغناطيسي' },
+    { id: 'ultrasound', name: 'سونار' }
   ],
   hospitals: [
-    { id: 'er', name: '🚨 طوارئ' },
-    { id: 'surgery', name: '🏥 عمليات' },
-    { id: 'internal', name: '🛏️ أقسام داخلية' },
-    { id: 'outpatient', name: '🚶 عيادات خارجية' }
+    { id: 'er', name: 'طوارئ' },
+    { id: 'surgery', name: 'عمليات' },
+    { id: 'internal', name: 'قسم باطنة' },
+    { id: 'outpatient', name: 'عيادات خارجية' }
   ],
   pharmacies: [
-  { id: 'medicines', name: 'أدوية' },
-  { id: 'supplements', name: 'مكملات غذائية' },
-  { id: 'skincare', name: 'عناية بالبشرة' },
-  { id: 'baby', name: 'مستلزمات أطفال' },
-  { id: 'medical_devices', name: 'أجهزة طبية' },
-  { id: 'personal_care', name: 'عناية شخصية' }
+    { id: 'medicines', name: 'أدوية' },
+    { id: 'supplements', name: 'مكملات غذائية' },
+    { id: 'skincare', name: 'عناية بالبشرة' },
+    { id: 'baby', name: 'مستلزمات أطفال' },
+    { id: 'medical_devices', name: 'أجهزة طبية' },
+    { id: 'personal_care', name: 'عناية شخصية' }
   ],
   cosmetics: [
-    { id: 'makeup', name: '💄 مكياج' },
-    { id: 'skincare', name: '🧴 عناية بالبشرة' },
-    { id: 'haircare', name: '💇 عناية بالشعر' },
-    { id: 'perfumes', name: '🌸 عطور' },
-    { id: 'nails', name: '💅 أظافر' }
+    { id: 'makeup', name: 'مكياج' },
+    { id: 'skincare', name: 'عناية بالبشرة' },
+    { id: 'haircare', name: 'عناية بالشعر' },
+    { id: 'perfumes', name: 'عطور' },
+    { id: 'nails', name: 'عناية بالأظافر' }
+  ],
+  stationery: [
+    { id: 'school', name: 'أدوات مدرسية' },
+    { id: 'office', name: 'أدوات مكتبية' },
+    { id: 'books', name: 'كتب' },
+    { id: 'printing', name: 'طباعة وتصوير' },
+    { id: 'art', name: 'أدوات فنية' },
+    { id: 'gifts', name: 'هدايا وتحف' }
+  ],
+  toys: [
+    { id: 'boys', name: 'ألعاب أولاد' },
+    { id: 'girls', name: 'ألعاب بنات' },
+    { id: 'educational', name: 'ألعاب تعليمية' },
+    { id: 'babies', name: 'ألعاب رضع' },
+    { id: 'outdoor', name: 'ألعاب خارجية' },
+    { id: 'puzzles', name: 'ألعاب ذكاء' }
   ]
 };
