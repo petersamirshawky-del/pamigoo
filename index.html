@@ -409,6 +409,7 @@
       <div class="card">
         <h5 style="margin-bottom:10px">➕ إضافة عرض جديد</h5>
         <input type="text" id="offerTitle" placeholder="اسم العرض (مثل: خصم الصيف)">
+        <input type="number" id="offerPrice" placeholder="💰 السعر (اختياري)" min="0" step="0.01">
 
         <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">🏷️ نوع الخصم:</label>
         <select id="offerType" onchange="window.onOfferTypeChange(this.value)">
