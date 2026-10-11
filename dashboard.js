@@ -53,7 +53,7 @@ export async function getMerchantOffers(merchantId) {
   return data || [];
 }
 
-// ✅ إضافة عرض جديد (مع discount_value و description و price)
+// ✅ إضافة عرض جديد
 export async function addOffer({ merchantId, title, discount, discountValue, description, imageBase64, price }) {
   const { error } = await supabase
     .from('offers').insert({
@@ -65,6 +65,30 @@ export async function addOffer({ merchantId, title, discount, discountValue, des
       image_url: imageBase64 || null,
       price: price || null
     });
+  if (error) throw error;
+}
+
+// ✅ تعديل عرض موجود
+export async function updateOffer({ offerId, title, discount, discountValue, description, imageBase64, price, keepImage }) {
+  const updateData = {
+    title,
+    discount,
+    discount_value: discountValue || 0,
+    description: description || '',
+    price: price || null
+  };
+
+  if (imageBase64) {
+    updateData.image_url = imageBase64;
+  } else if (!keepImage) {
+    updateData.image_url = null;
+  }
+
+  const { error } = await supabase
+    .from('offers')
+    .update(updateData)
+    .eq('id', offerId);
+
   if (error) throw error;
 }
 
@@ -335,7 +359,7 @@ export async function deleteProductImage(imageUrl) {
 }
 
 // ============================================================
-// ✅ Track Offer Events (تتبع تفاعل العروض)
+// Track Offer Events
 // ============================================================
 export async function trackOfferEvent({ offerId, merchantId, eventType }) {
   try {
@@ -352,7 +376,7 @@ export async function trackOfferEvent({ offerId, merchantId, eventType }) {
 }
 
 // ============================================================
-// ✅ Get Offer Events Stats (للأدمن والتاجر)
+// Get Offer Events Stats (للأدمن)
 // ============================================================
 export async function getOfferEventsStats() {
   const { data, error } = await supabase
@@ -367,7 +391,7 @@ export async function getOfferEventsStats() {
 }
 
 // ============================================================
-// ✅ Get Merchant Top Offers (أكثر عروض التاجر تفاعلًا)
+// Get Merchant Top Offers (أكثر عروض التاجر تفاعلًا)
 // ============================================================
 export async function getMerchantTopOffers(merchantId) {
   const { data, error } = await supabase
@@ -408,7 +432,7 @@ export async function getMerchantTopOffers(merchantId) {
 }
 
 // ============================================================
-// ✅ Get Merchant Offers Views (عدد المشاهدات لكل عرض في متجر)
+// Get Merchant Offers Views (عدد المشاهدات لكل عرض)
 // ============================================================
 export async function getMerchantOffersViews(merchantId) {
   const { data, error } = await supabase
