@@ -365,3 +365,65 @@ export async function getOfferEventsStats() {
   if (error) { console.error(error); return []; }
   return data || [];
 }
+
+// ============================================================
+// ✅ Get Merchant Top Offers (أكثر عروض التاجر تفاعلًا)
+// ============================================================
+export async function getMerchantTopOffers(merchantId) {
+  const { data, error } = await supabase
+    .from('offer_events')
+    .select(`
+      offer_id,
+      event_type,
+      offers ( id, title, discount, image_url )
+    `)
+    .eq('merchant_id', merchantId);
+  
+  if (error) { console.error(error); return []; }
+
+  const stats = {};
+  (data || []).forEach(e => {
+    const key = e.offer_id || 'unknown';
+    if (!stats[key]) {
+      stats[key] = {
+        offer_id: e.offer_id,
+        title: e.offers?.title || '—',
+        discount: e.offers?.discount || '—',
+        image_url: e.offers?.image_url || null,
+        views: 0,
+        clicks: 0,
+        contacts: 0,
+        maps: 0,
+        total: 0
+      };
+    }
+    if (e.event_type === 'view') stats[key].views++;
+    if (e.event_type === 'click') stats[key].clicks++;
+    if (e.event_type === 'contact') stats[key].contacts++;
+    if (e.event_type === 'maps') stats[key].maps++;
+    stats[key].total++;
+  });
+
+  return Object.values(stats).sort((a, b) => b.total - a.total);
+}
+
+// ============================================================
+// ✅ Get Merchant Offers Views (عدد المشاهدات لكل عرض في متجر)
+// ============================================================
+export async function getMerchantOffersViews(merchantId) {
+  const { data, error } = await supabase
+    .from('offer_events')
+    .select('offer_id, event_type')
+    .eq('merchant_id', merchantId)
+    .eq('event_type', 'view');
+  
+  if (error) { console.error(error); return {}; }
+
+  const views = {};
+  (data || []).forEach(e => {
+    if (!e.offer_id) return;
+    views[e.offer_id] = (views[e.offer_id] || 0) + 1;
+  });
+
+  return views;
+}
