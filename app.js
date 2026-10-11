@@ -36,7 +36,8 @@ const {
   uploadMerchantLogo, deleteMerchantLogo,
   uploadProductImage, deleteProductImage,
   trackOfferEvent, getOfferEventsStats,
-  getMerchantTopOffers, getMerchantOffersViews
+  getMerchantTopOffers, getMerchantOffersViews,
+  updateOffer
 } = await import('./dashboard.js');
 
 const {
@@ -75,6 +76,7 @@ let myRequestsCache = [];
 let adminData = { merchants: [], customers: [], invoices: [] };
 let expectedLogin = null;
 let uploadedOfferImage = null;
+let uploadedEditOfferImage = null;
 let selectedRating = 0;
 let lastRatedMerchantId = null;
 let lastRatedMerchantName = '';
@@ -393,10 +395,8 @@ async function openMerchant(bankCode) {
   $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${m.name}</div>`;
   $('modalMerchantInfo').innerHTML = `${m.icon || '🏪'} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}${isWarehouse ? ' • 📦 مخزن' : ''}`;
 
-  // ✅ نجيب عدد المشاهدات لكل عرض
   const offerViews = await getMerchantOffersViews(m.id);
 
-  // ✅ نرتب العروض حسب المشاهدات (الأعلى أول)
   const sortedOffers = [...(m.offers || [])].sort((a, b) =>
     (offerViews[b.id] || 0) - (offerViews[a.id] || 0)
   );
@@ -1104,12 +1104,14 @@ async function renderDashboard() {
           ${o.price ? `<div style="font-size:12px;color:#10b981;font-weight:700;margin-top:2px">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : ''}
           ${o.description ? `<div style="font-size:11px;color:#6b7280;margin-top:2px">${o.description}</div>` : ''}
         </div>
-        <button class="del-btn" onclick="window.deleteOfferClick('${o.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button onclick="window.openEditOffer('${o.id}')" style="background:#3b82f6;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">✏️</button>
+          <button class="del-btn" onclick="window.deleteOfferClick('${o.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
+        </div>
       </div>`;
     }).join('') : '<p style="color:#6b7280">لا توجد عروض</p>';
   } catch (e) { console.error(e); }
 
-  // ✅ عروضي الأكثر تفاعلًا
   try {
     const topOffers = await getMerchantTopOffers(currentMerchant.id);
     const el = $('myTopOffersList');
@@ -1253,6 +1255,149 @@ async function handleAddOffer() {
     const p = $('offerImagePreview'); if (p) { p.style.display = 'none'; p.src = ''; }
     const f = $('offerFileName'); if (f) f.innerText = 'لم يتم اختيار ملف';
     setTimeout(() => { res.innerText = ''; renderDashboard(); }, 1000);
+  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
+}
+
+// ✅ فتح مودال تعديل العرض
+window.openEditOffer = async function(offerId) {
+  const offers = await getMerchantOffers(currentMerchant.id);
+  const o = offers.find(x => x.id === offerId);
+  if (!o) return;
+
+  $('editOfferId').value = o.id;
+  $('editOfferTitle').value = o.title || '';
+  $('editOfferPrice').value = o.price || '';
+  $('editOfferDescription').value = o.description || '';
+
+  let type = 'percent';
+  let percent = 20;
+  let custom = '';
+
+  if (o.discount) {
+    if (o.discount.includes('% OFF')) {
+      type = 'percent';
+      percent = parseInt(o.discount) || 20;
+    } else if (o.discount === '1+1') type = '1+1';
+    else if (o.discount === '2+1') type = '2+1';
+    else if (o.discount === '3+1') type = '3+1';
+    else {
+      type = 'custom';
+      custom = o.discount;
+    }
+  }
+
+  $('editOfferType').value = type;
+  $('editOfferPercent').value = percent;
+  $('editOfferCustom').value = custom;
+  window.onEditOfferTypeChange(type);
+
+  uploadedEditOfferImage = null;
+  const currentImageWrap = $('editOfferCurrentImageWrap');
+  const currentImage = $('editOfferCurrentImage');
+  const preview = $('editOfferImagePreview');
+  const fileName = $('editOfferFileName');
+
+  preview.style.display = 'none';
+  fileName.innerText = 'لم يتم اختيار ملف';
+
+  if (o.image_url) {
+    currentImage.src = o.image_url;
+    currentImageWrap.style.display = 'block';
+  } else {
+    currentImageWrap.style.display = 'none';
+  }
+
+  $('editOfferResult').innerText = '';
+  $('editOfferModal').classList.add('active');
+  $('editOfferModal').style.display = 'flex';
+};
+
+window.closeEditOfferModal = function(e) {
+  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
+  const modal = $('editOfferModal');
+  if (!modal) return;
+  modal.classList.remove('active');
+  modal.style.display = 'none';
+  uploadedEditOfferImage = null;
+};
+
+window.onEditOfferTypeChange = function(value) {
+  const percentWrap = $('editOfferPercentWrap');
+  const customWrap = $('editOfferCustomWrap');
+  if (!percentWrap || !customWrap) return;
+  if (value === 'percent') {
+    percentWrap.style.display = 'block';
+    customWrap.style.display = 'none';
+  } else if (value === 'custom') {
+    percentWrap.style.display = 'none';
+    customWrap.style.display = 'block';
+  } else {
+    percentWrap.style.display = 'none';
+    customWrap.style.display = 'none';
+  }
+};
+
+window.deleteOfferImage = function() {
+  $('editOfferCurrentImageWrap').style.display = 'none';
+  $('editOfferCurrentImage').src = '';
+  uploadedEditOfferImage = 'DELETE';
+};
+
+async function handleSaveOfferEdit() {
+  const id = $('editOfferId').value;
+  const title = $('editOfferTitle').value.trim();
+  const price = parseFloat($('editOfferPrice').value) || null;
+  const description = $('editOfferDescription').value.trim();
+  const type = $('editOfferType').value;
+  const percent = parseInt($('editOfferPercent').value) || 0;
+  const custom = $('editOfferCustom').value.trim();
+  const res = $('editOfferResult');
+
+  if (!title) { res.style.color = 'red'; res.innerText = '❌ اكتب اسم العرض'; return; }
+
+  let discountText = '';
+  let discountValue = 0;
+
+  if (type === 'percent') {
+    if (!percent || percent < 1 || percent > 100) { res.style.color = 'red'; res.innerText = '❌ النسبة لازم بين 1 و 100'; return; }
+    discountText = percent + '% OFF';
+    discountValue = percent;
+  } else if (type === '1+1') { discountText = '1+1'; discountValue = 50; }
+  else if (type === '2+1') { discountText = '2+1'; discountValue = 33; }
+  else if (type === '3+1') { discountText = '3+1'; discountValue = 25; }
+  else if (type === 'custom') {
+    if (!custom) { res.style.color = 'red'; res.innerText = '❌ اكتب وصف الخصم'; return; }
+    discountText = custom;
+    discountValue = 0;
+  }
+
+  try {
+    let imageBase64 = null;
+    let keepImage = true;
+
+    if (uploadedEditOfferImage === 'DELETE') {
+      keepImage = false;
+    } else if (uploadedEditOfferImage) {
+      imageBase64 = uploadedEditOfferImage;
+    }
+
+    await updateOffer({
+      offerId: id,
+      title,
+      discount: discountText,
+      discountValue,
+      description,
+      imageBase64,
+      price,
+      keepImage
+    });
+
+    res.style.color = 'green'; res.innerText = '✅ تم حفظ التعديلات';
+
+    setTimeout(() => {
+      window.closeEditOfferModal();
+      renderDashboard();
+    }, 1500);
   } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
 }
 
@@ -2191,15 +2336,15 @@ function bindEvents() {
 
   const editCat = $('editTraderCategory');
   if (editCat) editCat.addEventListener('change', () => renderEditTraderSubs());
-  
+
   const editDel = $('editTraderDelivery');
   if (editDel) editDel.addEventListener('change', (e) => {
     $('editTraderDeliveryWrap').style.display = e.target.checked ? 'block' : 'none';
   });
-  
+
   const saveBtn = $('saveTraderBtn');
   if (saveBtn) saveBtn.addEventListener('click', handleSaveTraderEdit);
-  
+
   const cancelBtn = $('cancelEditTraderBtn');
   if (cancelBtn) cancelBtn.addEventListener('click', () => {
     $('editTraderForm').style.display = 'none';
@@ -2310,6 +2455,29 @@ function bindEvents() {
       renderMyRequests();
     });
   });
+
+  // ✅ فورم تعديل العرض
+  const editOfferImg = document.getElementById('editOfferImage');
+  if (editOfferImg) {
+    editOfferImg.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        uploadedEditOfferImage = ev.target.result;
+        const f = document.getElementById('editOfferFileName');
+        if (f) f.innerText = '📎 ' + file.name;
+        const p = document.getElementById('editOfferImagePreview');
+        if (p) { p.src = ev.target.result; p.style.display = 'block'; }
+        const curWrap = document.getElementById('editOfferCurrentImageWrap');
+        if (curWrap) curWrap.style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const saveOfferBtn = document.getElementById('saveOfferEditBtn');
+  if (saveOfferBtn) saveOfferBtn.addEventListener('click', handleSaveOfferEdit);
 }
 
 // ============================================================
