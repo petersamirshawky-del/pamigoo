@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // PAMIGO - Merchant Dashboard / Reports / Analytics
 // ============================================================
 import { supabase } from './supabase.js';
@@ -53,8 +53,8 @@ export async function getMerchantOffers(merchantId) {
   return data || [];
 }
 
-// ✅ إضافة عرض جديد (مع discount_value و description)
-export async function addOffer({ merchantId, title, discount, discountValue, description, imageBase64 }) {
+// ✅ إضافة عرض جديد (مع discount_value و description و price)
+export async function addOffer({ merchantId, title, discount, discountValue, description, imageBase64, price }) {
   const { error } = await supabase
     .from('offers').insert({
       merchant_id: merchantId,
@@ -62,7 +62,8 @@ export async function addOffer({ merchantId, title, discount, discountValue, des
       discount,
       discount_value: discountValue || 0,
       description: description || '',
-      image_url: imageBase64 || null
+      image_url: imageBase64 || null,
+      price: price || null
     });
   if (error) throw error;
 }
