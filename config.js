@@ -2,7 +2,7 @@
 // PAMIGO Configuration
 // ============================================================
 export const SUPABASE_URL = 'https://mzyzyfxvnjwufupaweab.supabase.co';
-export const SUPABASE_ANON_KEY = 'ضع-المفتاح-الأصلي-هنا-كامل'; // ← انسخ المفتاح من GitHub القديم
+export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16eXp5Znh2bmp3dWZ1cGF3ZWFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5NjY1OTAsImV4cCI6MjEwNTU0MjU5MH0.XxLxPf6GfJMovCJJVYW3SjlKRM4ID98-Zs_XGOxOBi0';
 
 export const ADMIN_BANK_CODE = 'PETAD-12321';
 export const DEFAULT_RADIUS_KM = 2;
