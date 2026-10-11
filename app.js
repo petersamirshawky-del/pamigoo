@@ -397,12 +397,14 @@ function openMerchant(bankCode) {
           ? `<img src="${o.image_url}" style="width:100%;max-width:120px;height:80px;object-fit:cover;border-radius:8px;margin-bottom:6px">`
           : '';
         const descHtml = o.description ? `<p style="font-size:12px;color:#4b5563;margin-top:4px">${o.description}</p>` : '';
+        const priceHtml = o.price ? `<div style="font-size:14px;color:#10b981;font-weight:700;margin-bottom:4px">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : '';
         return `
           <div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:10px;border-right:4px solid #ff6b35">
             ${imgHtml}
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
               <div style="flex:1">
                 <h5 style="font-size:15px;margin-bottom:4px;color:var(--primary)">${o.title}</h5>
+                ${priceHtml}
                 ${descHtml}
                 <p style="font-size:11px;color:#9ca3af">عرض ${i + 1} من ${m.offers.length}</p>
               </div>
@@ -1074,6 +1076,7 @@ async function renderDashboard() {
         <div style="flex:1">
           <span style="font-weight:600">${o.title}</span><br>
           <span style="color:#ff6b35;font-weight:700">${o.discount}</span>
+          ${o.price ? `<div style="font-size:12px;color:#10b981;font-weight:700;margin-top:2px">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : ''}
           ${o.description ? `<div style="font-size:11px;color:#6b7280;margin-top:2px">${o.description}</div>` : ''}
         </div>
         <button class="del-btn" onclick="window.deleteOfferClick('${o.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
@@ -1158,6 +1161,7 @@ async function handleAddOffer() {
   const percent = parseInt($('offerPercent')?.value) || 0;
   const custom = $('offerCustom')?.value.trim() || '';
   const description = $('offerDescription')?.value.trim() || '';
+  const price = parseFloat($('offerPrice')?.value) || null;
   const res = $('offerResult');
 
   if (!title) { res.style.color = 'red'; res.innerText = '❌ اكتب اسم العرض'; return; }
@@ -1182,10 +1186,12 @@ async function handleAddOffer() {
     await addOffer({
       merchantId: currentMerchant.id,
       title, discount: discountText, discountValue, description,
-      imageBase64: uploadedOfferImage
+      imageBase64: uploadedOfferImage,
+      price
     });
     res.style.color = 'green'; res.innerText = '✅ تم نشر العرض';
     $('offerTitle').value = '';
+    if ($('offerPrice')) $('offerPrice').value = '';
     if ($('offerPercent')) $('offerPercent').value = '20';
     if ($('offerCustom')) $('offerCustom').value = '';
     if ($('offerDescription')) $('offerDescription').value = '';
@@ -2131,7 +2137,6 @@ function bindEvents() {
   $('newTraderCategory').addEventListener('change', renderNewTraderSubs);
   $('addTraderConfirmBtn').addEventListener('click', handleAddTrader);
 
-  // ✅ فورم تعديل التاجر
   const editCat = $('editTraderCategory');
   if (editCat) editCat.addEventListener('change', () => renderEditTraderSubs());
   
