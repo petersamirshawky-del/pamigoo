@@ -420,7 +420,7 @@ async function openMerchant(bankCode) {
           : '';
 
         return `
-          <div onclick="window.trackOfferView('${o.id}','${m.id}')"
+          <div onclick="window.openOfferFull('${o.id}','${m.id}')"
                style="background:#f9fafb;padding:16px;border-radius:14px;margin-bottom:14px;border-right:4px solid #ff6b35;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.05)"
                onmouseover="this.style.background='#f0f4ff'"
                onmouseout="this.style.background='#f9fafb'">
@@ -496,6 +496,115 @@ function closeMerchantModal() {
 function closeModal(e) {
   if (e.target.classList.contains('modal-overlay')) closeMerchantModal();
 }
+
+// ============================================================
+// ✅ عرض تفاصيل العرض في صفحة كاملة
+// ============================================================
+window.openOfferFull = async function(offerId, merchantId) {
+  const m = allMerchants.find(x => x.id === merchantId);
+  if (!m) { toast('❌ التاجر غير موجود', 'error'); return; }
+
+  const o = (m.offers || []).find(x => x.id === offerId);
+  if (!o) { toast('❌ العرض غير موجود', 'error'); return; }
+
+  // تسجيل مشاهدة العرض
+  trackOfferEvent({ offerId: o.id, merchantId: m.id, eventType: 'view' });
+
+  // جلب عدد المشاهدات
+  let viewsCount = 0;
+  try {
+    const views = await getMerchantOffersViews(m.id);
+    viewsCount = views[o.id] || 0;
+  } catch (e) { console.error(e); }
+
+  // الشريط العلوي: التاجر
+  const logoHtml = m.logo_url
+    ? `<img src="${m.logo_url}" alt="${m.name}">`
+    : `<span style="font-size:20px">${m.icon || '🏪'}</span>`;
+
+  $('offerFullMerchant').innerHTML = `
+    ${logoHtml}
+    <span>${m.name}</span>
+  `;
+
+  // الصورة
+  if (o.image_url) {
+    $('offerFullImage').src = o.image_url;
+    $('offerFullImageWrap').style.display = 'block';
+  } else {
+    $('offerFullImageWrap').style.display = 'none';
+  }
+
+  // الخصم
+  $('offerFullDiscount').innerText = o.discount || '---';
+
+  // العنوان
+  $('offerFullTitle').innerText = o.title || 'عرض';
+
+  // السعر
+  if (o.price) {
+    $('offerFullPrice').innerText = `💰 ${parseFloat(o.price).toFixed(2)} ج`;
+    $('offerFullPrice').style.display = 'block';
+  } else {
+    $('offerFullPrice').style.display = 'none';
+  }
+
+  // الوصف
+  if (o.description) {
+    $('offerFullDesc').innerText = o.description;
+    $('offerFullDesc').style.display = 'block';
+  } else {
+    $('offerFullDesc').style.display = 'none';
+  }
+
+  // الإحصائيات
+  $('offerFullStats').innerHTML = `
+    <span>👁️ ${viewsCount} مشاهدة</span>
+    <span>🏪 ${m.name}</span>
+    ${m.delivery_available ? '<span>🛵 التوصيل متاح</span>' : ''}
+  `;
+
+  // أزرار التواصل
+  let actionsHtml = '';
+  if (m.phone) {
+    actionsHtml += `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="background:#10b981">📞 اتصل بالتاجر</button>`;
+  }
+  if (m.whatsapp) {
+    actionsHtml += `<button onclick="window.open('https://wa.me/${m.whatsapp}','_blank')" style="background:#25D366">💬 واتساب</button>`;
+  }
+  if (m.lat && m.lng && m.merchant_type !== 'warehouse') {
+    actionsHtml += `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="background:#1a2a6c">📍 الموقع</button>`;
+  }
+  if (m.delivery_available) {
+    actionsHtml += `<button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="background:#ff6b35">🛵 اتصل للتوصيل</button>`;
+  }
+  $('offerFullActions').innerHTML = actionsHtml || '<p style="color:#6b7280">لا توجد طرق تواصل متاحة</p>';
+
+  // بيانات التاجر
+  const typeLabel = m.merchant_type === 'warehouse' ? '📦 مخزن' : (m.merchant_type === 'both' ? '🔄 محل ومخزن' : '🏪 محل');
+  $('offerFullMerchantInfo').innerHTML = `
+    <div><strong>🏪 ${m.name}</strong> ${typeLabel}</div>
+    ${m.category ? `<div>📂 التصنيف: ${m.category}</div>` : ''}
+    ${m.phone ? `<div>📱 ${m.phone}</div>` : ''}
+    ${m.lat && m.lng && m.merchant_type !== 'warehouse' ? `<div>📍 ${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div>` : ''}
+    <div>💰 نسبة الكاش باك: ${m.cashback_rate || 15}%</div>
+  `;
+
+  // فتح المودال
+  const modal = $('offerFullModal');
+  modal.style.display = 'flex';
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+};
+
+window.closeOfferFull = function(e) {
+  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
+  const modal = $('offerFullModal');
+  if (!modal) return;
+  modal.classList.remove('active');
+  modal.style.display = 'none';
+  document.body.style.overflow = '';
+};
 
 // ============================================================
 // Tabs
@@ -2533,6 +2642,8 @@ window.switchTab = switchTab;
 window.openMerchant = openMerchant;
 window.closeMerchantModal = closeMerchantModal;
 window.closeModal = closeModal;
+window.openOfferFull = openOfferFull; // ✅ جديدة
+window.closeOfferFull = closeOfferFull; // ✅ جديدة
 window.renderOffersGrid = renderOffersGrid;
 window.renderMerchantsList = renderMerchantsList;
 window.renderRequestsTab = renderRequestsTab;
