@@ -451,25 +451,27 @@ async function openMerchant(bankCode) {
   const oldActions = modal.querySelector('.modal-actions-bar');
   if (oldActions) oldActions.remove();
 
+  // ✅ سيبنا بس الموقع والتوصيل (شيلنا الاتصال والواتساب)
   const actionsBar = document.createElement('div');
   actionsBar.className = 'modal-actions-bar';
   actionsBar.style.cssText = 'margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #eee;padding-top:14px';
 
-  if (isWarehouse) {
+  if (m.lat && m.lng && m.merchant_type !== 'warehouse') {
     actionsBar.innerHTML = `
-      ${m.phone ? `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="flex:1;background:#10b981;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📞 اتصل</button>` : ''}
-      ${m.whatsapp ? `<button onclick="window.open('https://wa.me/${m.whatsapp}','_blank')" style="flex:1;background:#25D366;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">💬 واتساب</button>` : ''}
+      <button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>
       ${m.delivery_available ? `<button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
+    `;
+  } else if (m.delivery_available) {
+    actionsBar.innerHTML = `
+      <button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>
     `;
   } else {
-    actionsBar.innerHTML = `
-      ${m.phone ? `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="flex:1;background:#10b981;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📞 اتصل بالتاجر</button>` : ''}
-      ${m.lat && m.lng ? `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>` : ''}
-      ${m.whatsapp ? `<button onclick="window.open('https://wa.me/${m.whatsapp}','_blank')" style="flex:1;background:#25D366;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">💬 واتساب</button>` : ''}
-      ${m.delivery_available ? `<button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
-    `;
+    actionsBar.innerHTML = '';
   }
-  modal.querySelector('.modal-box').appendChild(actionsBar);
+
+  if (actionsBar.innerHTML.trim()) {
+    modal.querySelector('.modal-box').appendChild(actionsBar);
+  }
 
   $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
   getMerchantRatings(m.id).then(ratings => {
@@ -558,7 +560,7 @@ window.openOfferFull = async function(offerId, merchantId) {
     ${m.delivery_available ? '<span>🛵 التوصيل متاح</span>' : ''}
   `;
 
-  // ✅ زرار "اطلب العرض ده" فوق
+  // ✅ زرار "اطلب العرض ده" (البطل الأساسي)
   const requestBtnHtml = `
     <button onclick="window.openRequestOfferModal('${o.id}','${m.id}','${(o.title || '').replace(/'/g, "\\'")}')"
             style="width:100%;background:linear-gradient(135deg,#ff6b35,#f7931e);color:#fff;border:none;padding:16px;border-radius:30px;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 12px rgba(255,107,53,0.4)">
@@ -567,25 +569,16 @@ window.openOfferFull = async function(offerId, merchantId) {
   `;
 
   let actionsHtml = '';
-  if (m.phone) {
-    actionsHtml += `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="background:#10b981">📞 اتصل بالتاجر</button>`;
-  }
-  if (m.whatsapp) {
-    actionsHtml += `<button onclick="window.open('https://wa.me/${m.whatsapp}','_blank')" style="background:#25D366">💬 واتساب</button>`;
-  }
+  // ✅ سيبنا بس الموقع (شيلنا الاتصال والواتساب)
   if (m.lat && m.lng && m.merchant_type !== 'warehouse') {
-    actionsHtml += `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="background:#1a2a6c">📍 الموقع</button>`;
+    actionsHtml += `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="background:#1a2a6c">📍 الموقع على الخريطة</button>`;
   }
-  if (m.delivery_available) {
-    actionsHtml += `<button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="background:#ff6b35">🛵 اتصل للتوصيل</button>`;
-  }
-  $('offerFullActions').innerHTML = requestBtnHtml + (actionsHtml || '<p style="color:#6b7280">لا توجد طرق تواصل متاحة</p>');
+  $('offerFullActions').innerHTML = requestBtnHtml + (actionsHtml || '');
 
   const typeLabel = m.merchant_type === 'warehouse' ? '📦 مخزن' : (m.merchant_type === 'both' ? '🔄 محل ومخزن' : '🏪 محل');
   $('offerFullMerchantInfo').innerHTML = `
     <div><strong>🏪 ${m.name}</strong> ${typeLabel}</div>
     ${m.category ? `<div>📂 التصنيف: ${m.category}</div>` : ''}
-    ${m.phone ? `<div>📱 ${m.phone}</div>` : ''}
     ${m.lat && m.lng && m.merchant_type !== 'warehouse' ? `<div>📍 ${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div>` : ''}
     <div>💰 نسبة الكاش باك: ${m.cashback_rate || 15}%</div>
   `;
@@ -665,6 +658,7 @@ async function handleSendOfferRequest() {
     btn.innerText = '📩 إرسال الطلب';
   }
 }
+
 // ============================================================
 // Tabs
 // ============================================================
@@ -696,7 +690,6 @@ function switchTab(name) {
   if (name === 'admin') renderAdminSection('dashboard');
   if (name === 'account') setTimeout(initAccountMapUI, 300);
 }
-
 // ============================================================
 // INVOICE
 // ============================================================
@@ -939,18 +932,15 @@ async function handleSendRequest() {
 async function renderRequestsTab() {
   if (!currentProfile) return;
 
-  // إظهار Subtabs
   const subtabs = $('requestsSubtabs');
   if (subtabs) subtabs.style.display = 'flex';
 
   if (currentProfile.role === 'merchant' && currentMerchant) {
-    // ===== تاجر =====
     $('requestFormCard').style.display = 'none';
     $('reqStatsWrapper').style.display = 'none';
     $('myRequestsList').innerHTML = '';
     $('myOfferRequestsWrapper').style.display = 'none';
 
-    // إظهار الأقسام بتاعة التاجر
     $('merchantRequestsWrapper').style.display = 'block';
     $('offerRequestsWrapper').style.display = 'block';
 
@@ -958,20 +948,17 @@ async function renderRequestsTab() {
     await renderMerchantOfferRequestsList();
 
   } else if (currentProfile.role === 'customer') {
-    // ===== عميل =====
     $('requestFormCard').style.display = 'block';
     $('reqStatsWrapper').style.display = 'block';
     $('merchantRequestsWrapper').style.display = 'none';
     $('offerRequestsWrapper').style.display = 'none';
 
-    // إظهار قسم طلبات العروض بتاع العميل
     $('myOfferRequestsWrapper').style.display = 'block';
 
     await renderMyRequests();
     await renderMyOfferRequests();
 
   } else {
-    // ===== مش عميل ولا تاجر =====
     $('requestFormCard').style.display = 'none';
     $('reqStatsWrapper').style.display = 'none';
     $('merchantRequestsWrapper').style.display = 'none';
@@ -980,6 +967,9 @@ async function renderRequestsTab() {
     if (subtabs) subtabs.style.display = 'none';
     $('myRequestsList').innerHTML = '<div class="no-requests">مش مسجل كعميل أو تاجر</div>';
   }
+
+  // ✅ تحديث الأرقام على التابات
+  setTimeout(updateOfferReqBadge, 300);
 }
 
 // ✅ Subtabs
@@ -1170,13 +1160,18 @@ async function renderMerchantOfferRequestsList() {
         `;
       }
 
+      // ✅ إظهار رقم العميل بس لو التاجر رد "متاح"
+      const phoneHtml = custPhone
+        ? `<div style="margin-top:4px">📱 <a href="tel:${custPhone}" style="color:var(--primary);font-weight:700">${custPhone}</a></div>`
+        : `<div style="margin-top:4px;color:#9ca3af;font-size:12px">🔒 رقم العميل هيظهر بعد ما ترد "متاح"</div>`;
+
       return `<div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:12px;border-right:4px solid #ff6b35">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
           <h5 style="color:var(--primary);margin:0">🎁 ${req.product}</h5>${statusBadge}
         </div>
         <div style="background:#fff;padding:10px;border-radius:8px;margin-top:8px;font-size:13px">
           <div><strong>👤 ${custName}</strong></div>
-          ${custPhone ? `<div style="margin-top:4px">📱 <a href="tel:${custPhone}" style="color:var(--primary);font-weight:700">${custPhone}</a></div>` : ''}
+          ${phoneHtml}
         </div>
         ${req.details ? `<div style="font-size:13px;color:#4b5563;margin-top:8px;background:#fef3c7;padding:8px;border-radius:8px">📝 ${req.details}</div>` : ''}
         <div style="font-size:12px;color:#9ca3af;margin-top:6px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
@@ -1187,6 +1182,9 @@ async function renderMerchantOfferRequestsList() {
   } catch (e) {
     el.innerHTML = '<p style="color:#ef4444;text-align:center;padding:20px">❌ ' + e.message + '</p>';
   }
+
+  // ✅ تحديث الأرقام على التابات
+  updateOfferReqBadge();
 }
 
 window.replyOfferReqClick = async function(requestId, available) {
@@ -1363,6 +1361,55 @@ async function hideReq(reqId) {
   if (!confirm('مسح الطلب من عندك؟')) return;
   try { await hideRequestForMerchant(reqId, currentMerchant.id); renderRequestsTab(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+// ============================================================
+// ✅ تحديث الأرقام (Badge) على التابات
+// ============================================================
+async function updateOfferReqBadge() {
+  const mainBadge = $('mainReqBadge');
+  const subBadge = $('offerReqBadge');
+
+  if (!currentProfile || currentProfile.role !== 'merchant' || !currentMerchant) {
+    if (mainBadge) mainBadge.style.display = 'none';
+    if (subBadge) subBadge.style.display = 'none';
+    return;
+  }
+
+  try {
+    const offerReqs = await getMerchantOfferRequests(currentMerchant.id);
+    const pendingOffers = offerReqs.filter(r => !r.offer_response).length;
+
+    const specialReqs = await getMerchantRequests(currentMerchant.id, currentMerchant.category);
+    const pendingSpecial = specialReqs.filter(r => {
+      const myReply = (r.request_responses || []).find(x => x.merchant_id === currentMerchant.id);
+      return !myReply;
+    }).length;
+
+    const total = pendingOffers + pendingSpecial;
+
+    if (mainBadge) {
+      if (total > 0) {
+        mainBadge.innerText = total > 9 ? '9+' : total;
+        mainBadge.style.display = 'block';
+      } else {
+        mainBadge.style.display = 'none';
+      }
+    }
+
+    if (subBadge) {
+      if (pendingOffers > 0) {
+        subBadge.innerText = pendingOffers > 9 ? '9+' : pendingOffers;
+        subBadge.style.display = 'block';
+      } else {
+        subBadge.style.display = 'none';
+      }
+    }
+  } catch (e) {
+    console.error('Badge error:', e);
+    if (mainBadge) mainBadge.style.display = 'none';
+    if (subBadge) subBadge.style.display = 'none';
+  }
 }
 
 // ============================================================
@@ -2475,6 +2522,11 @@ async function showMainScreen(profile) {
   updateTabsVisibility();
   await refreshData();
   if (userLat === null) updateLocation();
+
+  // ✅ تحديث Badge للتاجر
+  if (profile.role === 'merchant') {
+    setTimeout(updateOfferReqBadge, 1000);
+  }
 }
 
 async function refreshData() {
@@ -2823,11 +2875,9 @@ function bindEvents() {
   const saveOfferBtn = document.getElementById('saveOfferEditBtn');
   if (saveOfferBtn) saveOfferBtn.addEventListener('click', handleSaveOfferEdit);
 
-  // ✅ زرار إرسال طلب العرض
   const sendOfferReqBtn = $('sendOfferRequestBtn');
   if (sendOfferReqBtn) sendOfferReqBtn.addEventListener('click', handleSendOfferRequest);
 
-  // ✅ Subtabs للطلبات
   document.querySelectorAll('.req-subtab').forEach(btn => {
     btn.addEventListener('click', () => switchRequestsSubtab(btn.dataset.req));
   });
@@ -2894,6 +2944,7 @@ window.switchRequestsSubtab = switchRequestsSubtab;
 window.replyOfferReqClick = replyOfferReqClick;
 window.cancelOfferReqClick = cancelOfferReqClick;
 window.deleteOfferReqClick = deleteOfferReqClick;
+window.updateOfferReqBadge = updateOfferReqBadge;
 window.renderOffersGrid = renderOffersGrid;
 window.renderMerchantsList = renderMerchantsList;
 window.renderRequestsTab = renderRequestsTab;
