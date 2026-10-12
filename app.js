@@ -25,7 +25,9 @@ const {
 const {
   sendRequest, getMyRequests, getMerchantRequests,
   replyToRequest, acceptOffer, cancelRequest, deleteRequest,
-  hideRequestForMerchant, askMerchantForImage, merchantSendExtraImage
+  hideRequestForMerchant, askMerchantForImage, merchantSendExtraImage,
+  requestSpecificOffer, getMyOfferRequests, getMerchantOfferRequests,
+  replyToOfferRequest, cancelOfferRequest, deleteOfferRequest
 } = await import('./requests.js');
 
 const {
@@ -72,7 +74,9 @@ let offersCategories = ['all'], offersSubCategories = [];
 let currentModalMerchant = null;
 let uploadedReqImage = null;
 let currentReqFilter = 'all';
+let currentOfferReqFilter = 'all';
 let myRequestsCache = [];
+let myOfferRequestsCache = [];
 let adminData = { merchants: [], customers: [], invoices: [] };
 let expectedLogin = null;
 let uploadedOfferImage = null;
@@ -81,6 +85,7 @@ let selectedRating = 0;
 let lastRatedMerchantId = null;
 let lastRatedMerchantName = '';
 let viewMode = 'all';
+let currentOfferFullData = null;
 
 // ============================================================
 // Load merchants
@@ -507,27 +512,22 @@ window.openOfferFull = async function(offerId, merchantId) {
   const o = (m.offers || []).find(x => x.id === offerId);
   if (!o) { toast('❌ العرض غير موجود', 'error'); return; }
 
-  // تسجيل مشاهدة العرض
+  currentOfferFullData = { offer: o, merchant: m };
+
   trackOfferEvent({ offerId: o.id, merchantId: m.id, eventType: 'view' });
 
-  // جلب عدد المشاهدات
   let viewsCount = 0;
   try {
     const views = await getMerchantOffersViews(m.id);
     viewsCount = views[o.id] || 0;
   } catch (e) { console.error(e); }
 
-  // الشريط العلوي: التاجر
   const logoHtml = m.logo_url
     ? `<img src="${m.logo_url}" alt="${m.name}">`
     : `<span style="font-size:20px">${m.icon || '🏪'}</span>`;
 
-  $('offerFullMerchant').innerHTML = `
-    ${logoHtml}
-    <span>${m.name}</span>
-  `;
+  $('offerFullMerchant').innerHTML = `${logoHtml}<span>${m.name}</span>`;
 
-  // الصورة
   if (o.image_url) {
     $('offerFullImage').src = o.image_url;
     $('offerFullImageWrap').style.display = 'block';
@@ -535,13 +535,9 @@ window.openOfferFull = async function(offerId, merchantId) {
     $('offerFullImageWrap').style.display = 'none';
   }
 
-  // الخصم
   $('offerFullDiscount').innerText = o.discount || '---';
-
-  // العنوان
   $('offerFullTitle').innerText = o.title || 'عرض';
 
-  // السعر
   if (o.price) {
     $('offerFullPrice').innerText = `💰 ${parseFloat(o.price).toFixed(2)} ج`;
     $('offerFullPrice').style.display = 'block';
@@ -549,7 +545,6 @@ window.openOfferFull = async function(offerId, merchantId) {
     $('offerFullPrice').style.display = 'none';
   }
 
-  // الوصف
   if (o.description) {
     $('offerFullDesc').innerText = o.description;
     $('offerFullDesc').style.display = 'block';
@@ -557,14 +552,20 @@ window.openOfferFull = async function(offerId, merchantId) {
     $('offerFullDesc').style.display = 'none';
   }
 
-  // الإحصائيات
   $('offerFullStats').innerHTML = `
     <span>👁️ ${viewsCount} مشاهدة</span>
     <span>🏪 ${m.name}</span>
     ${m.delivery_available ? '<span>🛵 التوصيل متاح</span>' : ''}
   `;
 
-  // أزرار التواصل
+  // ✅ زرار "اطلب العرض ده" فوق
+  const requestBtnHtml = `
+    <button onclick="window.openRequestOfferModal('${o.id}','${m.id}','${(o.title || '').replace(/'/g, "\\'")}')"
+            style="width:100%;background:linear-gradient(135deg,#ff6b35,#f7931e);color:#fff;border:none;padding:16px;border-radius:30px;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 12px rgba(255,107,53,0.4)">
+      📩 اطلب العرض ده
+    </button>
+  `;
+
   let actionsHtml = '';
   if (m.phone) {
     actionsHtml += `<button onclick="window.contactMerchant('${m.phone}','${m.id}')" style="background:#10b981">📞 اتصل بالتاجر</button>`;
@@ -578,9 +579,8 @@ window.openOfferFull = async function(offerId, merchantId) {
   if (m.delivery_available) {
     actionsHtml += `<button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="background:#ff6b35">🛵 اتصل للتوصيل</button>`;
   }
-  $('offerFullActions').innerHTML = actionsHtml || '<p style="color:#6b7280">لا توجد طرق تواصل متاحة</p>';
+  $('offerFullActions').innerHTML = requestBtnHtml + (actionsHtml || '<p style="color:#6b7280">لا توجد طرق تواصل متاحة</p>');
 
-  // بيانات التاجر
   const typeLabel = m.merchant_type === 'warehouse' ? '📦 مخزن' : (m.merchant_type === 'both' ? '🔄 محل ومخزن' : '🏪 محل');
   $('offerFullMerchantInfo').innerHTML = `
     <div><strong>🏪 ${m.name}</strong> ${typeLabel}</div>
@@ -590,7 +590,6 @@ window.openOfferFull = async function(offerId, merchantId) {
     <div>💰 نسبة الكاش باك: ${m.cashback_rate || 15}%</div>
   `;
 
-  // فتح المودال
   const modal = $('offerFullModal');
   modal.style.display = 'flex';
   modal.classList.add('active');
@@ -606,6 +605,66 @@ window.closeOfferFull = function(e) {
   document.body.style.overflow = '';
 };
 
+// ============================================================
+// ✅ طلب عرض معين
+// ============================================================
+window.openRequestOfferModal = function(offerId, merchantId, offerTitle) {
+  $('reqOfferId').value = offerId;
+  $('reqOfferMerchantId').value = merchantId;
+  $('reqOfferTitle').innerText = offerTitle;
+  $('reqOfferNote').value = '';
+  $('reqOfferResult').innerText = '';
+
+  const modal = $('requestOfferModal');
+  modal.style.display = 'flex';
+  modal.classList.add('active');
+};
+
+window.closeRequestOfferModal = function(e) {
+  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
+  const modal = $('requestOfferModal');
+  if (!modal) return;
+  modal.classList.remove('active');
+  modal.style.display = 'none';
+};
+
+async function handleSendOfferRequest() {
+  const offerId = $('reqOfferId').value;
+  const merchantId = $('reqOfferMerchantId').value;
+  const offerTitle = $('reqOfferTitle').innerText;
+  const note = $('reqOfferNote').value.trim();
+  const res = $('reqOfferResult');
+
+  if (!currentProfile || currentProfile.role !== 'customer') {
+    res.style.color = '#ef4444';
+    res.innerText = '❌ لازم تسجل دخول كعميل';
+    return;
+  }
+
+  const btn = $('sendOfferRequestBtn');
+  btn.disabled = true;
+  btn.innerText = '⏳ جاري الإرسال...';
+
+  try {
+    await requestSpecificOffer({ offerId, merchantId, offerTitle, note });
+
+    res.style.color = '#10b981';
+    res.innerText = '✅ تم إرسال طلبك للتاجر';
+
+    setTimeout(() => {
+      window.closeRequestOfferModal();
+      btn.disabled = false;
+      btn.innerText = '📩 إرسال الطلب';
+      if (currentProfile.role === 'customer') renderRequestsTab();
+    }, 1500);
+
+  } catch (e) {
+    res.style.color = '#ef4444';
+    res.innerText = '❌ ' + e.message;
+    btn.disabled = false;
+    btn.innerText = '📩 إرسال الطلب';
+  }
+}
 // ============================================================
 // Tabs
 // ============================================================
@@ -879,24 +938,63 @@ async function handleSendRequest() {
 
 async function renderRequestsTab() {
   if (!currentProfile) return;
+
+  // إظهار Subtabs
+  const subtabs = $('requestsSubtabs');
+  if (subtabs) subtabs.style.display = 'flex';
+
   if (currentProfile.role === 'merchant' && currentMerchant) {
+    // ===== تاجر =====
     $('requestFormCard').style.display = 'none';
     $('reqStatsWrapper').style.display = 'none';
     $('myRequestsList').innerHTML = '';
+    $('myOfferRequestsWrapper').style.display = 'none';
+
+    // إظهار الأقسام بتاعة التاجر
     $('merchantRequestsWrapper').style.display = 'block';
+    $('offerRequestsWrapper').style.display = 'block';
+
     await renderMerchantRequestsList();
+    await renderMerchantOfferRequestsList();
+
   } else if (currentProfile.role === 'customer') {
+    // ===== عميل =====
     $('requestFormCard').style.display = 'block';
     $('reqStatsWrapper').style.display = 'block';
     $('merchantRequestsWrapper').style.display = 'none';
+    $('offerRequestsWrapper').style.display = 'none';
+
+    // إظهار قسم طلبات العروض بتاع العميل
+    $('myOfferRequestsWrapper').style.display = 'block';
+
     await renderMyRequests();
+    await renderMyOfferRequests();
+
   } else {
+    // ===== مش عميل ولا تاجر =====
     $('requestFormCard').style.display = 'none';
     $('reqStatsWrapper').style.display = 'none';
     $('merchantRequestsWrapper').style.display = 'none';
+    $('offerRequestsWrapper').style.display = 'none';
+    $('myOfferRequestsWrapper').style.display = 'none';
+    if (subtabs) subtabs.style.display = 'none';
     $('myRequestsList').innerHTML = '<div class="no-requests">مش مسجل كعميل أو تاجر</div>';
   }
 }
+
+// ✅ Subtabs
+window.switchRequestsSubtab = function(type) {
+  document.querySelectorAll('.req-subtab').forEach(b =>
+    b.classList.toggle('active', b.dataset.req === type));
+
+  if (type === 'special') {
+    $('specialRequestsSection').style.display = 'block';
+    $('offerRequestsSection').style.display = 'none';
+  } else {
+    $('specialRequestsSection').style.display = 'none';
+    $('offerRequestsSection').style.display = 'block';
+  }
+};
 
 async function renderMyRequests() {
   myRequestsCache = await getMyRequests();
@@ -971,6 +1069,163 @@ async function renderMyRequests() {
     </div>`;
   }).join('');
 }
+
+async function renderMyOfferRequests() {
+  const el = $('myOfferRequestsList');
+  if (!el) return;
+
+  el.innerHTML = '<p style="color:#6b7280;text-align:center;padding:20px">⏳ جاري التحميل...</p>';
+
+  try {
+    myOfferRequestsCache = await getMyOfferRequests();
+
+    if (!myOfferRequestsCache.length) {
+      el.innerHTML = '<div class="no-requests">لا توجد طلبات عروض</div>';
+      return;
+    }
+
+    el.innerHTML = myOfferRequestsCache.map(req => {
+      const m = req.merchants || {};
+      const statusBadge = getStatusBadge(req.status);
+
+      let responseHtml = '';
+      if (req.offer_response === 'available') {
+        responseHtml = `<div style="background:#d1fae5;padding:10px;border-radius:10px;margin-top:8px;border-right:4px solid #10b981">
+          <div style="font-size:13px;color:#065f46;font-weight:700">✅ التاجر رد: متاح</div>
+          ${req.offer_reply ? `<div style="font-size:13px;color:#065f46;margin-top:4px">💬 ${req.offer_reply}</div>` : ''}
+          ${m.phone ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+            <a href="tel:${m.phone}" style="background:#10b981;color:#fff;text-decoration:none;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700">📞 اتصل</a>
+            ${m.whatsapp ? `<a href="https://wa.me/${m.whatsapp}" target="_blank" style="background:#25D366;color:#fff;text-decoration:none;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700">💬 واتساب</a>` : ''}
+          </div>` : ''}
+        </div>`;
+      } else if (req.offer_response === 'unavailable') {
+        responseHtml = `<div style="background:#fee2e2;padding:10px;border-radius:10px;margin-top:8px;border-right:4px solid #ef4444">
+          <div style="font-size:13px;color:#991b1b;font-weight:700">❌ التاجر رد: مش متاح حالياً</div>
+          ${req.offer_reply ? `<div style="font-size:13px;color:#991b1b;margin-top:4px">💬 ${req.offer_reply}</div>` : ''}
+        </div>`;
+      } else {
+        responseHtml = `<div style="color:#92400e;text-align:center;padding:10px;font-size:13px">⏳ في انتظار رد التاجر...</div>`;
+      }
+
+      let actions = '';
+      if (req.status === 'pending') {
+        actions = `<button class="admin-btn danger" onclick="window.cancelOfferReqClick('${req.id}')" style="margin-top:8px">🚫 إلغاء</button>`;
+      } else if (req.status === 'responded' || req.status === 'cancelled') {
+        actions = `<button class="admin-btn danger" onclick="window.deleteOfferReqClick('${req.id}')" style="margin-top:8px">🗑️ حذف</button>`;
+      }
+
+      return `<div class="card" style="padding:14px;border-right:4px solid #ff6b35">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+          <h4 style="margin:0">🎁 ${req.product}</h4>${statusBadge}
+        </div>
+        <div style="font-size:13px;color:#6b7280;margin-top:6px">🏪 التاجر: ${m.name || ''}</div>
+        ${req.details ? `<div style="font-size:13px;color:#4b5563;margin-top:6px">📝 ${req.details}</div>` : ''}
+        <div style="font-size:12px;color:#9ca3af;margin-top:4px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
+        ${responseHtml}
+        ${actions}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<p style="color:#ef4444;text-align:center;padding:20px">❌ ' + e.message + '</p>';
+  }
+}
+
+async function renderMerchantOfferRequestsList() {
+  const el = $('merchantOfferRequestsList');
+  if (!el) return;
+
+  el.innerHTML = '<p style="color:#6b7280;text-align:center;padding:20px">⏳ جاري التحميل...</p>';
+
+  try {
+    const requests = await getMerchantOfferRequests(currentMerchant.id);
+
+    if (!requests.length) {
+      el.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;padding:20px">مفيش طلبات عروض 😴</p>';
+      return;
+    }
+
+    el.innerHTML = requests.map(req => {
+      const statusBadge = getStatusBadge(req.status);
+      const custName = req.customer_name || 'عميل';
+      const custPhone = req.customer_phone || '';
+
+      let responseHtml = '';
+      if (req.offer_response) {
+        const isAvail = req.offer_response === 'available';
+        responseHtml = `<div style="background:${isAvail ? '#d1fae5' : '#fee2e2'};padding:10px;border-radius:10px;margin-top:8px">
+          <div style="font-size:13px;color:${isAvail ? '#065f46' : '#991b1b'};font-weight:700">
+            ${isAvail ? '✅ رديت: متاح' : '❌ رديت: مش متاح'}
+          </div>
+          ${req.offer_reply ? `<div style="font-size:13px;color:${isAvail ? '#065f46' : '#991b1b'};margin-top:4px">💬 ${req.offer_reply}</div>` : ''}
+        </div>`;
+      }
+
+      let actionsHtml = '';
+      if (!req.offer_response) {
+        actionsHtml = `
+          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="admin-btn success" onclick="window.replyOfferReqClick('${req.id}', true)">✅ متاح</button>
+            <button class="admin-btn danger" onclick="window.replyOfferReqClick('${req.id}', false)">❌ مش متاح</button>
+          </div>
+        `;
+      }
+
+      return `<div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:12px;border-right:4px solid #ff6b35">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <h5 style="color:var(--primary);margin:0">🎁 ${req.product}</h5>${statusBadge}
+        </div>
+        <div style="background:#fff;padding:10px;border-radius:8px;margin-top:8px;font-size:13px">
+          <div><strong>👤 ${custName}</strong></div>
+          ${custPhone ? `<div style="margin-top:4px">📱 <a href="tel:${custPhone}" style="color:var(--primary);font-weight:700">${custPhone}</a></div>` : ''}
+        </div>
+        ${req.details ? `<div style="font-size:13px;color:#4b5563;margin-top:8px;background:#fef3c7;padding:8px;border-radius:8px">📝 ${req.details}</div>` : ''}
+        <div style="font-size:12px;color:#9ca3af;margin-top:6px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
+        ${responseHtml}
+        ${actionsHtml}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<p style="color:#ef4444;text-align:center;padding:20px">❌ ' + e.message + '</p>';
+  }
+}
+
+window.replyOfferReqClick = async function(requestId, available) {
+  const replyText = prompt(
+    available ? 'اكتب رسالة للعميل (اختياري):' : 'اكتب سبب عدم التوفر (اختياري):',
+    available ? 'متوفر، تعالى خده' : 'مش متاح حالياً'
+  );
+  if (replyText === null) return;
+
+  try {
+    await replyToOfferRequest({ requestId, available, replyText });
+    toast(available ? '✅ تم إرسال الرد' : '❌ تم إرسال الرد', 'success');
+    renderMerchantOfferRequestsList();
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+  }
+};
+
+window.cancelOfferReqClick = async function(requestId) {
+  if (!confirm('متأكد من إلغاء الطلب؟')) return;
+  try {
+    await cancelOfferRequest(requestId);
+    toast('✅ تم الإلغاء', 'success');
+    renderMyOfferRequests();
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+  }
+};
+
+window.deleteOfferReqClick = async function(requestId) {
+  if (!confirm('متأكد من الحذف؟')) return;
+  try {
+    await deleteOfferRequest(requestId);
+    toast('✅ تم الحذف', 'success');
+    renderMyOfferRequests();
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+  }
+};
 
 function getStatusBadge(status) {
   const map = {
@@ -1367,7 +1622,6 @@ async function handleAddOffer() {
   } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
 }
 
-// ✅ فتح مودال تعديل العرض
 window.openEditOffer = async function(offerId) {
   const offers = await getMerchantOffers(currentMerchant.id);
   const o = offers.find(x => x.id === offerId);
@@ -1491,14 +1745,8 @@ async function handleSaveOfferEdit() {
     }
 
     await updateOffer({
-      offerId: id,
-      title,
-      discount: discountText,
-      discountValue,
-      description,
-      imageBase64,
-      price,
-      keepImage
+      offerId: id, title, discount: discountText, discountValue,
+      description, imageBase64, price, keepImage
     });
 
     res.style.color = 'green'; res.innerText = '✅ تم حفظ التعديلات';
@@ -2008,15 +2256,9 @@ async function handleSaveTraderEdit() {
 
   try {
     await adminUpdateMerchant(id, {
-      name, phone, bankCode, category,
-      subCategories: subs,
-      lat: isNaN(lat) ? null : lat,
-      lng: isNaN(lng) ? null : lng,
-      rate,
-      deliveryAvailable,
-      deliveryPhone,
-      merchantType,
-      whatsapp
+      name, phone, bankCode, category, subCategories: subs,
+      lat: isNaN(lat) ? null : lat, lng: isNaN(lng) ? null : lng,
+      rate, deliveryAvailable, deliveryPhone, merchantType, whatsapp
     });
     res.style.color = 'green'; res.innerText = '✅ تم الحفظ';
     setTimeout(() => {
@@ -2055,16 +2297,10 @@ async function handleAddTrader() {
 
   try {
     await addTrader({
-      bankCode, name, phone, category,
-      subCategories: subs,
+      bankCode, name, phone, category, subCategories: subs,
       icon: CATEGORY_ICONS[category] || '🏪',
-      lat: isNaN(lat) ? null : lat,
-      lng: isNaN(lng) ? null : lng,
-      rate,
-      deliveryAvailable,
-      deliveryPhone,
-      merchantType,
-      whatsapp
+      lat: isNaN(lat) ? null : lat, lng: isNaN(lng) ? null : lng,
+      rate, deliveryAvailable, deliveryPhone, merchantType, whatsapp
     });
     res.style.color = 'green'; res.innerText = `✅ تم إضافة ${name}`;
     setTimeout(() => { $('addTraderForm').style.display = 'none'; res.innerText = ''; renderAdminTraders(); }, 1500);
@@ -2565,7 +2801,6 @@ function bindEvents() {
     });
   });
 
-  // ✅ فورم تعديل العرض
   const editOfferImg = document.getElementById('editOfferImage');
   if (editOfferImg) {
     editOfferImg.addEventListener('change', function(e) {
@@ -2587,6 +2822,15 @@ function bindEvents() {
 
   const saveOfferBtn = document.getElementById('saveOfferEditBtn');
   if (saveOfferBtn) saveOfferBtn.addEventListener('click', handleSaveOfferEdit);
+
+  // ✅ زرار إرسال طلب العرض
+  const sendOfferReqBtn = $('sendOfferRequestBtn');
+  if (sendOfferReqBtn) sendOfferReqBtn.addEventListener('click', handleSendOfferRequest);
+
+  // ✅ Subtabs للطلبات
+  document.querySelectorAll('.req-subtab').forEach(btn => {
+    btn.addEventListener('click', () => switchRequestsSubtab(btn.dataset.req));
+  });
 }
 
 // ============================================================
@@ -2642,8 +2886,14 @@ window.switchTab = switchTab;
 window.openMerchant = openMerchant;
 window.closeMerchantModal = closeMerchantModal;
 window.closeModal = closeModal;
-window.openOfferFull = openOfferFull; // ✅ جديدة
-window.closeOfferFull = closeOfferFull; // ✅ جديدة
+window.openOfferFull = openOfferFull;
+window.closeOfferFull = closeOfferFull;
+window.openRequestOfferModal = openRequestOfferModal;
+window.closeRequestOfferModal = closeRequestOfferModal;
+window.switchRequestsSubtab = switchRequestsSubtab;
+window.replyOfferReqClick = replyOfferReqClick;
+window.cancelOfferReqClick = cancelOfferReqClick;
+window.deleteOfferReqClick = deleteOfferReqClick;
 window.renderOffersGrid = renderOffersGrid;
 window.renderMerchantsList = renderMerchantsList;
 window.renderRequestsTab = renderRequestsTab;
@@ -2692,7 +2942,6 @@ window.openMerchantMap = function(lat, lng, merchantId) {
   window.open('https://www.google.com/maps?q=' + lat + ',' + lng, '_blank');
 };
 
-// ✅ فتح الصورة في Lightbox
 window.openImageLightbox = function(imageUrl) {
   const old = document.getElementById('pamigoLightbox');
   if (old) old.remove();
@@ -2700,24 +2949,14 @@ window.openImageLightbox = function(imageUrl) {
   const lightbox = document.createElement('div');
   lightbox.id = 'pamigoLightbox';
   lightbox.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.92);
-    z-index: 999999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: zoom-out;
-    padding: 20px;
-    box-sizing: border-box;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.92); z-index: 999999;
+    display: flex; align-items: center; justify-content: center;
+    cursor: zoom-out; padding: 20px; box-sizing: border-box;
   `;
 
   lightbox.innerHTML = `
-    <img src="${imageUrl}"
-         style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 0 30px rgba(0,0,0,0.5)">
+    <img src="${imageUrl}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 0 30px rgba(0,0,0,0.5)">
     <button onclick="document.getElementById('pamigoLightbox').remove()"
             style="position:absolute;top:20px;left:20px;background:#fff;color:#000;border:none;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;font-weight:bold;line-height:1">
       ✕
@@ -2731,7 +2970,6 @@ window.openImageLightbox = function(imageUrl) {
   document.body.appendChild(lightbox);
 };
 
-// ✅ تسجيل مشاهدة العرض
 window.trackOfferView = function(offerId, merchantId) {
   trackOfferEvent({ offerId, merchantId, eventType: 'view' });
 };
