@@ -688,6 +688,7 @@ function switchTab(name) {
   if (name === 'admin') renderAdminSection('dashboard');
   if (name === 'account') setTimeout(initAccountMapUI, 300);
 }
+
 // ============================================================
 // INVOICE
 // ============================================================
@@ -1403,6 +1404,107 @@ async function updateOfferReqBadge() {
     if (subBadge) subBadge.style.display = 'none';
   }
 }
+
+// ============================================================
+// ✅ عرض تقرير التاجر
+// ============================================================
+window.openMerchantReport = async function(merchantId) {
+  const m = adminData.merchants.find(x => x.id === merchantId);
+  if (!m) { toast('❌ التاجر غير موجود', 'error'); return; }
+
+  const logoHtml = m.logo_url
+    ? `<img src="${m.logo_url}" style="width:50px;height:50px;object-fit:cover;border-radius:12px;display:block;margin:0 auto 8px">`
+    : `<div style="font-size:40px;text-align:center">${m.icon || '🏪'}</div>`;
+
+  $('reportMerchantName').innerHTML = `
+    ${logoHtml}
+    <div style="text-align:center;font-weight:700;color:var(--primary);margin-top:6px">${m.name}</div>
+    <div style="text-align:center;font-size:12px;color:#6b7280;margin-top:4px">🔑 ${m.bank_code || '-'} | 📱 ${m.phone || '-'}</div>
+  `;
+
+  $('reportMerchantContent').innerHTML = '<p style="text-align:center;padding:20px;color:#6b7280">⏳ جاري التحميل...</p>';
+
+  const modal = $('merchantReportModal');
+  modal.style.display = 'flex';
+  modal.classList.add('active');
+
+  try {
+    const r = await getMerchantFullReport(merchantId);
+
+    $('reportMerchantContent').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+        
+        <div style="background:#dbeafe;padding:12px;border-radius:10px;text-align:center;grid-column:span 2">
+          <div style="font-size:11px;color:#1e40af">💰 إجمالي المبيعات</div>
+          <div style="font-size:24px;font-weight:800;color:#1e40af;margin-top:4px">${r.totalSales.toFixed(2)} ج</div>
+        </div>
+
+        <div style="background:#f0f9ff;padding:12px;border-radius:10px;text-align:center">
+          <div style="font-size:11px;color:#0c4a6e">📄 فواتير نشطة</div>
+          <div style="font-size:18px;font-weight:700;color:#0c4a6e;margin-top:4px">${r.invoicesCount}</div>
+        </div>
+
+        <div style="background:#fef3c7;padding:12px;border-radius:10px;text-align:center">
+          <div style="font-size:11px;color:#92400e">🔄 مرتجعات</div>
+          <div style="font-size:18px;font-weight:700;color:#92400e;margin-top:4px">${r.returnedCount}</div>
+        </div>
+
+        <div style="background:#d1fae5;padding:12px;border-radius:10px;text-align:center">
+          <div style="font-size:11px;color:#065f46">💵 كاش باك ممنوح</div>
+          <div style="font-size:16px;font-weight:700;color:#065f46;margin-top:4px">${r.totalCashbackGiven.toFixed(2)} ج</div>
+        </div>
+
+        <div style="background:#fee2e2;padding:12px;border-radius:10px;text-align:center">
+          <div style="font-size:11px;color:#991b1b">💸 كاش باك مصروف</div>
+          <div style="font-size:16px;font-weight:700;color:#991b1b;margin-top:4px">${r.totalCashbackSpent.toFixed(2)} ج</div>
+        </div>
+
+        <div style="background:#ede9fe;padding:12px;border-radius:10px;text-align:center">
+          <div style="font-size:11px;color:#5b21b6">💰 متبقي</div>
+          <div style="font-size:16px;font-weight:700;color:#5b21b6;margin-top:4px">${r.totalCashbackRemaining.toFixed(2)} ج</div>
+        </div>
+
+        <div style="background:#f3f4f6;padding:12px;border-radius:10px;text-align:center">
+          <div style="font-size:11px;color:#374151">👥 عملاء فريدين</div>
+          <div style="font-size:18px;font-weight:700;color:#374151;margin-top:4px">${r.uniqueCustomers}</div>
+        </div>
+
+        <div style="background:#f0fdf4;padding:12px;border-radius:10px;text-align:center">
+          <div style="font-size:11px;color:#166534">💰 متوسط الفاتورة</div>
+          <div style="font-size:16px;font-weight:700;color:#166534;margin-top:4px">${r.avgInvoice.toFixed(2)} ج</div>
+        </div>
+
+        <div style="background:#fff7ed;padding:12px;border-radius:10px;text-align:center">
+          <div style="font-size:11px;color:#9a3412">🎁 عدد العروض</div>
+          <div style="font-size:18px;font-weight:700;color:#9a3412;margin-top:4px">${r.offersCount}</div>
+        </div>
+
+        ${r.deletedCount > 0 ? `
+        <div style="background:#fef2f2;padding:12px;border-radius:10px;text-align:center;grid-column:span 2;border:1px dashed #fca5a5">
+          <div style="font-size:11px;color:#991b1b">⚠️ فواتير محذوفة (من الأدمن)</div>
+          <div style="font-size:18px;font-weight:700;color:#991b1b;margin-top:4px">${r.deletedCount}</div>
+        </div>
+        ` : ''}
+
+      </div>
+
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;text-align:center">
+        <p style="font-size:12px;color:#9ca3af">📅 التقرير ده بيعرض الفواتير الحالية بس</p>
+      </div>
+    `;
+
+  } catch (e) {
+    $('reportMerchantContent').innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px">❌ ${e.message}</p>`;
+  }
+};
+
+window.closeMerchantReport = function(e) {
+  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
+  const modal = $('merchantReportModal');
+  if (!modal) return;
+  modal.classList.remove('active');
+  modal.style.display = 'none';
+};
 
 // ============================================================
 // MERCHANT LOGO
@@ -2937,6 +3039,8 @@ window.replyOfferReqClick = replyOfferReqClick;
 window.cancelOfferReqClick = cancelOfferReqClick;
 window.deleteOfferReqClick = deleteOfferReqClick;
 window.updateOfferReqBadge = updateOfferReqBadge;
+window.openMerchantReport = openMerchantReport;
+window.closeMerchantReport = closeMerchantReport;
 window.renderOffersGrid = renderOffersGrid;
 window.renderMerchantsList = renderMerchantsList;
 window.renderRequestsTab = renderRequestsTab;
@@ -2969,8 +3073,6 @@ window.adminReturnInv = adminReturnInv;
 window.adminDeleteWithCashback = adminDeleteWithCashback;
 window.adminDeleteOnly = adminDeleteOnly;
 window.renderOfferEventsTable = renderOfferEventsTable;
-window.openMerchantReport = openMerchantReport;
-window.closeMerchantReport = closeMerchantReport;
 
 window.contactMerchant = function(phone, merchantId) {
   trackOfferEvent({ offerId: null, merchantId, eventType: 'contact' });
@@ -3033,105 +3135,4 @@ window.onOfferTypeChange = function(value) {
     percentWrap.style.display = 'none';
     customWrap.style.display = 'none';
   }
-};
-
-// ============================================================
-// ✅ عرض تقرير التاجر
-// ============================================================
-window.openMerchantReport = async function(merchantId) {
-  const m = adminData.merchants.find(x => x.id === merchantId);
-  if (!m) { toast('❌ التاجر غير موجود', 'error'); return; }
-
-  const logoHtml = m.logo_url
-    ? `<img src="${m.logo_url}" style="width:50px;height:50px;object-fit:cover;border-radius:12px;display:block;margin:0 auto 8px">`
-    : `<div style="font-size:40px;text-align:center">${m.icon || '🏪'}</div>`;
-
-  $('reportMerchantName').innerHTML = `
-    ${logoHtml}
-    <div style="text-align:center;font-weight:700;color:var(--primary);margin-top:6px">${m.name}</div>
-    <div style="text-align:center;font-size:12px;color:#6b7280;margin-top:4px">🔑 ${m.bank_code || '-'} | 📱 ${m.phone || '-'}</div>
-  `;
-
-  $('reportMerchantContent').innerHTML = '<p style="text-align:center;padding:20px;color:#6b7280">⏳ جاري التحميل...</p>';
-
-  const modal = $('merchantReportModal');
-  modal.style.display = 'flex';
-  modal.classList.add('active');
-
-  try {
-    const r = await getMerchantFullReport(merchantId);
-
-    $('reportMerchantContent').innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
-        
-        <div style="background:#dbeafe;padding:12px;border-radius:10px;text-align:center;grid-column:span 2">
-          <div style="font-size:11px;color:#1e40af">💰 إجمالي المبيعات</div>
-          <div style="font-size:24px;font-weight:800;color:#1e40af;margin-top:4px">${r.totalSales.toFixed(2)} ج</div>
-        </div>
-
-        <div style="background:#f0f9ff;padding:12px;border-radius:10px;text-align:center">
-          <div style="font-size:11px;color:#0c4a6e">📄 فواتير نشطة</div>
-          <div style="font-size:18px;font-weight:700;color:#0c4a6e;margin-top:4px">${r.invoicesCount}</div>
-        </div>
-
-        <div style="background:#fef3c7;padding:12px;border-radius:10px;text-align:center">
-          <div style="font-size:11px;color:#92400e">🔄 مرتجعات</div>
-          <div style="font-size:18px;font-weight:700;color:#92400e;margin-top:4px">${r.returnedCount}</div>
-        </div>
-
-        <div style="background:#d1fae5;padding:12px;border-radius:10px;text-align:center">
-          <div style="font-size:11px;color:#065f46">💵 كاش باك ممنوح</div>
-          <div style="font-size:16px;font-weight:700;color:#065f46;margin-top:4px">${r.totalCashbackGiven.toFixed(2)} ج</div>
-        </div>
-
-        <div style="background:#fee2e2;padding:12px;border-radius:10px;text-align:center">
-          <div style="font-size:11px;color:#991b1b">💸 كاش باك مصروف</div>
-          <div style="font-size:16px;font-weight:700;color:#991b1b;margin-top:4px">${r.totalCashbackSpent.toFixed(2)} ج</div>
-        </div>
-
-        <div style="background:#ede9fe;padding:12px;border-radius:10px;text-align:center">
-          <div style="font-size:11px;color:#5b21b6">💰 متبقي</div>
-          <div style="font-size:16px;font-weight:700;color:#5b21b6;margin-top:4px">${r.totalCashbackRemaining.toFixed(2)} ج</div>
-        </div>
-
-        <div style="background:#f3f4f6;padding:12px;border-radius:10px;text-align:center">
-          <div style="font-size:11px;color:#374151">👥 عملاء فريدين</div>
-          <div style="font-size:18px;font-weight:700;color:#374151;margin-top:4px">${r.uniqueCustomers}</div>
-        </div>
-
-        <div style="background:#f0fdf4;padding:12px;border-radius:10px;text-align:center">
-          <div style="font-size:11px;color:#166534">💰 متوسط الفاتورة</div>
-          <div style="font-size:16px;font-weight:700;color:#166534;margin-top:4px">${r.avgInvoice.toFixed(2)} ج</div>
-        </div>
-
-        <div style="background:#fff7ed;padding:12px;border-radius:10px;text-align:center">
-          <div style="font-size:11px;color:#9a3412">🎁 عدد العروض</div>
-          <div style="font-size:18px;font-weight:700;color:#9a3412;margin-top:4px">${r.offersCount}</div>
-        </div>
-
-        ${r.deletedCount > 0 ? `
-        <div style="background:#fef2f2;padding:12px;border-radius:10px;text-align:center;grid-column:span 2;border:1px dashed #fca5a5">
-          <div style="font-size:11px;color:#991b1b">⚠️ فواتير محذوفة (من الأدمن)</div>
-          <div style="font-size:18px;font-weight:700;color:#991b1b;margin-top:4px">${r.deletedCount}</div>
-        </div>
-        ` : ''}
-
-      </div>
-
-      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;text-align:center">
-        <p style="font-size:12px;color:#9ca3af">📅 التقرير ده بيعرض الفواتير الحالية بس</p>
-      </div>
-    `;
-
-  } catch (e) {
-    $('reportMerchantContent').innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px">❌ ${e.message}</p>`;
-  }
-};
-
-window.closeMerchantReport = function(e) {
-  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
-  const modal = $('merchantReportModal');
-  if (!modal) return;
-  modal.classList.remove('active');
-  modal.style.display = 'none';
 };
