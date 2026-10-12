@@ -669,3 +669,56 @@
   }
   .offer-full-header { border-radius: 20px 20px 0 0; }
 }
+
+/* ============================================================
+   ✅ Subtabs في تاب طلباتي (طلبات خاصة / طلبات عروض)
+   ============================================================ */
+.req-subtab {
+  font-size: 13px !important;
+  padding: 10px !important;
+}
+.req-subtab.active {
+  background: #ff6b35 !important;
+  color: #fff !important;
+}
+
+/* ============================================================
+   ✅ مودال طلب عرض معين (requestOfferModal)
+   ============================================================ */
+#requestOfferModal .modal-box {
+  max-width: 420px;
+}
+#requestOfferModal textarea {
+  width: 100%;
+  padding: 12px;
+  margin: 6px 0;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  min-height: 80px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+#requestOfferModal textarea:focus {
+  outline: none;
+  border-color: #ff6b35;
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+}
+#sendOfferRequestBtn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 30px;
+  font-size: 15.5px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+  transition: transform 0.15s;
+}
+#sendOfferRequestBtn:active {
+  transform: scale(0.97);
+}
+#sendOfferRequestBtn:disabled {
+  background: #cbd5e1 !important;
+  cursor: not-allowed;
+}
