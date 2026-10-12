@@ -1,8 +1,11 @@
-﻿// ============================================================
+// ============================================================
 // PAMIGO - Special Requests
 // ============================================================
 import { supabase } from './supabase.js';
 
+// ============================================================
+// ✅ الطلبات الخاصة (القديمة)
+// ============================================================
 export async function sendRequest({ category, product, details, imageBase64 }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('مش مسجل دخول');
@@ -15,7 +18,8 @@ export async function sendRequest({ category, product, details, imageBase64 }) {
       product: product.trim(),
       details: details.trim() || 'لا تفاصيل',
       image_url: imageBase64 || null,
-      status: 'pending'
+      status: 'pending',
+      request_type: 'special'
     })
     .select()
     .single();
@@ -39,6 +43,7 @@ export async function getMyRequests() {
       )
     `)
     .eq('customer_id', user.id)
+    .eq('request_type', 'special')
     .order('created_at', { ascending: false });
 
   if (error) { console.error(error); return []; }
@@ -56,6 +61,7 @@ export async function getMerchantRequests(merchantId, merchantCategory) {
       )
     `)
     .eq('category', merchantCategory)
+    .eq('request_type', 'special')
     .order('created_at', { ascending: false })
     .limit(50);
 
@@ -132,5 +138,114 @@ export async function askMerchantForImage({ responseId, message, existingMessage
     .from('request_responses')
     .update({ customer_messages: updated })
     .eq('id', responseId);
+  if (error) throw error;
+}
+
+// ============================================================
+// ✅ طلبات العروض (الجديدة)
+// ============================================================
+
+// ✅ العميل يبعت طلب لعرض معين
+export async function requestSpecificOffer({ offerId, merchantId, offerTitle, note }) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('مش مسجل دخول');
+
+  // جلب بيانات العميل
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('name, phone')
+    .eq('id', user.id)
+    .single();
+
+  const customerName = profile?.name || 'عميل';
+  const customerPhone = profile?.phone || '';
+
+  const { data, error } = await supabase
+    .from('special_requests')
+    .insert({
+      customer_id: user.id,
+      category: 'offer',
+      product: offerTitle || 'عرض',
+      details: note || 'طلب عرض',
+      image_url: null,
+      status: 'pending',
+      request_type: 'offer',
+      offer_id: offerId,
+      merchant_id: merchantId,
+      customer_name: customerName,
+      customer_phone: customerPhone
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// ✅ العميل يجيب طلبات العروض بتاعته
+export async function getMyOfferRequests() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from('special_requests')
+    .select(`
+      *,
+      merchants ( name, icon, phone, whatsapp, bank_code )
+    `)
+    .eq('customer_id', user.id)
+    .eq('request_type', 'offer')
+    .order('created_at', { ascending: false });
+
+  if (error) { console.error(error); return []; }
+  return data || [];
+}
+
+// ✅ التاجر يجيب طلبات العروض الواردة له
+export async function getMerchantOfferRequests(merchantId) {
+  const { data, error } = await supabase
+    .from('special_requests')
+    .select(`
+      *,
+      merchants ( name, icon, phone, whatsapp )
+    `)
+    .eq('merchant_id', merchantId)
+    .eq('request_type', 'offer')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) { console.error(error); return []; }
+  return data || [];
+}
+
+// ✅ التاجر يرد على طلب العرض (متاح / مش متاح + رد حر)
+export async function replyToOfferRequest({ requestId, available, replyText }) {
+  const updateData = {
+    offer_response: available ? 'available' : 'unavailable',
+    offer_reply: replyText || (available ? 'متوفر' : 'مش متاح حالياً'),
+    status: 'responded',
+    responded_at: new Date().toISOString()
+  };
+
+  const { error } = await supabase
+    .from('special_requests')
+    .update(updateData)
+    .eq('id', requestId);
+
+  if (error) throw error;
+}
+
+// ✅ العميل يلغي طلب العرض
+export async function cancelOfferRequest(requestId) {
+  const { error } = await supabase
+    .from('special_requests')
+    .update({ status: 'cancelled' })
+    .eq('id', requestId);
+  if (error) throw error;
+}
+
+// ✅ العميل يحذف طلب العرض
+export async function deleteOfferRequest(requestId) {
+  const { error } = await supabase.from('special_requests').delete().eq('id', requestId);
   if (error) throw error;
 }
