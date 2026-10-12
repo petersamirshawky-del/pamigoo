@@ -308,59 +308,95 @@
       </div>
     </div>
 
+    <!-- ============================================================
+         تاب طلباتي (معدل: فيه Subtabs للطلبات الخاصة وطلبات العروض)
+         ============================================================ -->
     <div class="tab-content" id="tab-requests">
-      <div class="card" id="requestFormCard" style="display:none">
-        <h4 style="margin-bottom:10px">📝 طلب خاص</h4>
-        <select id="reqCategory">
-          <option value="fashion">👗 ملابس</option>
-          <option value="restaurants">🍕 مطاعم</option>
-          <option value="bigfood">🍔 وجبات</option>
-          <option value="electronics">📱 إلكترونيات</option>
-          <option value="car_parts">🛞 قطع غيار</option>
-          <option value="car_accessories">🪞 كماليات</option>
-          <option value="car_repair">🔧 صيانة</option>
-          <option value="clinics">🩺 عيادات</option>
-          <option value="labs">🧪 معامل</option>
-          <option value="radiology">📡 أشعة</option>
-          <option value="hospitals">🏨 مستشفيات</option>
-          <option value="pharmacies">💊 صيدليات</option>
-          <option value="cosmetics">💄 مستحضرات تجميل</option>
-          <option value="stationery">📚 مكتبات</option>
-          <option value="toys">🧸 ألعاب أطفال</option>
-        </select>
-        <input type="text" id="reqProduct" placeholder="اسم المنتج أو الخدمة">
-        <textarea id="reqDetails" placeholder="تفاصيل إضافية..."></textarea>
-        <label style="margin-top:10px;font-size:14px;font-weight:600;display:block">📸 صورة (اختياري)</label>
-        <div style="border:2px dashed #ddd;padding:20px;text-align:center;border-radius:10px;cursor:pointer;margin:6px 0" onclick="document.getElementById('reqImage').click()">
-          <i class="fas fa-camera" style="font-size:24px;color:var(--primary)"></i>
-          <p style="margin:4px 0">اضغط لرفع صورة</p>
-          <span id="reqFileName" style="color:var(--primary);font-weight:600">لم يتم اختيار ملف</span>
-          <input type="file" id="reqImage" accept="image/*" style="display:none">
-        </div>
-        <img id="reqImagePreview" style="display:none;width:100%;max-width:200px;margin-top:10px;border-radius:10px;border:2px solid #ddd">
-        <button id="sendRequestBtn" style="margin-top:10px">📤 إرسال الطلب للتجار</button>
-        <div id="requestSendResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
+
+      <!-- ✅ Subtabs: طلبات خاصة / طلبات عروض -->
+      <div class="tabs" id="requestsSubtabs" style="display:none; margin-bottom:16px; padding:4px">
+        <button class="tab-btn req-subtab active" data-req="special">📝 طلبات خاصة</button>
+        <button class="tab-btn req-subtab" data-req="offer">🎁 طلبات عروض</button>
       </div>
-      <div id="reqStatsWrapper" style="display:none">
-        <div class="stats">
-          <div class="stat">📊 إجمالي<br><strong id="statTotal">0</strong></div>
-          <div class="stat">⏳ انتظار<br><strong id="statPending">0</strong></div>
-          <div class="stat">💬 ردود<br><strong id="statResponded">0</strong></div>
-          <div class="stat">✅ مقبولة<br><strong id="statAccepted">0</strong></div>
+
+      <!-- ===== قسم الطلبات الخاصة ===== -->
+      <div id="specialRequestsSection">
+
+        <div class="card" id="requestFormCard" style="display:none">
+          <h4 style="margin-bottom:10px">📝 طلب خاص</h4>
+          <select id="reqCategory">
+            <option value="fashion">👗 ملابس</option>
+            <option value="restaurants">🍕 مطاعم</option>
+            <option value="bigfood">🍔 وجبات</option>
+            <option value="electronics">📱 إلكترونيات</option>
+            <option value="car_parts">🛞 قطع غيار</option>
+            <option value="car_accessories">🪞 كماليات</option>
+            <option value="car_repair">🔧 صيانة</option>
+            <option value="clinics">🩺 عيادات</option>
+            <option value="labs">🧪 معامل</option>
+            <option value="radiology">📡 أشعة</option>
+            <option value="hospitals">🏨 مستشفيات</option>
+            <option value="pharmacies">💊 صيدليات</option>
+            <option value="cosmetics">💄 مستحضرات تجميل</option>
+            <option value="stationery">📚 مكتبات</option>
+            <option value="toys">🧸 ألعاب أطفال</option>
+          </select>
+          <input type="text" id="reqProduct" placeholder="اسم المنتج أو الخدمة">
+          <textarea id="reqDetails" placeholder="تفاصيل إضافية..."></textarea>
+          <label style="margin-top:10px;font-size:14px;font-weight:600;display:block">📸 صورة (اختياري)</label>
+          <div style="border:2px dashed #ddd;padding:20px;text-align:center;border-radius:10px;cursor:pointer;margin:6px 0" onclick="document.getElementById('reqImage').click()">
+            <i class="fas fa-camera" style="font-size:24px;color:var(--primary)"></i>
+            <p style="margin:4px 0">اضغط لرفع صورة</p>
+            <span id="reqFileName" style="color:var(--primary);font-weight:600">لم يتم اختيار ملف</span>
+            <input type="file" id="reqImage" accept="image/*" style="display:none">
+          </div>
+          <img id="reqImagePreview" style="display:none;width:100%;max-width:200px;margin-top:10px;border-radius:10px;border:2px solid #ddd">
+          <button id="sendRequestBtn" style="margin-top:10px">📤 إرسال الطلب للتجار</button>
+          <div id="requestSendResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
         </div>
-        <div class="categories" id="reqFilters">
-          <button class="category-chip active" data-filter="all">🌟 الكل</button>
-          <button class="category-chip" data-filter="pending">⏳ قيد الانتظار</button>
-          <button class="category-chip" data-filter="responded">💬 تم الرد</button>
-          <button class="category-chip" data-filter="accepted">✅ مقبولة</button>
+        <div id="reqStatsWrapper" style="display:none">
+          <div class="stats">
+            <div class="stat">📊 إجمالي<br><strong id="statTotal">0</strong></div>
+            <div class="stat">⏳ انتظار<br><strong id="statPending">0</strong></div>
+            <div class="stat">💬 ردود<br><strong id="statResponded">0</strong></div>
+            <div class="stat">✅ مقبولة<br><strong id="statAccepted">0</strong></div>
+          </div>
+          <div class="categories" id="reqFilters">
+            <button class="category-chip active" data-filter="all">🌟 الكل</button>
+            <button class="category-chip" data-filter="pending">⏳ قيد الانتظار</button>
+            <button class="category-chip" data-filter="responded">💬 تم الرد</button>
+            <button class="category-chip" data-filter="accepted">✅ مقبولة</button>
+          </div>
+        </div>
+        <div id="myRequestsList"></div>
+        <div id="merchantRequestsWrapper" style="display:none">
+          <div class="card" style="border-right:4px solid var(--success)">
+            <h4 style="margin-bottom:10px">📥 الطلبات الواردة (خاصة)</h4>
+            <p style="font-size:13px;color:#6b7280;margin-bottom:12px">الطلبات في تصنيفك.</p>
+            <div id="merchantRequestsList"><p style="color:#6b7280;font-size:14px">جاري التحميل...</p></div>
+          </div>
         </div>
       </div>
-      <div id="myRequestsList"></div>
-      <div id="merchantRequestsWrapper" style="display:none">
-        <div class="card" style="border-right:4px solid var(--success)">
-          <h4 style="margin-bottom:10px">📥 الطلبات الواردة</h4>
-          <p style="font-size:13px;color:#6b7280;margin-bottom:12px">الطلبات في تصنيفك.</p>
-          <div id="merchantRequestsList"><p style="color:#6b7280;font-size:14px">جاري التحميل...</p></div>
+
+      <!-- ===== قسم طلبات العروض ===== -->
+      <div id="offerRequestsSection" style="display:none">
+
+        <!-- عند التاجر: طلبات العروض الواردة -->
+        <div id="offerRequestsWrapper" style="display:none">
+          <div class="card" style="border-right:4px solid #ff6b35">
+            <h4 style="margin-bottom:10px">🎁 طلبات العروض الواردة</h4>
+            <p style="font-size:13px;color:#6b7280;margin-bottom:12px">العملاء اللي طلبوا عروضك.</p>
+            <div id="merchantOfferRequestsList"><p style="color:#6b7280;font-size:14px">جاري التحميل...</p></div>
+          </div>
+        </div>
+
+        <!-- عند العميل: طلبات العروض بتاعته -->
+        <div id="myOfferRequestsWrapper" style="display:none">
+          <div class="card" style="border-right:4px solid #ff6b35">
+            <h4 style="margin-bottom:10px">🎁 طلبات العروض بتاعتي</h4>
+            <p style="font-size:13px;color:#6b7280;margin-bottom:12px">العروض اللي طلبتها من التجار.</p>
+            <div id="myOfferRequestsList"><p style="color:#6b7280;font-size:14px">جاري التحميل...</p></div>
+          </div>
         </div>
       </div>
     </div>
@@ -599,18 +635,18 @@
 
           <div id="editTraderForm" style="display:none;background:#f9fafb;padding:15px;border-radius:12px;margin-bottom:15px;border-right:4px solid #1a2a6c">
             <h5 style="margin-bottom:10px;color:var(--primary)">✏️ تعديل بيانات التاجر</h5>
-            
+
             <input type="hidden" id="editTraderId">
-            
+
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">اسم التاجر:</label>
             <input type="text" id="editTraderName">
-            
+
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">البنكود:</label>
             <input type="text" id="editTraderBankCode" style="text-transform:uppercase">
-            
+
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">رقم الموبايل:</label>
             <input type="text" id="editTraderPhone">
-            
+
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيف:</label>
             <select id="editTraderCategory">
               <option value="fashion">👗 ملابس</option>
@@ -629,28 +665,28 @@
               <option value="stationery">📚 مكتبات</option>
               <option value="toys">🧸 ألعاب أطفال</option>
             </select>
-            
+
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيفات الفرعية:</label>
             <div id="editTraderSubs" class="categories" style="margin-bottom:0"></div>
-            
+
             <label style="font-size:13px;font-weight:600;display:block;margin-top:10px">🏪 نوع النشاط:</label>
             <select id="editTraderType">
               <option value="shop">🏪 محل (له عنوان وخريطة)</option>
               <option value="warehouse">📦 مخزن (بدون عنوان)</option>
               <option value="both">🔄 الاتنين</option>
             </select>
-            
+
             <input type="tel" id="editTraderWhatsapp" placeholder="💬 رقم الواتساب (اختياري)">
-            
+
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">Latitude:</label>
             <input type="number" id="editTraderLat" step="0.0001">
-            
+
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">Longitude:</label>
             <input type="number" id="editTraderLng" step="0.0001">
-            
+
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">نسبة الكاش باك (1-50):</label>
             <input type="number" id="editTraderRate" min="1" max="50">
-            
+
             <label style="font-size:13px;font-weight:600;display:block;margin-top:10px">
               <input type="checkbox" id="editTraderDelivery" style="width:auto;margin-left:6px">
               🛵 التوصيل متاح
@@ -658,7 +694,7 @@
             <div id="editTraderDeliveryWrap" style="display:none">
               <input type="tel" id="editTraderDeliveryPhone" placeholder="📞 رقم التوصيل (اختياري)">
             </div>
-            
+
             <div style="display:flex;gap:8px;margin-top:10px">
               <button id="saveTraderBtn" style="flex:1;background:#27ae60">💾 حفظ التعديلات</button>
               <button id="cancelEditTraderBtn" style="flex:1;background:#95a5a6">❌ إلغاء</button>
@@ -798,6 +834,53 @@
     </div>
   </div>
 
+  <!-- ✅ مودال عرض التفاصيل الكاملة للعرض -->
+  <div class="modal-overlay" id="offerFullModal" style="display:none;padding:0" onclick="window.closeOfferFull(event)">
+    <div class="modal-box offer-full-box" onclick="event.stopPropagation()" style="max-width:100%;width:100%;height:100%;max-height:100vh;border-radius:0;margin:0;overflow-y:auto;padding:0">
+
+      <div class="offer-full-header">
+        <button class="offer-full-close" onclick="window.closeOfferFull()">✕</button>
+        <div class="offer-full-merchant" id="offerFullMerchant"></div>
+      </div>
+
+      <div id="offerFullImageWrap" style="display:none">
+        <img id="offerFullImage" class="offer-full-image" src="" alt="صورة العرض" onclick="window.openImageLightbox(this.src)">
+      </div>
+
+      <div class="offer-full-body">
+        <div class="offer-full-discount" id="offerFullDiscount">-</div>
+        <h2 class="offer-full-title" id="offerFullTitle">-</h2>
+        <div class="offer-full-price" id="offerFullPrice" style="display:none"></div>
+        <p class="offer-full-desc" id="offerFullDesc" style="display:none"></p>
+
+        <div class="offer-full-stats" id="offerFullStats"></div>
+        <div class="offer-full-actions" id="offerFullActions"></div>
+        <div class="offer-full-merchant-info" id="offerFullMerchantInfo"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ✅ مودال طلب عرض معين -->
+  <div class="modal-overlay" id="requestOfferModal" style="display:none" onclick="window.closeRequestOfferModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()" style="max-width:420px">
+      <button class="close-btn" onclick="window.closeRequestOfferModal()">✕</button>
+      <h3 style="padding-left:0;margin-bottom:8px">📩 اطلب العرض</h3>
+      <p style="font-size:14px;color:#6b7280;margin-bottom:14px">
+        العرض: <strong id="reqOfferTitle">-</strong>
+      </p>
+
+      <input type="hidden" id="reqOfferId">
+      <input type="hidden" id="reqOfferMerchantId">
+
+      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">📝 ملاحظة (اختياري):</label>
+      <textarea id="reqOfferNote" placeholder="مثال: عايز 2 من المنتج ده" style="width:100%;padding:12px;margin:6px 0;border:1px solid #ddd;border-radius:10px;min-height:80px;font-family:inherit"></textarea>
+
+      <button id="sendOfferRequestBtn" style="margin-top:10px;background:linear-gradient(135deg,#ff6b35,#f7931e)">📩 إرسال الطلب</button>
+      <div id="reqOfferResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="forgotModal" style="display:none" onclick="window.closeForgotModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
       <button class="close-btn" onclick="window.closeForgotModal()">✕</button>
@@ -809,40 +892,6 @@
     </div>
   </div>
 
-  <!-- ✅ مودال عرض التفاصيل الكامل -->
-<div class="modal-overlay" id="offerFullModal" style="display:none;padding:0" onclick="window.closeOfferFull(event)">
-  <div class="modal-box offer-full-box" onclick="event.stopPropagation()" style="max-width:100%;width:100%;height:100%;max-height:100vh;border-radius:0;margin:0;overflow-y:auto;padding:0">
-    
-    <!-- الشريط العلوي -->
-    <div class="offer-full-header">
-      <button class="offer-full-close" onclick="window.closeOfferFull()">✕</button>
-      <div class="offer-full-merchant" id="offerFullMerchant"></div>
-    </div>
-
-    <!-- صورة العرض -->
-    <div id="offerFullImageWrap" style="display:none">
-      <img id="offerFullImage" class="offer-full-image" src="" alt="صورة العرض" onclick="window.openImageLightbox(this.src)">
-    </div>
-
-    <!-- تفاصيل العرض -->
-    <div class="offer-full-body">
-      <div class="offer-full-discount" id="offerFullDiscount">-</div>
-      <h2 class="offer-full-title" id="offerFullTitle">-</h2>
-      <div class="offer-full-price" id="offerFullPrice" style="display:none"></div>
-      <p class="offer-full-desc" id="offerFullDesc" style="display:none"></p>
-
-      <div class="offer-full-stats" id="offerFullStats"></div>
-
-      <!-- أزرار التواصل -->
-      <div class="offer-full-actions" id="offerFullActions"></div>
-
-      <!-- بيانات التاجر -->
-      <div class="offer-full-merchant-info" id="offerFullMerchantInfo"></div>
-    </div>
-
-  </div>
-</div>
-  
   <div class="footer">PAMIGO v1.0</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -869,76 +918,77 @@
   setTimeout(async () => {
     const authScreen = document.getElementById('authScreen');
     const mainScreen = document.getElementById('mainScreen');
-    
+
     if (authScreen && mainScreen && 
         authScreen.style.display === 'none' && 
         mainScreen.style.display === 'none') {
-      
+
       const { supabase } = await import('./supabase.js');
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         authScreen.style.display = 'block';
       }
     }
   }, 1000);
-</script>
+  </script>
+
   <!-- ✅ مودال تعديل العرض -->
-<div class="modal-overlay" id="editOfferModal" style="display:none" onclick="window.closeEditOfferModal(event)">
-  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:500px">
-    <button class="close-btn" onclick="window.closeEditOfferModal()">✕</button>
-    <h3 style="padding-left:0;margin-bottom:14px">✏️ تعديل العرض</h3>
-    
-    <input type="hidden" id="editOfferId">
-    
-    <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">اسم العرض:</label>
-    <input type="text" id="editOfferTitle" placeholder="اسم العرض">
-    
-    <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">💰 السعر (اختياري):</label>
-    <input type="number" id="editOfferPrice" placeholder="السعر" min="0" step="0.01">
-    
-    <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">🏷️ نوع الخصم:</label>
-    <select id="editOfferType" onchange="window.onEditOfferTypeChange(this.value)">
-      <option value="percent">نسبة مئوية (%)</option>
-      <option value="1+1">1+1</option>
-      <option value="2+1">2+1</option>
-      <option value="3+1">3+1</option>
-      <option value="custom">عرض خاص (نص حر)</option>
-    </select>
-    
-    <div id="editOfferPercentWrap">
-      <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">النسبة:</label>
-      <input type="number" id="editOfferPercent" placeholder="مثال: 30" min="1" max="100">
+  <div class="modal-overlay" id="editOfferModal" style="display:none" onclick="window.closeEditOfferModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()" style="max-width:500px">
+      <button class="close-btn" onclick="window.closeEditOfferModal()">✕</button>
+      <h3 style="padding-left:0;margin-bottom:14px">✏️ تعديل العرض</h3>
+
+      <input type="hidden" id="editOfferId">
+
+      <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">اسم العرض:</label>
+      <input type="text" id="editOfferTitle" placeholder="اسم العرض">
+
+      <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">💰 السعر (اختياري):</label>
+      <input type="number" id="editOfferPrice" placeholder="السعر" min="0" step="0.01">
+
+      <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">🏷️ نوع الخصم:</label>
+      <select id="editOfferType" onchange="window.onEditOfferTypeChange(this.value)">
+        <option value="percent">نسبة مئوية (%)</option>
+        <option value="1+1">1+1</option>
+        <option value="2+1">2+1</option>
+        <option value="3+1">3+1</option>
+        <option value="custom">عرض خاص (نص حر)</option>
+      </select>
+
+      <div id="editOfferPercentWrap">
+        <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">النسبة:</label>
+        <input type="number" id="editOfferPercent" placeholder="مثال: 30" min="1" max="100">
+      </div>
+
+      <div id="editOfferCustomWrap" style="display:none">
+        <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">الوصف:</label>
+        <input type="text" id="editOfferCustom" placeholder="مثال: خصم كبير">
+      </div>
+
+      <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">📝 وصف إضافي (اختياري):</label>
+      <textarea id="editOfferDescription" placeholder="وصف إضافي" style="min-height:60px"></textarea>
+
+      <label style="margin-top:10px;font-size:13px;font-weight:600;display:block">📸 صورة العرض:</label>
+      <div id="editOfferCurrentImageWrap" style="margin-top:6px;display:none">
+        <img id="editOfferCurrentImage" src="" style="width:100%;max-width:180px;border-radius:10px;border:2px solid #ddd;display:block">
+        <button type="button" onclick="window.deleteOfferImage()" style="background:#ef4444;color:#fff;border:none;padding:6px 12px;border-radius:20px;margin-top:6px;cursor:pointer;font-size:12px">🗑️ حذف الصورة</button>
+      </div>
+      <div style="border:2px dashed #ddd;padding:14px;text-align:center;border-radius:10px;cursor:pointer;margin:6px 0" onclick="document.getElementById('editOfferImage').click()">
+        <i class="fas fa-camera" style="font-size:20px;color:var(--primary)"></i>
+        <p style="margin:4px 0;font-size:13px">اضغط لتغيير الصورة</p>
+        <span id="editOfferFileName" style="color:var(--primary);font-weight:600;font-size:12px">لم يتم اختيار ملف</span>
+        <input type="file" id="editOfferImage" accept="image/*" style="display:none">
+      </div>
+      <img id="editOfferImagePreview" style="display:none;width:100%;max-width:180px;margin-top:8px;border-radius:10px;border:2px solid #ddd">
+
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button id="saveOfferEditBtn" style="flex:1;background:#27ae60">💾 حفظ التعديلات</button>
+        <button onclick="window.closeEditOfferModal()" style="flex:1;background:#95a5a6">❌ إلغاء</button>
+      </div>
+      <div id="editOfferResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
     </div>
-    
-    <div id="editOfferCustomWrap" style="display:none">
-      <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">الوصف:</label>
-      <input type="text" id="editOfferCustom" placeholder="مثال: خصم كبير">
-    </div>
-    
-    <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">📝 وصف إضافي (اختياري):</label>
-    <textarea id="editOfferDescription" placeholder="وصف إضافي" style="min-height:60px"></textarea>
-    
-    <label style="margin-top:10px;font-size:13px;font-weight:600;display:block">📸 صورة العرض:</label>
-    <div id="editOfferCurrentImageWrap" style="margin-top:6px;display:none">
-      <img id="editOfferCurrentImage" src="" style="width:100%;max-width:180px;border-radius:10px;border:2px solid #ddd;display:block">
-      <button type="button" onclick="window.deleteOfferImage()" style="background:#ef4444;color:#fff;border:none;padding:6px 12px;border-radius:20px;margin-top:6px;cursor:pointer;font-size:12px">🗑️ حذف الصورة</button>
-    </div>
-    <div style="border:2px dashed #ddd;padding:14px;text-align:center;border-radius:10px;cursor:pointer;margin:6px 0" onclick="document.getElementById('editOfferImage').click()">
-      <i class="fas fa-camera" style="font-size:20px;color:var(--primary)"></i>
-      <p style="margin:4px 0;font-size:13px">اضغط لتغيير الصورة</p>
-      <span id="editOfferFileName" style="color:var(--primary);font-weight:600;font-size:12px">لم يتم اختيار ملف</span>
-      <input type="file" id="editOfferImage" accept="image/*" style="display:none">
-    </div>
-    <img id="editOfferImagePreview" style="display:none;width:100%;max-width:180px;margin-top:8px;border-radius:10px;border:2px solid #ddd">
-    
-    <div style="display:flex;gap:8px;margin-top:14px">
-      <button id="saveOfferEditBtn" style="flex:1;background:#27ae60">💾 حفظ التعديلات</button>
-      <button onclick="window.closeEditOfferModal()" style="flex:1;background:#95a5a6">❌ إلغاء</button>
-    </div>
-    <div id="editOfferResult" style="margin-top:8px;font-weight:bold;text-align:center"></div>
   </div>
-</div>
-  
+
 </body>
 </html>
