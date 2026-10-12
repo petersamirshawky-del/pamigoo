@@ -1,227 +1,414 @@
 // ============================================================
-// PAMIGO - Admin Panel
+// PAMIGO - Admin Functions
 // ============================================================
 import { supabase } from './supabase.js';
 
+// ============================================================
+// إحصائيات الأدمن
+// ============================================================
 export async function getAdminStats() {
-  const { data: merchants } = await supabase.from('merchants').select('id');
-  const { data: profiles } = await supabase.from('profiles').select('id').eq('role', 'customer');
-  const { data: invoices } = await supabase.from('invoices').select('amount, cashback, status, return_amount, returned_cashback');
-  const { data: redemptions } = await supabase.from('redemptions').select('used_cashback');
-  const { data: offers } = await supabase.from('offers').select('id');
-  const { data: events } = await supabase.from('offer_events').select('event_type');
+  const { count: tradersCount } = await supabase.from('merchants').select('*', { count: 'exact', head: true });
+  const { count: customersCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer');
+  const { count: invoicesCount } = await supabase.from('invoices').select('*', { count: 'exact', head: true });
+  const { count: offersCount } = await supabase.from('offers').select('*', { count: 'exact', head: true });
 
-  let sales = 0, cbGiven = 0;
-  (invoices || []).forEach(i => {
-    if (i.status === 'active') { sales += parseFloat(i.amount||0); cbGiven += parseFloat(i.cashback||0); }
-    else if (i.status === 'partial_return') {
-      sales += parseFloat(i.amount||0) - parseFloat(i.return_amount||0);
-      cbGiven += parseFloat(i.cashback||0) - parseFloat(i.returned_cashback||0);
-    }
-  });
-  const cbSpent = (redemptions || []).reduce((s, r) => s + parseFloat(r.used_cashback || 0), 0);
+  const { data: invoices } = await supabase.from('invoices').select('amount, cashback, used_cashback, status');
+  const allInv = invoices || [];
+  const activeInv = allInv.filter(i => i.status === 'active');
 
-  const eventsCount = {
-    total: (events || []).length,
-    views: (events || []).filter(e => e.event_type === 'view').length,
-    clicks: (events || []).filter(e => e.event_type === 'click').length,
-    contacts: (events || []).filter(e => e.event_type === 'contact').length,
-    maps: (events || []).filter(e => e.event_type === 'maps').length
-  };
+  const sales = activeInv.reduce((s, i) => s + parseFloat(i.amount || 0), 0);
+  const cbGiven = activeInv.reduce((s, i) => s + parseFloat(i.cashback || 0), 0);
+  const cbSpent = activeInv.reduce((s, i) => s + parseFloat(i.used_cashback || 0), 0);
 
   return {
-    tradersCount: (merchants || []).length,
-    customersCount: (profiles || []).length,
-    invoicesCount: (invoices || []).length,
-    sales,
-    cbGiven,
-    cbSpent,
-    cbRemaining: Math.max(0, cbGiven - cbSpent),
-    offersCount: (offers || []).length,
-    eventsCount
+    tradersCount: tradersCount || 0,
+    customersCount: customersCount || 0,
+    invoicesCount: invoicesCount || 0,
+    offersCount: offersCount || 0,
+    sales: sales,
+    cbGiven: cbGiven,
+    cbSpent: cbSpent,
+    cbRemaining: cbGiven - cbSpent
   };
 }
 
+// ============================================================
+// جلب كل التجار
+// ============================================================
 export async function getAllMerchants() {
-  const { data } = await supabase
-    .from('merchants').select('*, offers(id)')
-    .order('created_at', { ascending: false });
+  const { data, error } = await supabase
+    .from('merchants')
+    .select(`
+      *,
+      offers ( id, title, discount, discount_value )
+    `)
+    .order('name');
+
+  if (error) { console.error(error); return []; }
   return data || [];
 }
 
+// ============================================================
+// جلب كل العملاء
+// ============================================================
 export async function getAllCustomers() {
-  const { data: profiles } = await supabase.from('profiles').select('*').eq('role', 'customer');
-  const { data: wallets } = await supabase.from('wallets').select('*');
+  const { data: profiles, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'customer');
 
-  return (profiles || []).map(p => {
-    const w = (wallets || []).filter(x => x.customer_id === p.id);
+  if (error) { console.error(error); return []; }
+  if (!profiles || !profiles.length) return [];
+
+  const customerPhones = profiles.map(p => p.phone).filter(Boolean);
+  if (!customerPhones.length) {
+    return profiles.map(p => ({ ...p, shops: 0, balance: 0, earned: 0, spent: 0 }));
+  }
+
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('customer_phone, amount, cashback, used_cashback, status')
+    .in('customer_phone', customerPhones);
+
+  const { data: wallets } = await supabase
+    .from('wallets')
+    .select('customer_phone, balance, earned, spent')
+    .in('customer_phone', customerPhones);
+
+  const invByPhone = {};
+  (invoices || []).forEach(i => {
+    if (!invByPhone[i.customer_phone]) invByPhone[i.customer_phone] = [];
+    invByPhone[i.customer_phone].push(i);
+  });
+
+  const walletsByPhone = {};
+  (wallets || []).forEach(w => {
+    if (!walletsByPhone[w.customer_phone]) walletsByPhone[w.customer_phone] = [];
+    walletsByPhone[w.customer_phone].push(w);
+  });
+
+  return profiles.map(p => {
+    const invs = invByPhone[p.phone] || [];
+    const ws = walletsByPhone[p.phone] || [];
+    const balance = ws.reduce((s, w) => s + parseFloat(w.balance || 0), 0);
+    const earned = ws.reduce((s, w) => s + parseFloat(w.earned || 0), 0);
+    const spent = ws.reduce((s, w) => s + parseFloat(w.spent || 0), 0);
     return {
       ...p,
-      balance: w.reduce((s, x) => s + parseFloat(x.balance || 0), 0),
-      earned: w.reduce((s, x) => s + parseFloat(x.earned || 0), 0),
-      spent: w.reduce((s, x) => s + parseFloat(x.spent || 0), 0),
-      shops: w.length
+      shops: ws.length,
+      balance: balance,
+      earned: earned,
+      spent: spent
     };
   });
 }
 
-export async function getAllInvoices(search) {
-  const { data } = await supabase.from('invoices')
-    .select('*, merchants(name, icon)')
-    .order('created_at', { ascending: false }).limit(200);
-  let list = data || [];
+// ============================================================
+// جلب كل الفواتير
+// ============================================================
+export async function getAllInvoices(search = '') {
+  let q = supabase
+    .from('invoices')
+    .select(`
+      *,
+      merchants ( name, icon, phone )
+    `)
+    .order('created_at', { ascending: false })
+    .limit(200);
+
   if (search) {
-    const s = search.toLowerCase();
-    list = list.filter(i =>
-      (i.number || '').toLowerCase().includes(s) ||
-      (i.customer_phone || '').includes(s) ||
-      (i.merchants?.name || '').toLowerCase().includes(s)
-    );
+    q = q.or(`number.ilike.%${search}%,customer_phone.ilike.%${search}%`);
   }
-  return list;
-}
 
-// ✅ addTrader: ضفنا merchantType و whatsapp
-export async function addTrader(data) {
-  const { data: res, error } = await supabase.rpc('admin_add_merchant', {
-    p_bank_code: data.bankCode,
-    p_name: data.name,
-    p_phone: data.phone,
-    p_category: data.category,
-    p_sub_categories: data.subCategories,
-    p_icon: data.icon,
-    p_lat: data.lat,
-    p_lng: data.lng,
-    p_cashback_rate: data.rate,
-    p_delivery_available: data.deliveryAvailable || false,
-    p_delivery_phone: data.deliveryPhone || null,
-    p_merchant_type: data.merchantType || 'shop',
-    p_whatsapp: data.whatsapp || null
-  });
-  if (error) throw error;
-  if (!res.ok) throw new Error(res.error);
-  return res;
-}
-
-export async function freezeMerchant(merchantId, frozen) {
-  const { data, error } = await supabase.rpc('admin_freeze_merchant', {
-    p_merchant_id: merchantId, p_frozen: frozen
-  });
-  if (error) throw error;
-  if (!data.ok) throw new Error(data.error);
-  return data;
-}
-
-export async function updateMerchantRate(merchantId, rate) {
-  const { error } = await supabase.from('merchants').update({ cashback_rate: rate }).eq('id', merchantId);
-  if (error) throw error;
-}
-
-export async function deleteMerchant(merchantId) {
-  const { error } = await supabase.from('merchants').delete().eq('id', merchantId);
-  if (error) throw error;
-}
-
-// ✅ adminUpdateMerchant: ضفنا merchantType و whatsapp
-export async function adminUpdateMerchant(merchantId, data) {
-  const { data: res, error } = await supabase.rpc('admin_update_merchant', {
-    p_merchant_id: merchantId,
-    p_new_name: data.name || null,
-    p_new_phone: data.phone || null,
-    p_new_lat: data.lat ?? null,
-    p_new_lng: data.lng ?? null,
-    p_new_rate: data.rate ?? null,
-    p_new_sub_categories: data.subCategories || null,
-    p_new_bank_code: data.bankCode || null,
-    p_new_delivery_available: data.deliveryAvailable ?? null,
-    p_new_delivery_phone: data.deliveryPhone ?? null,
-    p_new_category: data.category || null,
-    p_new_merchant_type: data.merchantType || null,
-    p_new_whatsapp: data.whatsapp || null
-  });
-  if (error) throw error;
-  if (!res.ok) throw new Error(res.error);
-  return res;
-}
-
-export async function adminUpdateCustomer(phone, newName, newPhone) {
-  const { data, error } = await supabase.rpc('admin_update_customer', {
-    p_phone: phone,
-    p_new_name: newName || null,
-    p_new_phone: newPhone || null
-  });
-  if (error) throw error;
-  if (!data.ok) throw new Error(data.error);
-  return data;
-}
-
-export async function adjustCustomerBalance(phone, merchantId, amount) {
-  const { data, error } = await supabase.rpc('admin_adjust_balance', {
-    p_customer_phone: phone, p_merchant_id: merchantId, p_amount: amount
-  });
-  if (error) throw error;
-  if (!data.ok) throw new Error(data.error);
-  return data;
-}
-
-export async function resetCustomerBalance(phone) {
-  const { data: prof } = await supabase.from('profiles').select('id').eq('phone', phone).single();
-  if (!prof) throw new Error('مش موجود');
-  const { error } = await supabase.from('wallets').update({ balance: 0 }).eq('customer_id', prof.id);
-  if (error) throw error;
-}
-
-export async function deleteCustomer(phone) {
-  const { data, error } = await supabase.rpc('admin_delete_customer', {
-    p_customer_phone: phone
-  });
-  if (error) throw error;
-  if (!data.ok) throw new Error(data.error);
-  return data;
-}
-
-export async function editInvoiceAdmin(invoiceId, newAmount, newPhone) {
-  const { data, error } = await supabase.rpc('edit_invoice', {
-    p_invoice_id: invoiceId, p_new_amount: newAmount, p_new_phone: newPhone
-  });
-  if (error) throw error;
-  if (!data.ok) throw new Error(data.error);
-  return data;
-}
-
-export async function returnInvoiceAdmin(invoiceId, returnAmount) {
-  const { data, error } = await supabase.rpc('process_return', {
-    p_invoice_id: invoiceId, p_return_amount: returnAmount
-  });
-  if (error) throw error;
-  if (!data.ok) throw new Error(data.error);
-  return data;
-}
-
-export async function deleteInvoice(invoiceId, withCashback = false) {
-  const { data, error } = await supabase.rpc('admin_delete_invoice', {
-    p_invoice_id: invoiceId,
-    p_with_cashback: withCashback
-  });
-  if (error) throw error;
-  if (!data.ok) throw new Error(data.error);
-  return data;
-}
-
-export async function sendNotification({ title, message, target }) {
-  const { error } = await supabase.from('notifications').insert({ title, message, target });
-  if (error) throw error;
-}
-
-export async function getNotifications() {
-  const { data } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(50);
+  const { data, error } = await q;
+  if (error) { console.error(error); return []; }
   return data || [];
 }
 
-export async function adminGetAllRequests() {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+// ============================================================
+// إضافة تاجر جديد
+// ============================================================
+export async function addTrader({ bankCode, name, phone, category, subCategories, icon, lat, lng, rate, deliveryAvailable, deliveryPhone, merchantType, whatsapp }) {
+  const { data, error } = await supabase.rpc('create_merchant_admin', {
+    p_bank_code: bankCode.toUpperCase(),
+    p_name: name,
+    p_phone: phone,
+    p_category: category,
+    p_sub_categories: subCategories || [],
+    p_icon: icon || '🏪',
+    p_lat: lat,
+    p_lng: lng,
+    p_rate: rate,
+    p_delivery_available: deliveryAvailable || false,
+    p_delivery_phone: deliveryPhone || null,
+    p_merchant_type: merchantType || 'shop',
+    p_whatsapp: whatsapp || null
+  });
 
+  if (error) throw new Error(error.message);
+  if (!data.ok) throw new Error(data.error || 'فشل الإضافة');
+  return data;
+}
+
+// ============================================================
+// تجميد تاجر
+// ============================================================
+export async function freezeMerchant(merchantId, frozen) {
+  const { error } = await supabase
+    .from('merchants')
+    .update({ frozen: frozen })
+    .eq('id', merchantId);
+  if (error) throw error;
+}
+
+// ============================================================
+// تحديث نسبة تاجر
+// ============================================================
+export async function updateMerchantRate(merchantId, rate) {
+  const { error } = await supabase
+    .from('merchants')
+    .update({ cashback_rate: rate })
+    .eq('id', merchantId);
+  if (error) throw error;
+}
+
+// ============================================================
+// حذف تاجر
+// ============================================================
+export async function deleteMerchant(merchantId) {
+  const { data, error } = await supabase.rpc('delete_merchant_admin', {
+    p_merchant_id: merchantId
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error || 'فشل الحذف');
+  return data;
+}
+
+// ============================================================
+// تعديل رصيد عميل
+// ============================================================
+export async function adjustCustomerBalance(phone, merchantId, amount) {
+  const { data, error } = await supabase.rpc('adjust_customer_balance', {
+    p_customer_phone: phone,
+    p_merchant_id: merchantId,
+    p_amount: amount
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error || 'فشل التعديل');
+  return data;
+}
+
+// ============================================================
+// تصفير رصيد عميل
+// ============================================================
+export async function resetCustomerBalance(phone) {
+  const { data, error } = await supabase.rpc('reset_customer_balance', {
+    p_customer_phone: phone
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error || 'فشل التصفير');
+  return data;
+}
+
+// ============================================================
+// حذف عميل
+// ============================================================
+export async function deleteCustomer(phone) {
+  const { data, error } = await supabase.rpc('delete_customer_admin', {
+    p_customer_phone: phone
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error || 'فشل الحذف');
+  return data;
+}
+
+// ============================================================
+// تعديل فاتورة (أدمن)
+// ============================================================
+export async function editInvoiceAdmin(invoiceId, newAmount, newCashback) {
+  const updateData = { amount: newAmount };
+  if (newCashback !== null && newCashback !== undefined) {
+    updateData.cashback = newCashback;
+  }
+
+  const { error } = await supabase
+    .from('invoices')
+    .update(updateData)
+    .eq('id', invoiceId);
+  if (error) throw error;
+}
+
+// ============================================================
+// مرتجع فاتورة (أدمن)
+// ============================================================
+export async function returnInvoiceAdmin(invoiceId, returnAmount) {
+  const { data: inv, error: invErr } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('id', invoiceId)
+    .single();
+
+  if (invErr) throw invErr;
+  if (!inv) throw new Error('الفاتورة غير موجودة');
+
+  const isFullReturn = Math.abs(returnAmount - parseFloat(inv.amount)) < 0.01;
+  const newStatus = isFullReturn ? 'returned' : 'partially_returned';
+
+  const cashbackRatio = parseFloat(inv.cashback) / parseFloat(inv.amount);
+  const cashbackToRemove = returnAmount * cashbackRatio;
+
+  const { error: updErr } = await supabase
+    .from('invoices')
+    .update({
+      status: newStatus,
+      amount: isFullReturn ? inv.amount : parseFloat(inv.amount) - returnAmount,
+      cashback: isFullReturn ? inv.cashback : parseFloat(inv.cashback) - cashbackToRemove
+    })
+    .eq('id', invoiceId);
+
+  if (updErr) throw updErr;
+}
+
+// ============================================================
+// حذف فاتورة (أدمن) + تسجيل في audit_log
+// ============================================================
+export async function deleteInvoice(invoiceId, deleteCashback = false) {
+  // ✅ سجّل العملية في audit_log أول حاجة
+  try {
+    const { data: invData } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .single();
+
+    if (invData) {
+      const { data: userData } = await supabase.auth.getUser();
+      await supabase.from('audit_log').insert({
+        action: 'delete_invoice',
+        table_name: 'invoices',
+        record_id: String(invoiceId),
+        old_data: invData,
+        performed_by: userData?.user?.id || null
+      });
+    }
+  } catch (e) {
+    console.error('Audit log error:', e);
+  }
+
+  // لو عايز يخصم الكاش باك من المحفظة
+  if (deleteCashback) {
+    try {
+      const { data: inv } = await supabase
+        .from('invoices')
+        .select('merchant_id, customer_phone, cashback')
+        .eq('id', invoiceId)
+        .single();
+
+      if (inv && inv.cashback && parseFloat(inv.cashback) > 0) {
+        await supabase.rpc('deduct_cashback_from_wallet', {
+          p_customer_phone: inv.customer_phone,
+          p_merchant_id: inv.merchant_id,
+          p_amount: parseFloat(inv.cashback)
+        });
+      }
+    } catch (e) {
+      console.error('Deduct cashback error:', e);
+    }
+  }
+
+  const { error } = await supabase.from('invoices').delete().eq('id', invoiceId);
+  if (error) throw error;
+}
+
+// ============================================================
+// إرسال إشعار
+// ============================================================
+export async function sendNotification({ title, message, target }) {
+  const { error } = await supabase
+    .from('notifications')
+    .insert({ title, message, target: target || 'all' });
+  if (error) throw error;
+}
+
+// ============================================================
+// جلب الإشعارات
+// ============================================================
+export async function getNotifications() {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) { console.error(error); return []; }
+  return data || [];
+}
+
+// ============================================================
+// تحديث بيانات تاجر (أدمن)
+// ============================================================
+export async function adminUpdateMerchant(merchantId, data) {
+  const updateData = {
+    name: data.name,
+    phone: data.phone,
+    bank_code: data.bankCode?.toUpperCase(),
+    category: data.category,
+    sub_categories: data.subCategories || [],
+    lat: data.lat,
+    lng: data.lng,
+    cashback_rate: data.rate,
+    delivery_available: data.deliveryAvailable || false,
+    delivery_phone: data.deliveryPhone || null,
+    merchant_type: data.merchantType || 'shop',
+    whatsapp: data.whatsapp || null
+  };
+
+  const { error } = await supabase
+    .from('merchants')
+    .update(updateData)
+    .eq('id', merchantId);
+
+  if (error) throw error;
+}
+
+// ============================================================
+// تحديث بيانات عميل (أدمن)
+// ============================================================
+export async function adminUpdateCustomer(oldPhone, newName, newPhone) {
+  // ✅ لو رقم الموبايل اتغير، نحدثه في كل الجداول
+  const updates = [];
+
+  // 1. تحديث profiles
+  updates.push(
+    supabase.from('profiles').update({ name: newName, phone: newPhone }).eq('phone', oldPhone)
+  );
+
+  // 2. تحديث invoices (customer_phone)
+  if (newPhone !== oldPhone) {
+    updates.push(
+      supabase.from('invoices').update({ customer_phone: newPhone }).eq('customer_phone', oldPhone)
+    );
+
+    // 3. تحديث wallets (customer_phone)
+    updates.push(
+      supabase.from('wallets').update({ customer_phone: newPhone }).eq('customer_phone', oldPhone)
+    );
+
+    // 4. تحديث special_requests (customer_phone)
+    updates.push(
+      supabase.from('special_requests').update({ customer_phone: newPhone }).eq('customer_phone', oldPhone)
+    );
+  }
+
+  const results = await Promise.all(updates);
+  for (const r of results) {
+    if (r.error) throw r.error;
+  }
+}
+
+// ============================================================
+// جلب كل الطلبات (أدمن)
+// ============================================================
+export async function adminGetAllRequests() {
   const { data, error } = await supabase
     .from('special_requests')
     .select(`
@@ -239,38 +426,33 @@ export async function adminGetAllRequests() {
   return data || [];
 }
 
-export async function adminResetUserPassword(userId, newPassword) {
-  const { data, error } = await supabase.rpc('admin_change_password', {
-    p_user_id: userId, p_new_password: newPassword
-  });
-  if (error) throw error;
-  if (!data.ok) throw new Error(data.error);
-  return data;
-}
-
+// ============================================================
+// إحصائيات تفاعل العروض (أدمن)
+// ============================================================
 export async function getOfferEventsStats() {
-  const { data, error } = await supabase
+  const { data: events, error } = await supabase
     .from('offer_events')
-    .select(`
-      event_type,
-      offer_id,
-      merchant_id,
-      offers ( id, title, discount, image_url ),
-      merchants ( id, name, icon, logo_url )
-    `);
-  if (error) { console.error(error); return []; }
+    .select('*');
 
-  const stats = {};
-  (data || []).forEach(e => {
-    const key = e.offer_id || e.merchant_id;
-    if (!stats[key]) {
-      stats[key] = {
+  if (error) { console.error(error); return []; }
+  if (!events || !events.length) return [];
+
+  const { data: offers } = await supabase.from('offers').select('id, title, discount, merchant_id');
+  const { data: merchants } = await supabase.from('merchants').select('id, name, icon');
+
+  const offersMap = {};
+  (offers || []).forEach(o => offersMap[o.id] = o);
+
+  const merchantsMap = {};
+  (merchants || []).forEach(m => merchantsMap[m.id] = m);
+
+  const grouped = {};
+  events.forEach(e => {
+    const key = e.offer_id;
+    if (!key) return;
+    if (!grouped[key]) {
+      grouped[key] = {
         offer_id: e.offer_id,
-        merchant_id: e.merchant_id,
-        offer_title: e.offers?.title || '—',
-        offer_discount: e.offers?.discount || '—',
-        merchant_name: e.merchants?.name || '—',
-        merchant_icon: e.merchants?.icon || '🏪',
         views: 0,
         clicks: 0,
         contacts: 0,
@@ -278,12 +460,82 @@ export async function getOfferEventsStats() {
         total: 0
       };
     }
-    if (e.event_type === 'view') stats[key].views++;
-    if (e.event_type === 'click') stats[key].clicks++;
-    if (e.event_type === 'contact') stats[key].contacts++;
-    if (e.event_type === 'maps') stats[key].maps++;
-    stats[key].total++;
+    const g = grouped[key];
+    if (e.event_type === 'view') g.views++;
+    else if (e.event_type === 'click') g.clicks++;
+    else if (e.event_type === 'contact') g.contacts++;
+    else if (e.event_type === 'maps') g.maps++;
+    g.total++;
   });
 
-  return Object.values(stats).sort((a, b) => b.total - a.total);
+  return Object.values(grouped).map(g => {
+    const offer = offersMap[g.offer_id] || {};
+    const merchant = merchantsMap[offer.merchant_id] || {};
+    return {
+      ...g,
+      offer_title: offer.title || 'عرض',
+      offer_discount: offer.discount || '-',
+      merchant_name: merchant.name || 'تاجر',
+      merchant_icon: merchant.icon || '🏪'
+    };
+  });
+}
+
+// ============================================================
+// ✅ تقرير كامل للتاجر
+// ============================================================
+export async function getMerchantFullReport(merchantId) {
+  // 1. جلب الفواتير
+  const { data: invoices, error: invErr } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('merchant_id', merchantId);
+
+  if (invErr) { console.error(invErr); }
+
+  const allInvoices = invoices || [];
+  const activeInvoices = allInvoices.filter(i => i.status === 'active');
+  const returnedInvoices = allInvoices.filter(i => i.status === 'returned' || i.status === 'partially_returned');
+
+  const totalSales = activeInvoices.reduce((s, i) => s + parseFloat(i.amount || 0), 0);
+  const totalCashbackGiven = activeInvoices.reduce((s, i) => s + parseFloat(i.cashback || 0), 0);
+  const totalCashbackSpent = activeInvoices.reduce((s, i) => s + parseFloat(i.used_cashback || 0), 0);
+  const totalCashbackRemaining = totalCashbackGiven - totalCashbackSpent;
+
+  // 2. عدد العملاء الفريدين
+  const uniqueCustomers = new Set(activeInvoices.map(i => i.customer_phone)).size;
+
+  // 3. متوسط الفاتورة
+  const avgInvoice = activeInvoices.length > 0 ? (totalSales / activeInvoices.length) : 0;
+
+  // 4. عدد العروض
+  const { data: offers } = await supabase
+    .from('offers')
+    .select('id')
+    .eq('merchant_id', merchantId);
+
+  // 5. عدد الفواتير المحذوفة (من audit_log)
+  let deletedCount = 0;
+  try {
+    const { data: deleted } = await supabase
+      .from('audit_log')
+      .select('id')
+      .eq('action', 'delete_invoice')
+      .eq('table_name', 'invoices')
+      .filter('old_data->>merchant_id', 'eq', merchantId);
+    deletedCount = (deleted || []).length;
+  } catch (e) { /* لو الجدول مش موجود */ }
+
+  return {
+    invoicesCount: activeInvoices.length,
+    returnedCount: returnedInvoices.length,
+    deletedCount: deletedCount,
+    totalSales: totalSales,
+    totalCashbackGiven: totalCashbackGiven,
+    totalCashbackSpent: totalCashbackSpent,
+    totalCashbackRemaining: totalCashbackRemaining,
+    uniqueCustomers: uniqueCustomers,
+    avgInvoice: avgInvoice,
+    offersCount: (offers || []).length
+  };
 }
