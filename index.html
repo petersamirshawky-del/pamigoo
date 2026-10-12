@@ -929,6 +929,17 @@
   }, 1000);
   </script>
 
+  <!-- ✅ مودال تقرير التاجر -->
+  <div class="modal-overlay" id="merchantReportModal" style="display:none" onclick="window.closeMerchantReport(event)">
+    <div class="modal-box" onclick="event.stopPropagation()" style="max-width:520px">
+      <button class="close-btn" onclick="window.closeMerchantReport()">✕</button>
+      <h3 style="padding-left:0;margin-bottom:14px;text-align:center">📊 تقرير التاجر</h3>
+      <div id="reportMerchantName" style="margin-bottom:12px"></div>
+      <div id="reportMerchantContent"></div>
+    </div>
+  </div>
+
+  <!-- ✅ مودال تعديل العرض -->
   <div class="modal-overlay" id="editOfferModal" style="display:none" onclick="window.closeEditOfferModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()" style="max-width:500px">
       <button class="close-btn" onclick="window.closeEditOfferModal()">✕</button>
