@@ -809,6 +809,40 @@
     </div>
   </div>
 
+  <!-- ✅ مودال عرض التفاصيل الكامل -->
+<div class="modal-overlay" id="offerFullModal" style="display:none;padding:0" onclick="window.closeOfferFull(event)">
+  <div class="modal-box offer-full-box" onclick="event.stopPropagation()" style="max-width:100%;width:100%;height:100%;max-height:100vh;border-radius:0;margin:0;overflow-y:auto;padding:0">
+    
+    <!-- الشريط العلوي -->
+    <div class="offer-full-header">
+      <button class="offer-full-close" onclick="window.closeOfferFull()">✕</button>
+      <div class="offer-full-merchant" id="offerFullMerchant"></div>
+    </div>
+
+    <!-- صورة العرض -->
+    <div id="offerFullImageWrap" style="display:none">
+      <img id="offerFullImage" class="offer-full-image" src="" alt="صورة العرض" onclick="window.openImageLightbox(this.src)">
+    </div>
+
+    <!-- تفاصيل العرض -->
+    <div class="offer-full-body">
+      <div class="offer-full-discount" id="offerFullDiscount">-</div>
+      <h2 class="offer-full-title" id="offerFullTitle">-</h2>
+      <div class="offer-full-price" id="offerFullPrice" style="display:none"></div>
+      <p class="offer-full-desc" id="offerFullDesc" style="display:none"></p>
+
+      <div class="offer-full-stats" id="offerFullStats"></div>
+
+      <!-- أزرار التواصل -->
+      <div class="offer-full-actions" id="offerFullActions"></div>
+
+      <!-- بيانات التاجر -->
+      <div class="offer-full-merchant-info" id="offerFullMerchantInfo"></div>
+    </div>
+
+  </div>
+</div>
+  
   <div class="footer">PAMIGO v1.0</div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
