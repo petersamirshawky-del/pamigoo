@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // PAMIGO - Authentication
 // ============================================================
 import { supabase } from './supabase.js';
@@ -109,6 +109,73 @@ export async function signUpAdmin({ phone, email, password, name, adminCode }) {
   });
   if (error) throw error;
   return data;
+}
+
+// ============================================================
+// ✅ Google Sign-In
+// ============================================================
+export async function signInWithGoogle() {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin + window.location.pathname,
+      queryParams: {
+        access_type: 'offline',
+        prompt: 'consent'
+      }
+    }
+  });
+  if (error) throw error;
+  return data;
+}
+
+// ✅ إكمال البيانات بعد تسجيل جوجل (رقم الموبايل + الاسم + الدور)
+export async function completeGoogleProfile({ phone, name, role = 'customer', bankCode = null, adminCode = null }) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('مش مسجل دخول');
+
+  // ✅ لو تاجر، لازم نتحقق من البنكود
+  if (role === 'merchant') {
+    const code = bankCode?.trim().toUpperCase();
+    if (!code) throw new Error('لازم البنكود');
+    
+    const { data: merchant, error: merr } = await supabase
+      .from('merchants').select('id, owner_id')
+      .eq('bank_code', code).single();
+
+    if (merr || !merchant) throw new Error('البنكود غير موجود');
+    if (merchant.owner_id && merchant.owner_id !== user.id) {
+      throw new Error('البنكود ده مرتبط بحساب تاني');
+    }
+  }
+
+  // ✅ لو أدمن، لازم نتحقق من البنكود
+  if (role === 'admin' && adminCode?.trim() !== 'PETAD-12321') {
+    throw new Error('بنكود الأدمن غير صحيح');
+  }
+
+  // ✅ نحدّث الـ profile
+  const { error: profErr } = await supabase
+    .from('profiles')
+    .upsert({
+      id: user.id,
+      phone,
+      name,
+      role,
+      email: user.email
+    });
+  if (profErr) throw profErr;
+
+  // ✅ لو تاجر، نربط الحساب بالمتجر
+  if (role === 'merchant') {
+    const code = bankCode.trim().toUpperCase();
+    const { error: linkErr } = await supabase
+      .from('merchants').update({ owner_id: user.id })
+      .eq('bank_code', code);
+    if (linkErr) throw linkErr;
+  }
+
+  return { success: true };
 }
 
 // ============================================================
