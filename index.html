@@ -49,6 +49,22 @@
         <button class="auth-tab" data-tab="signup" data-i18n="auth.signupTab">📝 حساب جديد</button>
       </div>
 
+      <!-- ✅ زرار جوجل -->
+      <button id="googleLoginBtn" style="width:100%;padding:14px;background:#fff;color:#374151;border:2px solid #e5e7eb;border-radius:30px;font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px;transition:all 0.2s">
+        <svg width="20" height="20" viewBox="0 0 48 48" style="flex-shrink:0">
+          <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
+          <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
+          <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
+          <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
+        </svg>
+        <span>الدخول بحساب Google</span>
+      </button>
+
+      <div style="text-align:center;margin:16px 0;font-size:13px;color:#9ca3af;position:relative">
+        <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:#e5e7eb;z-index:0"></div>
+        <span style="background:#fff;padding:0 12px;position:relative;z-index:1">أو</span>
+      </div>
+
       <form id="loginForm">
         <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)" data-i18n="login.title">تسجيل الدخول</h4>
 
@@ -136,7 +152,10 @@
     <div class="tabs" id="mainTabs" style="display:flex !important; flex-wrap:wrap; gap:8px; background:#fff; padding:6px; border-radius:30px; box-shadow:0 2px 8px rgba(0,0,0,.04); margin:20px 0">
       <button class="tab-btn active" data-tab="home" data-role="customer" data-i18n="tab.home">🏠 الرئيسية</button>
       <button class="tab-btn" data-tab="offers" data-role="customer" data-i18n="tab.offers">🎁 العروض</button>
-      <button class="tab-btn" data-tab="invoice" data-role="all" data-i18n="tab.invoice">🧾 الفاتورة</button>
+      <button class="tab-btn" data-tab="invoice" data-role="all" data-i18n="tab.invoice" style="position:relative">
+        🧾 الفاتورة
+        <span id="invoiceBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;border-radius:10px;padding:0 6px;line-height:20px;text-align:center;box-shadow:0 2px 6px rgba(239,68,68,0.4)">0</span>
+      </button>
       <button class="tab-btn" data-tab="requests" data-role="all" data-i18n="tab.requests" style="position:relative">
         📋 طلباتي
         <span id="mainReqBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;border-radius:10px;padding:0 6px;line-height:20px;text-align:center;box-shadow:0 2px 6px rgba(239,68,68,0.4)">0</span>
@@ -234,6 +253,14 @@
     </div>
 
     <div class="tab-content" id="tab-invoice">
+
+      <!-- ✅ الفواتير المعلقة للعميل -->
+      <div class="card" id="customerPendingInvoicesCard" style="display:none;border-right:4px solid #f59e0b">
+        <h4 style="margin-bottom:10px">⏳ فواتير في انتظار تأكيدك</h4>
+        <p style="font-size:13px;color:#6b7280;margin-bottom:12px">أكد استلامك للبضاعة عشان الكاش باك يتحسب</p>
+        <div id="customerPendingInvoicesList"></div>
+      </div>
+
       <div class="card">
         <h4 style="margin-bottom:10px">🧾 رفع فاتورة</h4>
         <input type="text" id="invNumber" placeholder="رقم الفاتورة">
@@ -874,6 +901,42 @@
 
       <button id="sendOfferRequestBtn" style="margin-top:10px;background:linear-gradient(135deg,#ff6b35,#f7931e)">📩 إرسال الطلب</button>
       <div id="reqOfferResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
+    </div>
+  </div>
+
+  <!-- ✅ مودال إكمال البيانات بعد جوجل -->
+  <div class="modal-overlay" id="completeProfileModal" style="display:none" onclick="window.closeCompleteProfileModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()" style="max-width:420px">
+      <h3 style="padding-left:0;margin-bottom:8px">📝 إكمال البيانات</h3>
+      <p style="font-size:13px;color:#6b7280;margin-bottom:14px">
+        الإيميل: <strong id="completeProfileEmail">-</strong>
+      </p>
+
+      <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">👤 الاسم:</label>
+      <input type="text" id="completeProfileName" placeholder="اسمك">
+
+      <label style="font-size:13px;font-weight:600;display:block;margin-top:8px;margin-bottom:4px">📱 رقم الموبايل:</label>
+      <input type="tel" id="completeProfilePhone" placeholder="01xxxxxxxxx">
+
+      <label style="font-size:13px;font-weight:600;display:block;margin-top:8px;margin-bottom:4px">🎭 نوع الحساب:</label>
+      <select id="completeProfileRole" onchange="window.onCompleteProfileRoleChange(this.value)">
+        <option value="customer">👤 عميل</option>
+        <option value="merchant">🏪 تاجر</option>
+        <option value="admin">👑 أدمن</option>
+      </select>
+
+      <div id="completeProfileBankCodeGroup" style="display:none;margin-top:8px">
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">🔑 البنكود:</label>
+        <input type="text" id="completeProfileBankCode" placeholder="MERCH-XXXXX" style="text-transform:uppercase">
+      </div>
+
+      <div id="completeProfileAdminCodeGroup" style="display:none;margin-top:8px">
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">🔑 بنكود الأدمن:</label>
+        <input type="password" id="completeProfileAdminCode" placeholder="بنكود الأدمن">
+      </div>
+
+      <button id="completeProfileBtn" style="margin-top:14px;background:#27ae60">✅ حفظ البيانات</button>
+      <div id="completeProfileResult" style="margin-top:10px;font-weight:600;text-align:center"></div>
     </div>
   </div>
 
