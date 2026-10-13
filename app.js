@@ -12,12 +12,14 @@ const {
   getProfile, getMyMerchant, onAuthChange,
   applyPeekEffect, getRealValue,
   changeMyPassword, adminChangePassword,
-  sendPasswordReset, updateMyEmail
+  sendPasswordReset, updateMyEmail,
+  signInWithGoogle, completeGoogleProfile
 } = await import('./auth.js');
 
 const {
   createInvoice, createInvoiceByBankCode,
   getMerchantInvoices, getMyInvoices,
+  getMyPendingInvoices, confirmInvoice, rejectInvoice,
   getMyWallets, redeemCashback, getMerchantCustomerWallets,
   getMerchantCashbackSummary, checkCustomerPhone
 } = await import('./invoices.js');
@@ -78,6 +80,7 @@ let currentReqFilter = 'all';
 let currentOfferReqFilter = 'all';
 let myRequestsCache = [];
 let myOfferRequestsCache = [];
+let myPendingInvoicesCache = [];
 let adminData = { merchants: [], customers: [], invoices: [] };
 let expectedLogin = null;
 let uploadedOfferImage = null;
@@ -87,6 +90,7 @@ let lastRatedMerchantId = null;
 let lastRatedMerchantName = '';
 let viewMode = 'all';
 let currentOfferFullData = null;
+let pendingGoogleUser = null; // ✅ للمستخدم اللي داخل بجوجل ولسه مكملش بياناته
 
 // ============================================================
 // Load merchants
@@ -503,7 +507,6 @@ function closeMerchantModal() {
 function closeModal(e) {
   if (e.target.classList.contains('modal-overlay')) closeMerchantModal();
 }
-
 // ============================================================
 // ✅ عرض تفاصيل العرض في صفحة كاملة
 // ============================================================
@@ -658,6 +661,106 @@ async function handleSendOfferRequest() {
 }
 
 // ============================================================
+// ✅ تسجيل الدخول بجوجل
+// ============================================================
+window.handleGoogleLogin = async function() {
+  const btn = $('googleLoginBtn');
+  if (btn) { btn.disabled = true; btn.innerText = '⏳ جاري التحويل...'; }
+
+  try {
+    await signInWithGoogle();
+    // Supabase هيعمل redirect، ومش هنرجع هنا
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.innerText = '🔵 الدخول بجوجل'; }
+  }
+};
+
+// ✅ لما المستخدم يرجع من جوجل، بنشوف لو محتاج يكمل بيانات
+window.handleGoogleCallback = async function() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return false;
+
+  // شوف لو عنده profile
+  const profile = await getProfile();
+  if (!profile || !profile.phone) {
+    // محتاج يكمل البيانات
+    pendingGoogleUser = session.user;
+    openCompleteProfileModal(session.user);
+    return true;
+  }
+
+  // تمام، ادخل التطبيق
+  await showMainScreen(profile);
+  return true;
+};
+
+// ✅ فتح مودال إكمال البيانات
+function openCompleteProfileModal(user) {
+  $('completeProfileEmail').innerText = user.email || '';
+  $('completeProfilePhone').value = '';
+  $('completeProfileName').value = user.user_metadata?.name || '';
+  $('completeProfileRole').value = 'customer';
+  $('completeProfileBankCodeGroup').style.display = 'none';
+  $('completeProfileAdminCodeGroup').style.display = 'none';
+  $('completeProfileResult').innerText = '';
+
+  const modal = $('completeProfileModal');
+  modal.style.display = 'flex';
+  modal.classList.add('active');
+}
+
+window.closeCompleteProfileModal = function(e) {
+  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
+  const modal = $('completeProfileModal');
+  if (!modal) return;
+  modal.classList.remove('active');
+  modal.style.display = 'none';
+  // سجّل خروج
+  supabase.auth.signOut();
+};
+
+window.onCompleteProfileRoleChange = function(value) {
+  $('completeProfileBankCodeGroup').style.display = value === 'merchant' ? 'block' : 'none';
+  $('completeProfileAdminCodeGroup').style.display = value === 'admin' ? 'block' : 'none';
+};
+
+async function handleCompleteProfile() {
+  const phone = $('completeProfilePhone').value.trim();
+  const name = $('completeProfileName').value.trim();
+  const role = $('completeProfileRole').value;
+  const bankCode = getRealValue('completeProfileBankCode');
+  const adminCode = getRealValue('completeProfileAdminCode');
+  const res = $('completeProfileResult');
+
+  if (!phone || !name) { res.style.color = '#ef4444'; res.innerText = '❌ املأ الاسم والموبايل'; return; }
+  if (role === 'merchant' && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم البنكود'; return; }
+  if (role === 'admin' && !adminCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم بنكود الأدمن'; return; }
+
+  const btn = $('completeProfileBtn');
+  btn.disabled = true;
+  btn.innerText = '⏳ جاري الحفظ...';
+
+  try {
+    await completeGoogleProfile({ phone, name, role, bankCode, adminCode });
+    res.style.color = '#10b981';
+    res.innerText = '✅ تم حفظ البيانات';
+
+    setTimeout(async () => {
+      window.closeCompleteProfileModal();
+      const profile = await getProfile();
+      if (profile) await showMainScreen(profile);
+    }, 1000);
+
+  } catch (e) {
+    res.style.color = '#ef4444';
+    res.innerText = '❌ ' + e.message;
+    btn.disabled = false;
+    btn.innerText = '✅ حفظ البيانات';
+  }
+}
+
+// ============================================================
 // Tabs
 // ============================================================
 function updateTabsVisibility() {
@@ -703,7 +806,90 @@ async function renderInvoiceTab() {
     $('merchantWalletsCard').style.display = 'none';
     $('merchantInvoicesCard').style.display = 'none';
   }
+
+  // ✅ اعرض الفواتير المعلقة للعميل
+  if (currentProfile.role === 'customer') {
+    await renderMyPendingInvoices();
+  }
+
   await renderMyWalletAndInvoices();
+}
+
+// ✅ جديد: عرض الفواتير المعلقة للعميل
+async function renderMyPendingInvoices() {
+  const el = $('customerPendingInvoicesList');
+  const card = $('customerPendingInvoicesCard');
+  if (!el || !card) return;
+
+  try {
+    myPendingInvoicesCache = await getMyPendingInvoices(currentProfile.phone);
+
+    if (!myPendingInvoicesCache.length) {
+      card.style.display = 'none';
+      return;
+    }
+
+    card.style.display = 'block';
+    el.innerHTML = myPendingInvoicesCache.map(inv => {
+      const m = inv.merchants || {};
+      return `<div style="background:#fffbeb;padding:12px;border-radius:12px;margin-bottom:8px;border-right:4px solid #f59e0b">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <strong style="color:#92400e">📄 #${inv.number}</strong>
+          <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span>
+        </div>
+        <div style="font-size:13px;color:#6b7280;margin-top:4px">🏪 ${m.icon || '🏪'} ${m.name || ''}</div>
+        <div style="font-size:13px;color:#10b981;font-weight:700;margin-top:4px">💰 كاش باك متوقع: ${parseFloat(inv.cashback || 0).toFixed(2)} ج</div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:2px">🕒 ${new Date(inv.created_at).toLocaleString('ar-EG')}</div>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+          <button class="admin-btn success" onclick="window.confirmInvoiceClick('${inv.id}')">✅ استلمت البضاعة</button>
+          <button class="admin-btn danger" onclick="window.rejectInvoiceClick('${inv.id}')">❌ مش استلمت</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    updateInvoiceBadge();
+
+  } catch (e) {
+    console.error('Pending invoices error:', e);
+    card.style.display = 'none';
+  }
+}
+
+// ✅ العميل يأكد الفاتورة
+window.confirmInvoiceClick = async function(invoiceId) {
+  if (!confirm('متأكد إنك استلمت البضاعة؟')) return;
+  try {
+    await confirmInvoice(invoiceId);
+    toast('✅ تم تأكيد الفاتورة - الكاش باك اتضاف', 'success');
+    await renderInvoiceTab();
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+  }
+};
+
+// ✅ العميل يرفض الفاتورة
+window.rejectInvoiceClick = async function(invoiceId) {
+  const reason = prompt('اكتب سبب الرفض (اختياري):');
+  if (reason === null) return;
+  try {
+    await rejectInvoice(invoiceId, reason);
+    toast('❌ تم رفض الفاتورة', 'success');
+    await renderInvoiceTab();
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+  }
+};
+
+// ✅ تحديث Badge الفواتير المعلقة
+function updateInvoiceBadge() {
+  const badge = $('invoiceBadge');
+  if (!badge) return;
+  if (myPendingInvoicesCache.length > 0) {
+    badge.innerText = myPendingInvoicesCache.length > 9 ? '9+' : myPendingInvoicesCache.length;
+    badge.style.display = 'block';
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
 async function renderMerchantInvoiceExtras() {
@@ -734,11 +920,22 @@ async function renderMerchantInvoiceExtras() {
     const invoices = await getMerchantInvoices(currentMerchant.id);
     const el = $('merchantInvoicesList');
     if (!invoices.length) el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد فواتير</p>';
-    else el.innerHTML = invoices.map(inv => `
-      <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
-        <div><strong>📄 #${inv.number}</strong> <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span></div>
-        <div style="color:#6b7280;margin-top:2px">📱 ${inv.customer_phone} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج</div>
-      </div>`).join('');
+    else el.innerHTML = invoices.map(inv => {
+      const statusBadge = inv.confirmation_status === 'confirmed'
+        ? '<span style="background:#d1fae5;color:#065f46;font-size:11px;padding:2px 8px;border-radius:20px">✅ مؤكد</span>'
+        : inv.confirmation_status === 'rejected'
+          ? '<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:2px 8px;border-radius:20px">❌ مرفوض</span>'
+          : inv.confirmation_status === 'expired'
+            ? '<span style="background:#f3f4f6;color:#6b7280;font-size:11px;padding:2px 8px;border-radius:20px">⏰ ملغي</span>'
+            : '<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:2px 8px;border-radius:20px">⏳ في الانتظار</span>';
+      return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <strong>📄 #${inv.number}</strong>
+          <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span>
+        </div>
+        <div style="color:#6b7280;margin-top:2px">📱 ${inv.customer_phone} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج ${statusBadge}</div>
+      </div>`;
+    }).join('');
   } catch (e) { console.error(e); }
 }
 
@@ -792,85 +989,6 @@ async function renderMyWalletAndInvoices() {
     } else $('customerInvoicesCard').style.display = 'none';
   } catch (e) { console.error(e); }
 }
-
-async function handleSubmitInvoice() {
-  const num = $('invNumber').value.trim();
-  const phone = $('invCustomerPhone').value.trim();
-  const amount = parseFloat($('invAmount').value);
-  const usedCashback = parseFloat($('invUsedCashback')?.value) || 0;
-  const bankCode = $('invBankCode') ? getRealValue('invBankCode') : '';
-  const res = $('invoiceResult');
-
-  if (!num || !phone || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
-
-  if (usedCashback > amount) { res.style.color = '#ef4444'; res.innerText = '❌ رصيد الكاش باك أكبر من مبلغ الفاتورة'; return; }
-
-  try {
-    const check = await checkCustomerPhone(phone);
-    if (!check || !check.ok) {
-      res.style.color = '#ef4444';
-      res.innerText = '❌ ' + (check?.error || 'الرقم ده مش مسجل كعميل');
-      return;
-    }
-  } catch (err) {
-    console.error('Check phone error:', err);
-    res.style.color = '#ef4444';
-    res.innerText = '❌ فشل التحقق من الرقم';
-    return;
-  }
-
-  const isMerchant = currentProfile.role === 'merchant' && currentMerchant;
-  if (!isMerchant && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ ادخل البنكود'; return; }
-
-  try {
-    let merchantId = null;
-    let merchantName = '';
-    if (isMerchant) {
-      const r = await createInvoice({ number: num, customerPhone: phone, amount, merchantId: currentMerchant.id, usedCashback });
-      merchantId = currentMerchant.id;
-      merchantName = currentMerchant.name;
-      res.style.color = '#10b981'; res.innerText = `✅ كاش باك ${parseFloat(r.cashback).toFixed(2)} ج${usedCashback > 0 ? ` (استُخدم ${usedCashback} ج من الرصيد)` : ''}`;
-    } else {
-      const r = await createInvoiceByBankCode({ number: num, customerPhone: phone, amount, bankCode, usedCashback });
-      res.style.color = '#10b981'; res.innerText = `✅ كاش باك ${parseFloat(r.cashback).toFixed(2)} ج${usedCashback > 0 ? ` (استُخدم ${usedCashback} ج من الرصيد)` : ''}`;
-      const m = allMerchants.find(x => (x.bank_code || '').toUpperCase() === bankCode.toUpperCase());
-      if (m) { merchantId = m.id; merchantName = m.name; }
-    }
-
-    if (merchantId && currentProfile.role === 'customer') {
-      lastRatedMerchantId = merchantId;
-      lastRatedMerchantName = merchantName;
-      selectedRating = 0;
-      $('ratedMerchantName').innerText = merchantName;
-      $('ratingSection').style.display = 'block';
-      $('ratingResult').innerText = '';
-      $('reviewComment').value = '';
-      document.querySelectorAll('#starContainer .star').forEach(el => el.classList.remove('active'));
-    }
-
-    $('invNumber').value = ''; $('invCustomerPhone').value = ''; $('invAmount').value = '';
-    if ($('invUsedCashback')) $('invUsedCashback').value = '';
-    if ($('invBankCode')) { $('invBankCode').value = ''; $('invBankCode').dataset.realValue = ''; }
-    setTimeout(() => renderInvoiceTab(), 1500);
-  } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
-}
-
-async function handleRedeem() {
-  const merchantId = $('redeemMerchant').value;
-  const original = parseFloat($('redeemOriginal').value);
-  const amount = parseFloat($('redeemAmount').value);
-  const res = $('redeemResult');
-
-  if (!merchantId || !original || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
-
-  try {
-    await redeemCashback({ merchantId, amount, originalAmount: original });
-    res.style.color = '#10b981'; res.innerText = `✅ المطلوب ${(original - amount).toFixed(2)} ج`;
-    $('redeemOriginal').value = ''; $('redeemAmount').value = '';
-    setTimeout(() => renderInvoiceTab(), 1200);
-  } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
-}
-
 // ============================================================
 // RATINGS
 // ============================================================
@@ -1406,7 +1524,7 @@ async function updateOfferReqBadge() {
 }
 
 // ============================================================
-// ✅ عرض تقرير التاجر
+// ✅ عرض تقرير التاجر (للأدمن)
 // ============================================================
 window.openMerchantReport = async function(merchantId) {
   const m = adminData.merchants.find(x => x.id === merchantId);
@@ -1478,14 +1596,6 @@ window.openMerchantReport = async function(merchantId) {
           <div style="font-size:11px;color:#9a3412">🎁 عدد العروض</div>
           <div style="font-size:18px;font-weight:700;color:#9a3412;margin-top:4px">${r.offersCount}</div>
         </div>
-
-        ${r.deletedCount > 0 ? `
-        <div style="background:#fef2f2;padding:12px;border-radius:10px;text-align:center;grid-column:span 2;border:1px dashed #fca5a5">
-          <div style="font-size:11px;color:#991b1b">⚠️ فواتير محذوفة (من الأدمن)</div>
-          <div style="font-size:18px;font-weight:700;color:#991b1b;margin-top:4px">${r.deletedCount}</div>
-        </div>
-        ` : ''}
-
       </div>
 
       <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;text-align:center">
@@ -1657,16 +1767,20 @@ async function renderDashboard() {
     const invoices = await getMerchantInvoicesList(currentMerchant.id);
     const el = $('dashInvoicesList');
     el.innerHTML = invoices.length ? invoices.slice(0, 30).map(inv => {
-      const statusBadge = inv.status === 'active'
-        ? '<span class="active-badge">✅ نشطة</span>'
-        : `<span class="blocked-badge">${inv.status === 'returned' ? 'مرتجع كامل' : 'مرتجع جزئي'}</span>`;
+      const statusBadge = inv.confirmation_status === 'confirmed'
+        ? '<span class="active-badge">✅ مؤكدة</span>'
+        : inv.confirmation_status === 'rejected'
+          ? '<span class="blocked-badge">❌ مرفوضة</span>'
+          : inv.confirmation_status === 'expired'
+            ? '<span style="background:#f3f4f6;color:#6b7280;padding:3px 10px;border-radius:20px;font-size:11px">⏰ ملغية</span>'
+            : '<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:20px;font-size:11px">⏳ معلقة</span>';
       return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
           <strong>📄 #${inv.number}</strong>
           <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span>
         </div>
         <div style="color:#6b7280;margin-top:2px">📱 ${inv.customer_phone || '-'} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج ${statusBadge}</div>
-        ${inv.status === 'active' ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+        ${inv.confirmation_status === 'confirmed' && inv.status === 'active' ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
           <button class="admin-btn primary" onclick="window.editInvClick('${inv.id}')">✏️ تعديل</button>
           <button class="admin-btn danger" onclick="window.returnInvClick('${inv.id}')">🔄 مرتجع</button>
         </div>` : ''}
@@ -1929,7 +2043,6 @@ function handleOfferImage(e) {
   };
   reader.readAsDataURL(file);
 }
-
 // ============================================================
 // REPORTS
 // ============================================================
@@ -2621,6 +2734,16 @@ async function showMainScreen(profile) {
   if (profile.role === 'merchant') {
     setTimeout(updateOfferReqBadge, 1000);
   }
+
+  // ✅ تحديث Badge الفواتير المعلقة للعميل
+  if (profile.role === 'customer') {
+    setTimeout(async () => {
+      try {
+        myPendingInvoicesCache = await getMyPendingInvoices(profile.phone);
+        updateInvoiceBadge();
+      } catch (e) {}
+    }, 1000);
+  }
 }
 
 async function refreshData() {
@@ -2975,6 +3098,14 @@ function bindEvents() {
   document.querySelectorAll('.req-subtab').forEach(btn => {
     btn.addEventListener('click', () => switchRequestsSubtab(btn.dataset.req));
   });
+
+  // ✅ زرار جوجل
+  const googleBtn = $('googleLoginBtn');
+  if (googleBtn) googleBtn.addEventListener('click', handleGoogleLogin);
+
+  // ✅ زرار إكمال البيانات
+  const completeBtn = $('completeProfileBtn');
+  if (completeBtn) completeBtn.addEventListener('click', handleCompleteProfile);
 }
 
 // ============================================================
@@ -3015,8 +3146,12 @@ async function runInit() {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
-      const profile = await getProfile();
-      if (profile) await showMainScreen(profile);
+      // ✅ شوف لو محتاج يكمل بيانات (بعد جوجل)
+      const done = await handleGoogleCallback();
+      if (!done) {
+        const profile = await getProfile();
+        if (profile) await showMainScreen(profile);
+      }
     }
   } catch (e) {
     console.log('getSession error:', e);
@@ -3073,6 +3208,24 @@ window.adminReturnInv = adminReturnInv;
 window.adminDeleteWithCashback = adminDeleteWithCashback;
 window.adminDeleteOnly = adminDeleteOnly;
 window.renderOfferEventsTable = renderOfferEventsTable;
+window.handleGoogleLogin = handleGoogleLogin;
+window.closeCompleteProfileModal = closeCompleteProfileModal;
+window.onCompleteProfileRoleChange = onCompleteProfileRoleChange;
+window.confirmInvoiceClick = confirmInvoiceClick;
+window.rejectInvoiceClick = rejectInvoiceClick;
+window.togglePass = function(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  btn.innerText = isHidden ? '🙈' : '👁️';
+};
+window.closeForgotModal = function(e) {
+  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
+  const modal = document.getElementById('forgotModal');
+  modal.classList.remove('active');
+  modal.style.display = 'none';
+};
 
 window.contactMerchant = function(phone, merchantId) {
   trackOfferEvent({ offerId: null, merchantId, eventType: 'contact' });
