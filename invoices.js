@@ -17,7 +17,6 @@ export async function createInvoiceByBankCode({ number, customerPhone, amount, b
 }
 
 export async function createInvoice({ number, customerPhone, amount, merchantId, usedCashback = 0 }) {
-  // ✅ بنستخدم RPC بدل INSERT مباشر (عشان الحماية)
   const { data, error } = await supabase.rpc('create_invoice_by_merchant', {
     p_number: number.trim(),
     p_customer_phone: customerPhone.trim(),
@@ -50,6 +49,39 @@ export async function getMyInvoices(phone) {
     .limit(50);
   if (error) throw error;
   return data || [];
+}
+
+// ✅ جديد: فواتير العميل المعلقة (مش مؤكدة)
+export async function getMyPendingInvoices(phone) {
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('*, merchants(name, icon)')
+    .eq('customer_phone', phone)
+    .eq('confirmation_status', 'pending')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+// ✅ جديد: العميل يأكد الفاتورة
+export async function confirmInvoice(invoiceId) {
+  const { data, error } = await supabase.rpc('confirm_invoice', {
+    p_invoice_id: invoiceId
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error || 'فشل التأكيد');
+  return data;
+}
+
+// ✅ جديد: العميل يرفض الفاتورة
+export async function rejectInvoice(invoiceId, reason = '') {
+  const { data, error } = await supabase.rpc('reject_invoice', {
+    p_invoice_id: invoiceId,
+    p_reason: reason
+  });
+  if (error) throw error;
+  if (!data.ok) throw new Error(data.error || 'فشل الرفض');
+  return data;
 }
 
 export async function getMyWallets(customerId) {
@@ -86,7 +118,7 @@ export async function getMerchantCustomerWallets(merchantId) {
 export async function getMerchantCashbackSummary(merchantId) {
   const { data: invoices } = await supabase
     .from('invoices')
-    .select('cashback, amount, status, return_amount, returned_cashback')
+    .select('cashback, amount, status, confirmation_status, return_amount, returned_cashback')
     .eq('merchant_id', merchantId);
 
   const { data: redemptions } = await supabase
@@ -96,12 +128,15 @@ export async function getMerchantCashbackSummary(merchantId) {
 
   let given = 0, sales = 0, spent = 0;
   (invoices || []).forEach(i => {
-    if (i.status === 'active') {
-      given += parseFloat(i.cashback || 0);
-      sales += parseFloat(i.amount || 0);
-    } else if (i.status === 'partial_return') {
-      given += parseFloat(i.cashback || 0) - parseFloat(i.returned_cashback || 0);
-      sales += parseFloat(i.amount || 0) - parseFloat(i.return_amount || 0);
+    // ✅ بنحسب الفواتير المؤكدة بس
+    if (i.confirmation_status === 'confirmed') {
+      if (i.status === 'active') {
+        given += parseFloat(i.cashback || 0);
+        sales += parseFloat(i.amount || 0);
+      } else if (i.status === 'partial_return') {
+        given += parseFloat(i.cashback || 0) - parseFloat(i.returned_cashback || 0);
+        sales += parseFloat(i.amount || 0) - parseFloat(i.return_amount || 0);
+      }
     }
   });
   (redemptions || []).forEach(r => {
