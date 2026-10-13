@@ -90,7 +90,7 @@ let lastRatedMerchantId = null;
 let lastRatedMerchantName = '';
 let viewMode = 'all';
 let currentOfferFullData = null;
-let pendingGoogleUser = null; // ✅ للمستخدم اللي داخل بجوجل ولسه مكملش بياناته
+let pendingGoogleUser = null;
 
 // ============================================================
 // Load merchants
@@ -507,8 +507,9 @@ function closeMerchantModal() {
 function closeModal(e) {
   if (e.target.classList.contains('modal-overlay')) closeMerchantModal();
 }
+
 // ============================================================
-// ✅ عرض تفاصيل العرض في صفحة كاملة
+// عرض تفاصيل العرض في صفحة كاملة
 // ============================================================
 window.openOfferFull = async function(offerId, merchantId) {
   const m = allMerchants.find(x => x.id === merchantId);
@@ -600,7 +601,7 @@ window.closeOfferFull = function(e) {
 };
 
 // ============================================================
-// ✅ طلب عرض معين
+// طلب عرض معين
 // ============================================================
 window.openRequestOfferModal = function(offerId, merchantId, offerTitle) {
   $('reqOfferId').value = offerId;
@@ -661,7 +662,7 @@ async function handleSendOfferRequest() {
 }
 
 // ============================================================
-// ✅ تسجيل الدخول بجوجل
+// تسجيل الدخول بجوجل
 // ============================================================
 window.handleGoogleLogin = async function() {
   const btn = $('googleLoginBtn');
@@ -669,33 +670,27 @@ window.handleGoogleLogin = async function() {
 
   try {
     await signInWithGoogle();
-    // Supabase هيعمل redirect، ومش هنرجع هنا
   } catch (e) {
     toast('❌ ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.innerText = '🔵 الدخول بجوجل'; }
   }
 };
 
-// ✅ لما المستخدم يرجع من جوجل، بنشوف لو محتاج يكمل بيانات
 window.handleGoogleCallback = async function() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return false;
 
-  // شوف لو عنده profile
   const profile = await getProfile();
   if (!profile || !profile.phone) {
-    // محتاج يكمل البيانات
     pendingGoogleUser = session.user;
     openCompleteProfileModal(session.user);
     return true;
   }
 
-  // تمام، ادخل التطبيق
   await showMainScreen(profile);
   return true;
 };
 
-// ✅ فتح مودال إكمال البيانات
 function openCompleteProfileModal(user) {
   $('completeProfileEmail').innerText = user.email || '';
   $('completeProfilePhone').value = '';
@@ -716,7 +711,6 @@ window.closeCompleteProfileModal = function(e) {
   if (!modal) return;
   modal.classList.remove('active');
   modal.style.display = 'none';
-  // سجّل خروج
   supabase.auth.signOut();
 };
 
@@ -807,7 +801,6 @@ async function renderInvoiceTab() {
     $('merchantInvoicesCard').style.display = 'none';
   }
 
-  // ✅ اعرض الفواتير المعلقة للعميل
   if (currentProfile.role === 'customer') {
     await renderMyPendingInvoices();
   }
@@ -815,7 +808,6 @@ async function renderInvoiceTab() {
   await renderMyWalletAndInvoices();
 }
 
-// ✅ جديد: عرض الفواتير المعلقة للعميل
 async function renderMyPendingInvoices() {
   const el = $('customerPendingInvoicesList');
   const card = $('customerPendingInvoicesCard');
@@ -855,7 +847,6 @@ async function renderMyPendingInvoices() {
   }
 }
 
-// ✅ العميل يأكد الفاتورة
 window.confirmInvoiceClick = async function(invoiceId) {
   if (!confirm('متأكد إنك استلمت البضاعة؟')) return;
   try {
@@ -867,7 +858,6 @@ window.confirmInvoiceClick = async function(invoiceId) {
   }
 };
 
-// ✅ العميل يرفض الفاتورة
 window.rejectInvoiceClick = async function(invoiceId) {
   const reason = prompt('اكتب سبب الرفض (اختياري):');
   if (reason === null) return;
@@ -880,7 +870,6 @@ window.rejectInvoiceClick = async function(invoiceId) {
   }
 };
 
-// ✅ تحديث Badge الفواتير المعلقة
 function updateInvoiceBadge() {
   const badge = $('invoiceBadge');
   if (!badge) return;
@@ -989,6 +978,85 @@ async function renderMyWalletAndInvoices() {
     } else $('customerInvoicesCard').style.display = 'none';
   } catch (e) { console.error(e); }
 }
+
+async function handleSubmitInvoice() {
+  const num = $('invNumber').value.trim();
+  const phone = $('invCustomerPhone').value.trim();
+  const amount = parseFloat($('invAmount').value);
+  const usedCashback = parseFloat($('invUsedCashback')?.value) || 0;
+  const bankCode = $('invBankCode') ? getRealValue('invBankCode') : '';
+  const res = $('invoiceResult');
+
+  if (!num || !phone || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
+
+  if (usedCashback > amount) { res.style.color = '#ef4444'; res.innerText = '❌ رصيد الكاش باك أكبر من مبلغ الفاتورة'; return; }
+
+  try {
+    const check = await checkCustomerPhone(phone);
+    if (!check || !check.ok) {
+      res.style.color = '#ef4444';
+      res.innerText = '❌ ' + (check?.error || 'الرقم ده مش مسجل كعميل');
+      return;
+    }
+  } catch (err) {
+    console.error('Check phone error:', err);
+    res.style.color = '#ef4444';
+    res.innerText = '❌ فشل التحقق من الرقم';
+    return;
+  }
+
+  const isMerchant = currentProfile.role === 'merchant' && currentMerchant;
+  if (!isMerchant && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ ادخل البنكود'; return; }
+
+  try {
+    let merchantId = null;
+    let merchantName = '';
+    if (isMerchant) {
+      const r = await createInvoice({ number: num, customerPhone: phone, amount, merchantId: currentMerchant.id, usedCashback });
+      merchantId = currentMerchant.id;
+      merchantName = currentMerchant.name;
+      res.style.color = '#10b981'; res.innerText = `✅ تم رفع الفاتورة - في انتظار تأكيد العميل`;
+    } else {
+      const r = await createInvoiceByBankCode({ number: num, customerPhone: phone, amount, bankCode, usedCashback });
+      res.style.color = '#10b981'; res.innerText = `✅ تم رفع الفاتورة - في انتظار تأكيد العميل`;
+      const m = allMerchants.find(x => (x.bank_code || '').toUpperCase() === bankCode.toUpperCase());
+      if (m) { merchantId = m.id; merchantName = m.name; }
+    }
+
+    if (merchantId && currentProfile.role === 'customer') {
+      lastRatedMerchantId = merchantId;
+      lastRatedMerchantName = merchantName;
+      selectedRating = 0;
+      $('ratedMerchantName').innerText = merchantName;
+      $('ratingSection').style.display = 'block';
+      $('ratingResult').innerText = '';
+      $('reviewComment').value = '';
+      document.querySelectorAll('#starContainer .star').forEach(el => el.classList.remove('active'));
+    }
+
+    $('invNumber').value = ''; $('invCustomerPhone').value = ''; $('invAmount').value = '';
+    if ($('invUsedCashback')) $('invUsedCashback').value = '';
+    if ($('invBankCode')) { $('invBankCode').value = ''; $('invBankCode').dataset.realValue = ''; }
+    setTimeout(() => renderInvoiceTab(), 1500);
+  } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
+}
+
+async function handleRedeem() {
+  const merchantId = $('redeemMerchant').value;
+  const original = parseFloat($('redeemOriginal').value);
+  const amount = parseFloat($('redeemAmount').value);
+  const res = $('redeemResult');
+
+  if (!merchantId || !original || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
+
+  try {
+    await redeemCashback({ merchantId, amount, originalAmount: original });
+    res.style.color = '#10b981'; res.innerText = `✅ المطلوب ${(original - amount).toFixed(2)} ج`;
+    $('redeemOriginal').value = ''; $('redeemAmount').value = '';
+    setTimeout(() => renderInvoiceTab(), 1200);
+  } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
+}
+
 // ============================================================
 // RATINGS
 // ============================================================
@@ -1011,7 +1079,6 @@ async function handleSubmitRating() {
     }, 2000);
   } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
-
 // ============================================================
 // REQUESTS
 // ============================================================
@@ -1475,7 +1542,7 @@ async function hideReq(reqId) {
 }
 
 // ============================================================
-// ✅ تحديث الأرقام (Badge)
+// تحديث الأرقام (Badge)
 // ============================================================
 async function updateOfferReqBadge() {
   const mainBadge = $('mainReqBadge');
@@ -1524,7 +1591,7 @@ async function updateOfferReqBadge() {
 }
 
 // ============================================================
-// ✅ عرض تقرير التاجر (للأدمن)
+// عرض تقرير التاجر (للأدمن)
 // ============================================================
 window.openMerchantReport = async function(merchantId) {
   const m = adminData.merchants.find(x => x.id === merchantId);
@@ -1551,53 +1618,43 @@ window.openMerchantReport = async function(merchantId) {
 
     $('reportMerchantContent').innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
-        
         <div style="background:#dbeafe;padding:12px;border-radius:10px;text-align:center;grid-column:span 2">
           <div style="font-size:11px;color:#1e40af">💰 إجمالي المبيعات</div>
           <div style="font-size:24px;font-weight:800;color:#1e40af;margin-top:4px">${r.totalSales.toFixed(2)} ج</div>
         </div>
-
         <div style="background:#f0f9ff;padding:12px;border-radius:10px;text-align:center">
           <div style="font-size:11px;color:#0c4a6e">📄 فواتير نشطة</div>
           <div style="font-size:18px;font-weight:700;color:#0c4a6e;margin-top:4px">${r.invoicesCount}</div>
         </div>
-
         <div style="background:#fef3c7;padding:12px;border-radius:10px;text-align:center">
           <div style="font-size:11px;color:#92400e">🔄 مرتجعات</div>
           <div style="font-size:18px;font-weight:700;color:#92400e;margin-top:4px">${r.returnedCount}</div>
         </div>
-
         <div style="background:#d1fae5;padding:12px;border-radius:10px;text-align:center">
           <div style="font-size:11px;color:#065f46">💵 كاش باك ممنوح</div>
           <div style="font-size:16px;font-weight:700;color:#065f46;margin-top:4px">${r.totalCashbackGiven.toFixed(2)} ج</div>
         </div>
-
         <div style="background:#fee2e2;padding:12px;border-radius:10px;text-align:center">
           <div style="font-size:11px;color:#991b1b">💸 كاش باك مصروف</div>
           <div style="font-size:16px;font-weight:700;color:#991b1b;margin-top:4px">${r.totalCashbackSpent.toFixed(2)} ج</div>
         </div>
-
         <div style="background:#ede9fe;padding:12px;border-radius:10px;text-align:center">
           <div style="font-size:11px;color:#5b21b6">💰 متبقي</div>
           <div style="font-size:16px;font-weight:700;color:#5b21b6;margin-top:4px">${r.totalCashbackRemaining.toFixed(2)} ج</div>
         </div>
-
         <div style="background:#f3f4f6;padding:12px;border-radius:10px;text-align:center">
           <div style="font-size:11px;color:#374151">👥 عملاء فريدين</div>
           <div style="font-size:18px;font-weight:700;color:#374151;margin-top:4px">${r.uniqueCustomers}</div>
         </div>
-
         <div style="background:#f0fdf4;padding:12px;border-radius:10px;text-align:center">
           <div style="font-size:11px;color:#166534">💰 متوسط الفاتورة</div>
           <div style="font-size:16px;font-weight:700;color:#166534;margin-top:4px">${r.avgInvoice.toFixed(2)} ج</div>
         </div>
-
         <div style="background:#fff7ed;padding:12px;border-radius:10px;text-align:center">
           <div style="font-size:11px;color:#9a3412">🎁 عدد العروض</div>
           <div style="font-size:18px;font-weight:700;color:#9a3412;margin-top:4px">${r.offersCount}</div>
         </div>
       </div>
-
       <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;text-align:center">
         <p style="font-size:12px;color:#9ca3af">📅 التقرير ده بيعرض الفواتير الحالية بس</p>
       </div>
@@ -2043,6 +2100,7 @@ function handleOfferImage(e) {
   };
   reader.readAsDataURL(file);
 }
+
 // ============================================================
 // REPORTS
 // ============================================================
@@ -2735,7 +2793,6 @@ async function showMainScreen(profile) {
     setTimeout(updateOfferReqBadge, 1000);
   }
 
-  // ✅ تحديث Badge الفواتير المعلقة للعميل
   if (profile.role === 'customer') {
     setTimeout(async () => {
       try {
@@ -3099,11 +3156,9 @@ function bindEvents() {
     btn.addEventListener('click', () => switchRequestsSubtab(btn.dataset.req));
   });
 
-  // ✅ زرار جوجل
   const googleBtn = $('googleLoginBtn');
   if (googleBtn) googleBtn.addEventListener('click', handleGoogleLogin);
 
-  // ✅ زرار إكمال البيانات
   const completeBtn = $('completeProfileBtn');
   if (completeBtn) completeBtn.addEventListener('click', handleCompleteProfile);
 }
@@ -3146,7 +3201,6 @@ async function runInit() {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
-      // ✅ شوف لو محتاج يكمل بيانات (بعد جوجل)
       const done = await handleGoogleCallback();
       if (!done) {
         const profile = await getProfile();
