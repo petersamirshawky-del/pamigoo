@@ -16,7 +16,7 @@ function getSupabaseClient() {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: false,
+      detectSessionInUrl: true,
       storageKey: 'pamigo-auth-token' // ✅ مفتاح واحد بس لكل التطبيق
     }
   });
