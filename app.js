@@ -1177,14 +1177,12 @@ async function renderRequestsTab() {
 window.switchRequestsSubtab = function(type) {
   console.log('🔄 switchRequestsSubtab called with:', type);
 
-  // نغير شكل الأزرار
   document.querySelectorAll('.req-subtab').forEach(b =>
     b.classList.toggle('active', b.dataset.req === type));
 
   const specialSection = $('specialRequestsSection');
   const offerSection = $('offerRequestsSection');
 
-  // نتأكد إن العناصر موجودة الأول
   if (!specialSection || !offerSection) {
     console.error('❌ specialRequestsSection or offerRequestsSection NOT FOUND in HTML!');
     return;
@@ -1197,7 +1195,6 @@ window.switchRequestsSubtab = function(type) {
     specialSection.style.display = 'none';
     offerSection.style.display = 'block';
 
-    // نعيد تحميل طلبات العروض
     if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
       renderMerchantOfferRequestsList().catch(e => console.error('Error:', e));
     } else if (currentProfile && currentProfile.role === 'customer') {
@@ -3238,25 +3235,22 @@ async function runInit() {
 
   showAuthScreen();
 
-// ✅ نستخدم onAuthStateChange لتسجيل الدخول والخروج بس، مش عند كل تحديث للجلسة
-supabase.auth.onAuthStateChange(async (event, session) => {
-  console.log('Auth event:', event);
-
-  // نتجاهل TOKEN_REFRESHED و INITIAL_SESSION عشان نمنع الـ 429
-  if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-    return;
-  }
-
-  if (event === 'SIGNED_IN' && session) {
-    const done = await handleGoogleCallback();
-    if (!done) {
-      const profile = await getProfile();
-      if (profile) await showMainScreen(profile);
+  // ✅ نتجاهل أي حدث غير SIGNED_IN أو SIGNED_OUT
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log('Auth event:', event);
+    if (event !== 'SIGNED_IN' && event !== 'SIGNED_OUT') {
+      return;
     }
-  } else if (event === 'SIGNED_OUT' || !session) {
-    showAuthScreen();
-  }
-});
+    if (event === 'SIGNED_IN' && session) {
+      const done = await handleGoogleCallback();
+      if (!done) {
+        const profile = await getProfile();
+        if (profile) await showMainScreen(profile);
+      }
+    } else if (event === 'SIGNED_OUT') {
+      showAuthScreen();
+    }
+  });
 
   try {
     const { data: { session: initialSession } } = await supabase.auth.getSession();
