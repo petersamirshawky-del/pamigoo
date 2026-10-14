@@ -1166,23 +1166,31 @@ window.switchRequestsSubtab = function(type) {
     return;
   }
 
+  // ✅ نظهر ونخفي الأقسام الأول
   if (type === 'special') {
     specialSection.style.display = 'block';
     offerSection.style.display = 'none';
-    if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
-      renderMerchantRequestsList().catch(e => console.error('Err requests:', e));
-    } else if (currentProfile && currentProfile.role === 'customer') {
-      renderMyRequests().catch(e => console.error('Err my req:', e));
-    }
   } else {
     specialSection.style.display = 'none';
     offerSection.style.display = 'block';
-    if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
-      renderMerchantOfferRequestsList().catch(e => console.error('Err offers:', e));
-    } else if (currentProfile && currentProfile.role === 'customer') {
-      renderMyOfferRequests().catch(e => console.error('Err my offers:', e));
-    }
   }
+
+  // ✅ نستنى شوية صغيرة عشان الـ HTML يظهر، وبعدين نحمل البيانات
+  setTimeout(() => {
+    if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
+      if (type === 'special') {
+        renderMerchantRequestsList().catch(e => console.error('Err requests:', e));
+      } else {
+        renderMerchantOfferRequestsList().catch(e => console.error('Err offers:', e));
+      }
+    } else if (currentProfile && currentProfile.role === 'customer') {
+      if (type === 'special') {
+        renderMyRequests().catch(e => console.error('Err my req:', e));
+      } else {
+        renderMyOfferRequests().catch(e => console.error('Err my offers:', e));
+      }
+    }
+  }, 100);
 };
 
 async function renderMyRequests() {
