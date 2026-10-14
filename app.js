@@ -1079,6 +1079,7 @@ async function handleSubmitRating() {
     }, 2000);
   } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
+
 // ============================================================
 // REQUESTS
 // ============================================================
@@ -1114,7 +1115,6 @@ async function handleSendRequest() {
 }
 
 async function renderRequestsTab() {
-  console.log('✅✅✅ دالة renderRequestsTab اشتغلت!');
   if (!currentProfile) return;
 
   const subtabs = $('requestsSubtabs');
@@ -1128,19 +1128,8 @@ async function renderRequestsTab() {
     $('merchantRequestsWrapper').style.display = 'block';
     $('offerRequestsWrapper').style.display = 'block';
 
-    try {
-      await renderMerchantRequestsList();
-    } catch (e) {
-      console.error('renderMerchantRequestsList error:', e);
-      $('merchantRequestsList').innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px">❌ خطأ: ${e.message}</p>`;
-    }
-
-    try {
-      await renderMerchantOfferRequestsList();
-    } catch (e) {
-      console.error('renderMerchantOfferRequestsList error:', e);
-      $('merchantOfferRequestsList').innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px">❌ خطأ: ${e.message}</p>`;
-    }
+    try { await renderMerchantRequestsList(); } catch (e) { console.error(e); }
+    try { await renderMerchantOfferRequestsList(); } catch (e) { console.error(e); }
   } else if (currentProfile.role === 'customer') {
     $('requestFormCard').style.display = 'block';
     $('reqStatsWrapper').style.display = 'block';
@@ -1148,19 +1137,8 @@ async function renderRequestsTab() {
     $('offerRequestsWrapper').style.display = 'none';
     $('myOfferRequestsWrapper').style.display = 'block';
 
-    try {
-      await renderMyRequests();
-    } catch (e) {
-      console.error('renderMyRequests error:', e);
-      $('myRequestsList').innerHTML = `<div class="no-requests" style="color:#ef4444">❌ خطأ في تحميل الطلبات: ${e.message}</div>`;
-    }
-
-    try {
-      await renderMyOfferRequests();
-    } catch (e) {
-      console.error('renderMyOfferRequests error:', e);
-      $('myOfferRequestsList').innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px">❌ خطأ: ${e.message}</p>`;
-    }
+    try { await renderMyRequests(); } catch (e) { console.error(e); }
+    try { await renderMyOfferRequests(); } catch (e) { console.error(e); }
   } else {
     $('requestFormCard').style.display = 'none';
     $('reqStatsWrapper').style.display = 'none';
@@ -1188,18 +1166,22 @@ window.switchRequestsSubtab = function(type) {
     return;
   }
 
+  // ✅ نظهر ونخفي الأقسام في كل الحالات
   if (type === 'special') {
     specialSection.style.display = 'block';
     offerSection.style.display = 'none';
   } else {
     specialSection.style.display = 'none';
     offerSection.style.display = 'block';
+  }
 
-    if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
-      renderMerchantOfferRequestsList().catch(e => console.error('Error:', e));
-    } else if (currentProfile && currentProfile.role === 'customer') {
-      renderMyOfferRequests().catch(e => console.error('Error:', e));
-    }
+  // ✅ نعيد تحميل البيانات (سواء تاجر أو عميل)
+  if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
+    renderMerchantRequestsList().catch(e => console.error('Err requests:', e));
+    renderMerchantOfferRequestsList().catch(e => console.error('Err offers:', e));
+  } else if (currentProfile && currentProfile.role === 'customer') {
+    renderMyRequests().catch(e => console.error('Err my req:', e));
+    renderMyOfferRequests().catch(e => console.error('Err my offers:', e));
   }
 };
 
@@ -1337,6 +1319,57 @@ async function renderMyOfferRequests() {
   }
 }
 
+async function renderMerchantRequestsList() {
+  const el = $('merchantRequestsList');
+  if (!el) return;
+  try {
+    const requests = await getMerchantRequests(currentMerchant.id, currentMerchant.category);
+    if (!requests.length) {
+      el.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;padding:20px">مفيش طلبات 😴</p>';
+      return;
+    }
+    el.innerHTML = requests.map(req => {
+      const myReply = (req.request_responses || []).find(r => r.merchant_id === currentMerchant.id);
+      const statusBadge = getStatusBadge(req.status);
+      const imageHtml = req.image_url
+        ? `<img src="${req.image_url}" style="width:100%;max-width:180px;border-radius:10px;margin:8px 0;border:2px solid #ddd">` : '';
+
+      const customerMsgs = myReply && myReply.customer_messages && myReply.customer_messages.length
+        ? `<div style="background:#dbeafe;padding:8px;border-radius:8px;margin-top:8px">
+            <div style="font-size:11px;color:#1e40af;font-weight:700">👤 رسائل العميل:</div>
+            ${myReply.customer_messages.map(m => `<div style="font-size:12px;color:#1e40af">• ${m.text}</div>`).join('')}
+          </div>` : '';
+
+      let replyHtml = '';
+      if (myReply) {
+        replyHtml = `<div style="background:#d1fae5;padding:10px;border-radius:10px;margin-top:8px">
+          <div style="font-size:12px;color:#065f46;font-weight:700">✅ ردك:</div>
+          <div style="font-size:14px;color:#065f46;margin-top:4px">💰 ${parseFloat(myReply.price).toFixed(0)} ج</div>
+          <div style="font-size:13px;color:#065f46">${myReply.message}</div>
+          ${myReply.image_url ? `<img src="${myReply.image_url}" style="width:100%;max-width:140px;border-radius:8px;margin-top:6px">` : ''}
+        </div>`;
+      }
+
+      return `<div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:12px;border-right:4px solid var(--success)">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <h5 style="color:var(--primary);margin:0">📦 ${req.product}</h5>${statusBadge}
+        </div>
+        <div style="font-size:13px;color:#4b5563;margin-top:6px">${req.details || ''}</div>
+        ${imageHtml}
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
+        ${customerMsgs}${replyHtml}
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+          ${!myReply ? `<button class="admin-btn primary" onclick="window.replyToReq('${req.id}')">📩 الرد</button>` : ''}
+          ${myReply ? `<button class="admin-btn purple" onclick="window.sendExtraImage('${myReply.id}')">📸 صورة إضافية</button>` : ''}
+          <button class="admin-btn danger" onclick="window.hideReq('${req.id}')">🗑️ مسح</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<p style="color:#ef4444;font-size:14px">❌ ' + e.message + '</p>';
+  }
+}
+
 async function renderMerchantOfferRequestsList() {
   const el = $('merchantOfferRequestsList');
   if (!el) return;
@@ -1351,55 +1384,70 @@ async function renderMerchantOfferRequestsList() {
       return;
     }
 
-    el.innerHTML = requests.map(req => {
-      const statusBadge = getStatusBadge(req.status);
-      const custName = req.customer_name || 'عميل';
-      const custPhone = req.customer_phone || '';
+    const pending = requests.filter(r => !r.offer_response);
+    const answered = requests.filter(r => r.offer_response);
 
-      let responseHtml = '';
-      if (req.offer_response) {
-        const isAvail = req.offer_response === 'available';
-        responseHtml = `<div style="background:${isAvail ? '#d1fae5' : '#fee2e2'};padding:10px;border-radius:10px;margin-top:8px">
-          <div style="font-size:13px;color:${isAvail ? '#065f46' : '#991b1b'};font-weight:700">
-            ${isAvail ? '✅ رديت: متاح' : '❌ رديت: مش متاح'}
-          </div>
-          ${req.offer_reply ? `<div style="font-size:13px;color:${isAvail ? '#065f46' : '#991b1b'};margin-top:4px">💬 ${req.offer_reply}</div>` : ''}
-        </div>`;
-      }
+    let html = '';
+    if (pending.length) {
+      html += `<h5 style="color:#ff6b35;margin:10px 0 8px">📥 طلبات جديدة (${pending.length})</h5>`;
+      html += pending.map(req => renderOfferRequestCard(req)).join('');
+    }
+    if (answered.length) {
+      html += `<h5 style="color:#10b981;margin:20px 0 8px">✅ تم الرد عليها (${answered.length})</h5>`;
+      html += answered.map(req => renderOfferRequestCard(req)).join('');
+    }
 
-      let actionsHtml = '';
-      if (!req.offer_response) {
-        actionsHtml = `
-          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-            <button class="admin-btn success" onclick="window.replyOfferReqClick('${req.id}', true)">✅ متاح</button>
-            <button class="admin-btn danger" onclick="window.replyOfferReqClick('${req.id}', false)">❌ مش متاح</button>
-          </div>
-        `;
-      }
-
-      const phoneHtml = custPhone
-        ? `<div style="margin-top:4px">📱 <a href="tel:${custPhone}" style="color:var(--primary);font-weight:700">${custPhone}</a></div>`
-        : `<div style="margin-top:4px;color:#9ca3af;font-size:12px">🔒 رقم العميل هيظهر بعد ما ترد "متاح"</div>`;
-
-      return `<div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:12px;border-right:4px solid #ff6b35">
-        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <h5 style="color:var(--primary);margin:0">🎁 ${req.product}</h5>${statusBadge}
-        </div>
-        <div style="background:#fff;padding:10px;border-radius:8px;margin-top:8px;font-size:13px">
-          <div><strong>👤 ${custName}</strong></div>
-          ${phoneHtml}
-        </div>
-        ${req.details ? `<div style="font-size:13px;color:#4b5563;margin-top:8px;background:#fef3c7;padding:8px;border-radius:8px">📝 ${req.details}</div>` : ''}
-        <div style="font-size:12px;color:#9ca3af;margin-top:6px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
-        ${responseHtml}
-        ${actionsHtml}
-      </div>`;
-    }).join('');
+    el.innerHTML = html;
   } catch (e) {
     el.innerHTML = '<p style="color:#ef4444;text-align:center;padding:20px">❌ ' + e.message + '</p>';
   }
 
   updateOfferReqBadge();
+}
+
+function renderOfferRequestCard(req) {
+  const statusBadge = getStatusBadge(req.status);
+  const custName = req.customer_name || 'عميل';
+  const custPhone = req.customer_phone || '';
+
+  let responseHtml = '';
+  if (req.offer_response) {
+    const isAvail = req.offer_response === 'available';
+    responseHtml = `<div style="background:${isAvail ? '#d1fae5' : '#fee2e2'};padding:10px;border-radius:10px;margin-top:8px">
+      <div style="font-size:13px;color:${isAvail ? '#065f46' : '#991b1b'};font-weight:700">
+        ${isAvail ? '✅ رديت: متاح' : '❌ رديت: مش متاح'}
+      </div>
+      ${req.offer_reply ? `<div style="font-size:13px;color:${isAvail ? '#065f46' : '#991b1b'};margin-top:4px">💬 ${req.offer_reply}</div>` : ''}
+    </div>`;
+  }
+
+  let actionsHtml = '';
+  if (!req.offer_response) {
+    actionsHtml = `
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <button class="admin-btn success" onclick="window.replyOfferReqClick('${req.id}', true)">✅ متاح</button>
+        <button class="admin-btn danger" onclick="window.replyOfferReqClick('${req.id}', false)">❌ مش متاح</button>
+      </div>
+    `;
+  }
+
+  const phoneHtml = custPhone
+    ? `<div style="margin-top:4px">📱 <a href="tel:${custPhone}" style="color:var(--primary);font-weight:700">${custPhone}</a></div>`
+    : `<div style="margin-top:4px;color:#9ca3af;font-size:12px">🔒 رقم العميل هيظهر بعد ما ترد "متاح"</div>`;
+
+  return `<div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:12px;border-right:4px solid ${req.offer_response ? '#10b981' : '#ff6b35'}">
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <h5 style="color:var(--primary);margin:0">🎁 ${req.product}</h5>${statusBadge}
+    </div>
+    <div style="background:#fff;padding:10px;border-radius:8px;margin-top:8px;font-size:13px">
+      <div><strong>👤 ${custName}</strong></div>
+      ${phoneHtml}
+    </div>
+    ${req.details ? `<div style="font-size:13px;color:#4b5563;margin-top:8px;background:#fef3c7;padding:8px;border-radius:8px">📝 ${req.details}</div>` : ''}
+    <div style="font-size:12px;color:#9ca3af;margin-top:6px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
+    ${responseHtml}
+    ${actionsHtml}
+  </div>`;
 }
 
 window.replyOfferReqClick = async function(requestId, available) {
@@ -1479,56 +1527,6 @@ async function askImageClick(respId) {
     toast('✅ تم إرسال الرسالة', 'success');
     renderRequestsTab();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
-}
-
-async function renderMerchantRequestsList() {
-  const el = $('merchantRequestsList');
-  try {
-    const requests = await getMerchantRequests(currentMerchant.id, currentMerchant.category);
-    if (!requests.length) {
-      el.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;padding:20px">مفيش طلبات 😴</p>';
-      return;
-    }
-    el.innerHTML = requests.map(req => {
-      const myReply = (req.request_responses || []).find(r => r.merchant_id === currentMerchant.id);
-      const statusBadge = getStatusBadge(req.status);
-      const imageHtml = req.image_url
-        ? `<img src="${req.image_url}" style="width:100%;max-width:180px;border-radius:10px;margin:8px 0;border:2px solid #ddd">` : '';
-
-      const customerMsgs = myReply && myReply.customer_messages && myReply.customer_messages.length
-        ? `<div style="background:#dbeafe;padding:8px;border-radius:8px;margin-top:8px">
-            <div style="font-size:11px;color:#1e40af;font-weight:700">👤 رسائل العميل:</div>
-            ${myReply.customer_messages.map(m => `<div style="font-size:12px;color:#1e40af">• ${m.text}</div>`).join('')}
-          </div>` : '';
-
-      let replyHtml = '';
-      if (myReply) {
-        replyHtml = `<div style="background:#d1fae5;padding:10px;border-radius:10px;margin-top:8px">
-          <div style="font-size:12px;color:#065f46;font-weight:700">✅ ردك:</div>
-          <div style="font-size:14px;color:#065f46;margin-top:4px">💰 ${parseFloat(myReply.price).toFixed(0)} ج</div>
-          <div style="font-size:13px;color:#065f46">${myReply.message}</div>
-          ${myReply.image_url ? `<img src="${myReply.image_url}" style="width:100%;max-width:140px;border-radius:8px;margin-top:6px">` : ''}
-        </div>`;
-      }
-
-      return `<div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:12px;border-right:4px solid var(--success)">
-        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <h5 style="color:var(--primary);margin:0">📦 ${req.product}</h5>${statusBadge}
-        </div>
-        <div style="font-size:13px;color:#4b5563;margin-top:6px">${req.details || ''}</div>
-        ${imageHtml}
-        <div style="font-size:12px;color:#6b7280;margin-top:4px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
-        ${customerMsgs}${replyHtml}
-        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-          ${!myReply ? `<button class="admin-btn primary" onclick="window.replyToReq('${req.id}')">📩 الرد</button>` : ''}
-          ${myReply ? `<button class="admin-btn purple" onclick="window.sendExtraImage('${myReply.id}')">📸 صورة إضافية</button>` : ''}
-          <button class="admin-btn danger" onclick="window.hideReq('${req.id}')">🗑️ مسح</button>
-        </div>
-      </div>`;
-    }).join('');
-  } catch (e) {
-    el.innerHTML = '<p style="color:#ef4444;font-size:14px">❌ ' + e.message + '</p>';
-  }
 }
 
 async function replyToReq(reqId) {
