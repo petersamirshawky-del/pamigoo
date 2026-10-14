@@ -3238,18 +3238,25 @@ async function runInit() {
 
   showAuthScreen();
 
-  supabase.auth.onAuthStateChange(async (event, session) => {
-    console.log('Auth event:', event);
-    if (event === 'SIGNED_IN' && session) {
-      const done = await handleGoogleCallback();
-      if (!done) {
-        const profile = await getProfile();
-        if (profile) await showMainScreen(profile);
-      }
-    } else if (event === 'SIGNED_OUT' || !session) {
-      showAuthScreen();
+// ✅ نستخدم onAuthStateChange لتسجيل الدخول والخروج بس، مش عند كل تحديث للجلسة
+supabase.auth.onAuthStateChange(async (event, session) => {
+  console.log('Auth event:', event);
+
+  // نتجاهل TOKEN_REFRESHED و INITIAL_SESSION عشان نمنع الـ 429
+  if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+    return;
+  }
+
+  if (event === 'SIGNED_IN' && session) {
+    const done = await handleGoogleCallback();
+    if (!done) {
+      const profile = await getProfile();
+      if (profile) await showMainScreen(profile);
     }
-  });
+  } else if (event === 'SIGNED_OUT' || !session) {
+    showAuthScreen();
+  }
+});
 
   try {
     const { data: { session: initialSession } } = await supabase.auth.getSession();
