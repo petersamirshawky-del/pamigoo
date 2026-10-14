@@ -1166,22 +1166,22 @@ window.switchRequestsSubtab = function(type) {
     return;
   }
 
-  // ✅ نظهر ونخفي الأقسام في كل الحالات
   if (type === 'special') {
     specialSection.style.display = 'block';
     offerSection.style.display = 'none';
+    if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
+      renderMerchantRequestsList().catch(e => console.error('Err requests:', e));
+    } else if (currentProfile && currentProfile.role === 'customer') {
+      renderMyRequests().catch(e => console.error('Err my req:', e));
+    }
   } else {
     specialSection.style.display = 'none';
     offerSection.style.display = 'block';
-  }
-
-  // ✅ نعيد تحميل البيانات (سواء تاجر أو عميل)
-  if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
-    renderMerchantRequestsList().catch(e => console.error('Err requests:', e));
-    renderMerchantOfferRequestsList().catch(e => console.error('Err offers:', e));
-  } else if (currentProfile && currentProfile.role === 'customer') {
-    renderMyRequests().catch(e => console.error('Err my req:', e));
-    renderMyOfferRequests().catch(e => console.error('Err my offers:', e));
+    if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
+      renderMerchantOfferRequestsList().catch(e => console.error('Err offers:', e));
+    } else if (currentProfile && currentProfile.role === 'customer') {
+      renderMyOfferRequests().catch(e => console.error('Err my offers:', e));
+    }
   }
 };
 
@@ -1460,7 +1460,7 @@ window.replyOfferReqClick = async function(requestId, available) {
   try {
     await replyToOfferRequest({ requestId, available, replyText });
     toast(available ? '✅ تم إرسال الرد' : '❌ تم إرسال الرد', 'success');
-    renderMerchantOfferRequestsList();
+    await renderMerchantOfferRequestsList();
   } catch (e) {
     toast('❌ ' + e.message, 'error');
   }
@@ -3233,7 +3233,6 @@ async function runInit() {
 
   showAuthScreen();
 
-  // ✅ نتجاهل أي حدث غير SIGNED_IN أو SIGNED_OUT
   supabase.auth.onAuthStateChange(async (event, session) => {
     console.log('Auth event:', event);
     if (event !== 'SIGNED_IN' && event !== 'SIGNED_OUT') {
