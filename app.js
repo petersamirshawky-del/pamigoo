@@ -1184,7 +1184,6 @@ window.switchRequestsSubtab = function(type) {
     $('specialRequestsSection').style.display = 'none';
     $('offerRequestsSection').style.display = 'block';
 
-    // ✅ نعيد تحميل طلبات العروض
     if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
       renderMerchantOfferRequestsList();
     } else if (currentProfile && currentProfile.role === 'customer') {
@@ -3225,34 +3224,34 @@ async function runInit() {
 
   showAuthScreen();
 
-// بدل ما نستخدم getSession، نستخدم onAuthStateChange عشان نتابع حالة المستخدم
-supabase.auth.onAuthStateChange(async (event, session) => {
-  console.log('Auth event:', event);
-  
-  if (event === 'SIGNED_IN' && session) {
-    // المستخدم سجل دخول
-    const done = await handleGoogleCallback();
-    if (!done) {
-      const profile = await getProfile();
-      if (profile) await showMainScreen(profile);
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log('Auth event:', event);
+    if (event === 'SIGNED_IN' && session) {
+      const done = await handleGoogleCallback();
+      if (!done) {
+        const profile = await getProfile();
+        if (profile) await showMainScreen(profile);
+      }
+    } else if (event === 'SIGNED_OUT' || !session) {
+      showAuthScreen();
     }
-  } else if (event === 'SIGNED_OUT' || !session) {
-    // المستخدم مش مسجل دخول
+  });
+
+  try {
+    const { data: { session: initialSession } } = await supabase.auth.getSession();
+    if (initialSession?.user) {
+      const done = await handleGoogleCallback();
+      if (!done) {
+        const profile = await getProfile();
+        if (profile) await showMainScreen(profile);
+      }
+    } else {
+      showAuthScreen();
+    }
+  } catch (e) {
+    console.log('getSession error:', e);
     showAuthScreen();
   }
-});
-
-// وكمان عشان نتعامل مع أول تحميل للصفحة (أول مرة بس)
-const { data: { session: initialSession } } = await supabase.auth.getSession();
-if (initialSession?.user) {
-  const done = await handleGoogleCallback();
-  if (!done) {
-    const profile = await getProfile();
-    if (profile) await showMainScreen(profile);
-  }
-} else {
-  showAuthScreen();
-}
 }
 
 // ============================================================
