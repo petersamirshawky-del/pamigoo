@@ -32,22 +32,58 @@ export async function getMyRequests() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
-  const { data, error } = await supabase
+  // ✅ الخطوة 1: نجيب الطلبات الأساسية الأول
+  const { data: requests, error: reqError } = await supabase
     .from('special_requests')
-    .select(`
-      *,
-      request_responses (
-        id, price, message, image_url, merchant_id,
-        customer_messages, merchant_reply, created_at,
-        merchants ( name, icon, lat, lng )
-      )
-    `)
+    .select('*')
     .eq('customer_id', user.id)
     .eq('request_type', 'special')
     .order('created_at', { ascending: false });
 
-  if (error) { console.error(error); return []; }
-  return data || [];
+  if (reqError) { 
+    console.error('Error fetching requests:', reqError); 
+    return []; 
+  }
+  if (!requests || !requests.length) return [];
+
+  // ✅ الخطوة 2: نجيب الردود بشكل منفصل
+  const requestIds = requests.map(r => r.id);
+  const { data: responses, error: respError } = await supabase
+    .from('request_responses')
+    .select('*')
+    .in('request_id', requestIds);
+
+  if (respError) {
+    console.error('Error fetching responses:', respError);
+    // لو حصل خطأ في الردود، نرجع الطلبات من غير ردود عشان الصفحة تظهر
+    return requests.map(r => ({ ...r, request_responses: [] }));
+  }
+
+  // ✅ الخطوة 3: نجيب بيانات التجار اللي ردوا
+  const merchantIds = [...new Set((responses || []).map(r => r.merchant_id).filter(Boolean))];
+  let merchantsMap = {};
+  if (merchantIds.length > 0) {
+    const { data: merchantsData } = await supabase
+      .from('merchants')
+      .select('id, name, icon, lat, lng')
+      .in('id', merchantIds);
+    (merchantsData || []).forEach(m => { merchantsMap[m.id] = m; });
+  }
+
+  // ✅ الخطوة 4: ندمج الردود مع الطلبات
+  const responsesByRequest = {};
+  (responses || []).forEach(resp => {
+    if (!responsesByRequest[resp.request_id]) responsesByRequest[resp.request_id] = [];
+    responsesByRequest[resp.request_id].push({
+      ...resp,
+      merchants: merchantsMap[resp.merchant_id] || null
+    });
+  });
+
+  return requests.map(r => ({
+    ...r,
+    request_responses: responsesByRequest[r.id] || []
+  }));
 }
 
 export async function getMerchantRequests(merchantId, merchantCategory) {
@@ -145,19 +181,16 @@ export async function askMerchantForImage({ responseId, message, existingMessage
 // ✅ طلبات العروض (الجديدة)
 // ============================================================
 
-// ✅ العميل يبعت طلب لعرض معين
 export async function requestSpecificOffer({ offerId, merchantId, offerTitle, note }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('مش مسجل دخول');
 
-  // ✅ جلب بيانات العميل
   const { data: profile } = await supabase
     .from('profiles')
     .select('name, phone')
     .eq('id', user.id)
     .single();
 
-  // ✅ جلب تصنيف التاجر (مش هنستخدم Join)
   const { data: merchant } = await supabase
     .from('merchants')
     .select('category')
@@ -190,7 +223,6 @@ export async function requestSpecificOffer({ offerId, merchantId, offerTitle, no
   return data;
 }
 
-// ✅ العميل يجيب طلبات العروض بتاعته (بدون Join)
 export async function getMyOfferRequests() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
@@ -205,7 +237,6 @@ export async function getMyOfferRequests() {
   if (error) { console.error(error); return []; }
   if (!data || !data.length) return [];
 
-  // ✅ نجيب بيانات التجار بشكل منفصل
   const merchantIds = [...new Set(data.map(r => r.merchant_id).filter(Boolean))];
   let merchantsMap = {};
   if (merchantIds.length > 0) {
@@ -216,14 +247,12 @@ export async function getMyOfferRequests() {
     (merchantsData || []).forEach(m => { merchantsMap[m.id] = m; });
   }
 
-  // ✅ ندمج البيانات
   return data.map(r => ({
     ...r,
     merchants: merchantsMap[r.merchant_id] || null
   }));
 }
 
-// ✅ التاجر يجيب طلبات العروض الواردة له (بدون Join)
 export async function getMerchantOfferRequests(merchantId) {
   const { data, error } = await supabase
     .from('special_requests')
@@ -236,21 +265,18 @@ export async function getMerchantOfferRequests(merchantId) {
   if (error) { console.error(error); return []; }
   if (!data || !data.length) return [];
 
-  // ✅ نجيب بيانات التاجر بشكل منفصل
   const { data: merchantData } = await supabase
     .from('merchants')
     .select('id, name, icon, phone, whatsapp')
     .eq('id', merchantId)
     .single();
 
-  // ✅ ندمج البيانات
   return data.map(r => ({
     ...r,
     merchants: merchantData || null
   }));
 }
 
-// ✅ التاجر يرد على طلب العرض (متاح / مش متاح + رد حر)
 export async function replyToOfferRequest({ requestId, available, replyText }) {
   const updateData = {
     offer_response: available ? 'available' : 'unavailable',
@@ -267,7 +293,6 @@ export async function replyToOfferRequest({ requestId, available, replyText }) {
   if (error) throw error;
 }
 
-// ✅ العميل يلغي طلب العرض
 export async function cancelOfferRequest(requestId) {
   const { error } = await supabase
     .from('special_requests')
@@ -276,7 +301,6 @@ export async function cancelOfferRequest(requestId) {
   if (error) throw error;
 }
 
-// ✅ العميل يحذف طلب العرض
 export async function deleteOfferRequest(requestId) {
   const { error } = await supabase.from('special_requests').delete().eq('id', requestId);
   if (error) throw error;
