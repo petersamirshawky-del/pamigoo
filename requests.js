@@ -150,21 +150,29 @@ export async function requestSpecificOffer({ offerId, merchantId, offerTitle, no
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('مش مسجل دخول');
 
-  // جلب بيانات العميل
+  // ✅ جلب بيانات العميل
   const { data: profile } = await supabase
     .from('profiles')
     .select('name, phone')
     .eq('id', user.id)
     .single();
 
+  // ✅ جلب تصنيف التاجر (مش هنستخدم Join)
+  const { data: merchant } = await supabase
+    .from('merchants')
+    .select('category')
+    .eq('id', merchantId)
+    .single();
+
   const customerName = profile?.name || 'عميل';
   const customerPhone = profile?.phone || '';
+  const merchantCategory = merchant?.category || 'general';
 
   const { data, error } = await supabase
     .from('special_requests')
     .insert({
       customer_id: user.id,
-      category: 'offer',
+      category: merchantCategory,
       product: offerTitle || 'عرض',
       details: note || 'طلب عرض',
       image_url: null,
@@ -182,40 +190,64 @@ export async function requestSpecificOffer({ offerId, merchantId, offerTitle, no
   return data;
 }
 
-// ✅ العميل يجيب طلبات العروض بتاعته
+// ✅ العميل يجيب طلبات العروض بتاعته (بدون Join)
 export async function getMyOfferRequests() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
   const { data, error } = await supabase
     .from('special_requests')
-    .select(`
-      *,
-      merchants ( name, icon, phone, whatsapp, bank_code )
-    `)
+    .select('*')
     .eq('customer_id', user.id)
     .eq('request_type', 'offer')
     .order('created_at', { ascending: false });
 
   if (error) { console.error(error); return []; }
-  return data || [];
+  if (!data || !data.length) return [];
+
+  // ✅ نجيب بيانات التجار بشكل منفصل
+  const merchantIds = [...new Set(data.map(r => r.merchant_id).filter(Boolean))];
+  let merchantsMap = {};
+  if (merchantIds.length > 0) {
+    const { data: merchantsData } = await supabase
+      .from('merchants')
+      .select('id, name, icon, phone, whatsapp, bank_code')
+      .in('id', merchantIds);
+    (merchantsData || []).forEach(m => { merchantsMap[m.id] = m; });
+  }
+
+  // ✅ ندمج البيانات
+  return data.map(r => ({
+    ...r,
+    merchants: merchantsMap[r.merchant_id] || null
+  }));
 }
 
-// ✅ التاجر يجيب طلبات العروض الواردة له
+// ✅ التاجر يجيب طلبات العروض الواردة له (بدون Join)
 export async function getMerchantOfferRequests(merchantId) {
   const { data, error } = await supabase
     .from('special_requests')
-    .select(`
-      *,
-      merchants ( name, icon, phone, whatsapp )
-    `)
+    .select('*')
     .eq('merchant_id', merchantId)
     .eq('request_type', 'offer')
     .order('created_at', { ascending: false })
     .limit(100);
 
   if (error) { console.error(error); return []; }
-  return data || [];
+  if (!data || !data.length) return [];
+
+  // ✅ نجيب بيانات التاجر بشكل منفصل
+  const { data: merchantData } = await supabase
+    .from('merchants')
+    .select('id, name, icon, phone, whatsapp')
+    .eq('id', merchantId)
+    .single();
+
+  // ✅ ندمج البيانات
+  return data.map(r => ({
+    ...r,
+    merchants: merchantData || null
+  }));
 }
 
 // ✅ التاجر يرد على طلب العرض (متاح / مش متاح + رد حر)
