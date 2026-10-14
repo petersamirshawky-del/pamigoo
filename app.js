@@ -1114,6 +1114,7 @@ async function handleSendRequest() {
 }
 
 async function renderRequestsTab() {
+  console.log('✅✅✅ دالة renderRequestsTab اشتغلت!');
   if (!currentProfile) return;
 
   const subtabs = $('requestsSubtabs');
