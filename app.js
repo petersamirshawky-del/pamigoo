@@ -1119,7 +1119,7 @@ async function renderRequestsTab() {
   const subtabs = $('requestsSubtabs');
   if (subtabs) subtabs.style.display = 'flex';
 
-if (currentProfile.role === 'merchant' && currentMerchant) {
+  if (currentProfile.role === 'merchant' && currentMerchant) {
     $('requestFormCard').style.display = 'none';
     $('reqStatsWrapper').style.display = 'none';
     $('myRequestsList').innerHTML = '';
@@ -1131,12 +1131,14 @@ if (currentProfile.role === 'merchant' && currentMerchant) {
       await renderMerchantRequestsList();
     } catch (e) {
       console.error('renderMerchantRequestsList error:', e);
+      $('merchantRequestsList').innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px">❌ خطأ: ${e.message}</p>`;
     }
 
     try {
       await renderMerchantOfferRequestsList();
     } catch (e) {
       console.error('renderMerchantOfferRequestsList error:', e);
+      $('merchantOfferRequestsList').innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px">❌ خطأ: ${e.message}</p>`;
     }
   } else if (currentProfile.role === 'customer') {
     $('requestFormCard').style.display = 'block';
@@ -1145,9 +1147,19 @@ if (currentProfile.role === 'merchant' && currentMerchant) {
     $('offerRequestsWrapper').style.display = 'none';
     $('myOfferRequestsWrapper').style.display = 'block';
 
-    await renderMyRequests();
-    await renderMyOfferRequests();
+    try {
+      await renderMyRequests();
+    } catch (e) {
+      console.error('renderMyRequests error:', e);
+      $('myRequestsList').innerHTML = `<div class="no-requests" style="color:#ef4444">❌ خطأ في تحميل الطلبات: ${e.message}</div>`;
+    }
 
+    try {
+      await renderMyOfferRequests();
+    } catch (e) {
+      console.error('renderMyOfferRequests error:', e);
+      $('myOfferRequestsList').innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px">❌ خطأ: ${e.message}</p>`;
+    }
   } else {
     $('requestFormCard').style.display = 'none';
     $('reqStatsWrapper').style.display = 'none';
