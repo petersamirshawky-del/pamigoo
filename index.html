@@ -971,22 +971,6 @@
     };
   </script>
   <script type="module">
-  setTimeout(async () => {
-    const authScreen = document.getElementById('authScreen');
-    const mainScreen = document.getElementById('mainScreen');
-
-    if (authScreen && mainScreen && 
-        authScreen.style.display === 'none' && 
-        mainScreen.style.display === 'none') {
-
-      const { supabase } = await import('./supabase.js');
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        authScreen.style.display = 'block';
-      }
-    }
-  }, 1000);
   </script>
 
   <div class="modal-overlay" id="merchantReportModal" style="display:none" onclick="window.closeMerchantReport(event)">
