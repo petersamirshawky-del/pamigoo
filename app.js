@@ -1175,20 +1175,33 @@ async function renderRequestsTab() {
 }
 
 window.switchRequestsSubtab = function(type) {
+  console.log('🔄 switchRequestsSubtab called with:', type);
+
+  // نغير شكل الأزرار
   document.querySelectorAll('.req-subtab').forEach(b =>
     b.classList.toggle('active', b.dataset.req === type));
 
-  if (type === 'special') {
-    $('specialRequestsSection').style.display = 'block';
-    $('offerRequestsSection').style.display = 'none';
-  } else {
-    $('specialRequestsSection').style.display = 'none';
-    $('offerRequestsSection').style.display = 'block';
+  const specialSection = $('specialRequestsSection');
+  const offerSection = $('offerRequestsSection');
 
+  // نتأكد إن العناصر موجودة الأول
+  if (!specialSection || !offerSection) {
+    console.error('❌ specialRequestsSection or offerRequestsSection NOT FOUND in HTML!');
+    return;
+  }
+
+  if (type === 'special') {
+    specialSection.style.display = 'block';
+    offerSection.style.display = 'none';
+  } else {
+    specialSection.style.display = 'none';
+    offerSection.style.display = 'block';
+
+    // نعيد تحميل طلبات العروض
     if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
-      renderMerchantOfferRequestsList();
+      renderMerchantOfferRequestsList().catch(e => console.error('Error:', e));
     } else if (currentProfile && currentProfile.role === 'customer') {
-      renderMyOfferRequests();
+      renderMyOfferRequests().catch(e => console.error('Error:', e));
     }
   }
 };
