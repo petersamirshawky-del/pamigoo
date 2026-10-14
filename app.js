@@ -3213,18 +3213,33 @@ async function runInit() {
 
   showAuthScreen();
 
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      const done = await handleGoogleCallback();
-      if (!done) {
-        const profile = await getProfile();
-        if (profile) await showMainScreen(profile);
-      }
+// بدل ما نستخدم getSession، نستخدم onAuthStateChange عشان نتابع حالة المستخدم
+supabase.auth.onAuthStateChange(async (event, session) => {
+  console.log('Auth event:', event);
+  
+  if (event === 'SIGNED_IN' && session) {
+    // المستخدم سجل دخول
+    const done = await handleGoogleCallback();
+    if (!done) {
+      const profile = await getProfile();
+      if (profile) await showMainScreen(profile);
     }
-  } catch (e) {
-    console.log('getSession error:', e);
+  } else if (event === 'SIGNED_OUT' || !session) {
+    // المستخدم مش مسجل دخول
+    showAuthScreen();
   }
+});
+
+// وكمان عشان نتعامل مع أول تحميل للصفحة (أول مرة بس)
+const { data: { session: initialSession } } = await supabase.auth.getSession();
+if (initialSession?.user) {
+  const done = await handleGoogleCallback();
+  if (!done) {
+    const profile = await getProfile();
+    if (profile) await showMainScreen(profile);
+  }
+} else {
+  showAuthScreen();
 }
 
 // ============================================================
