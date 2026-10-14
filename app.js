@@ -1119,7 +1119,7 @@ async function renderRequestsTab() {
   const subtabs = $('requestsSubtabs');
   if (subtabs) subtabs.style.display = 'flex';
 
-  if (currentProfile.role === 'merchant' && currentMerchant) {
+if (currentProfile.role === 'merchant' && currentMerchant) {
     $('requestFormCard').style.display = 'none';
     $('reqStatsWrapper').style.display = 'none';
     $('myRequestsList').innerHTML = '';
@@ -1127,9 +1127,17 @@ async function renderRequestsTab() {
     $('merchantRequestsWrapper').style.display = 'block';
     $('offerRequestsWrapper').style.display = 'block';
 
-    await renderMerchantRequestsList();
-    await renderMerchantOfferRequestsList();
+    try {
+      await renderMerchantRequestsList();
+    } catch (e) {
+      console.error('renderMerchantRequestsList error:', e);
+    }
 
+    try {
+      await renderMerchantOfferRequestsList();
+    } catch (e) {
+      console.error('renderMerchantOfferRequestsList error:', e);
+    }
   } else if (currentProfile.role === 'customer') {
     $('requestFormCard').style.display = 'block';
     $('reqStatsWrapper').style.display = 'block';
@@ -1163,6 +1171,13 @@ window.switchRequestsSubtab = function(type) {
   } else {
     $('specialRequestsSection').style.display = 'none';
     $('offerRequestsSection').style.display = 'block';
+
+    // ✅ نعيد تحميل طلبات العروض
+    if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
+      renderMerchantOfferRequestsList();
+    } else if (currentProfile && currentProfile.role === 'customer') {
+      renderMyOfferRequests();
+    }
   }
 };
 
