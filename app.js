@@ -109,7 +109,7 @@ let pendingGoogleUser = null;
 let searchDebounceTimer = null;
 
 // ============================================================
-// ✅ Load merchants (باستخدام Promise.all)
+// ✅ Load merchants (Promise.all)
 // ============================================================
 async function loadMerchants() {
   try {
@@ -227,17 +227,94 @@ function logoImgHtml(m) {
 }
 
 // ============================================================
-// Render: merchants list
+// ✅ Render: merchants list (مع البحث عن العروض + التجار)
 // ============================================================
 function renderMerchantsList() {
   let list = [...allMerchants];
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    list = list.filter(m =>
-      m.name.toLowerCase().includes(q) ||
-      (m.offers || []).some(o => (o.title || '').toLowerCase().includes(q))
+  const el = $('merchantsList');
+
+  // ✅ لو فيه بحث، نعرض العروض + التجار
+  if (searchQuery && searchQuery.trim()) {
+    const q = searchQuery.toLowerCase().trim();
+
+    // 1. نجمع كل العروض اللي فيها كلمة البحث
+    const matchingOffers = [];
+    allMerchants.forEach(m => {
+      (m.offers || []).forEach(o => {
+        const title = (o.title || '').toLowerCase();
+        const desc = (o.description || '').toLowerCase();
+        if (title.includes(q) || desc.includes(q)) {
+          matchingOffers.push({ offer: o, merchant: m });
+        }
+      });
+    });
+
+    // 2. نجمع التجار اللي اسمهم فيه كلمة البحث
+    const matchingMerchants = allMerchants.filter(m =>
+      m.name && m.name.toLowerCase().includes(q)
     );
+
+    // 3. لو مفيش نتائج
+    if (!matchingOffers.length && !matchingMerchants.length) {
+      el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج للبحث "${escapeHtml(searchQuery)}"</div>`;
+      return;
+    }
+
+    let html = '';
+
+    // 4. نعرض العروض المطابقة أولاً
+    if (matchingOffers.length) {
+      html += `<div class="section-title"><h3>🎁 عروض مطابقة (${matchingOffers.length})</h3></div>`;
+      html += matchingOffers.map(({ offer, merchant }) => {
+        const imgHtml = offer.image_url
+          ? `<img src="${escapeHtml(offer.image_url)}" style="width:100%;max-width:220px;height:140px;object-fit:cover;border-radius:10px;margin-bottom:8px;display:block" onerror="this.style.display='none'">`
+          : '';
+        const descHtml = offer.description ? `<p style="font-size:13px;color:#4b5563;margin-top:6px">${escapeHtml(offer.description)}</p>` : '';
+        const priceHtml = offer.price ? `<div style="font-size:15px;color:#10b981;font-weight:700;margin-bottom:4px">💰 ${parseFloat(offer.price).toFixed(2)} ج</div>` : '';
+        const logoHtml = merchant.logo_url
+          ? `<img src="${escapeHtml(merchant.logo_url)}" style="width:24px;height:24px;border-radius:6px;object-fit:cover;vertical-align:middle">`
+          : `<span style="font-size:16px">${escapeHtml(merchant.icon || '🏪')}</span>`;
+
+        return `
+          <div onclick="window.openOfferFull('${escapeHtml(offer.id)}','${escapeHtml(merchant.id)}')"
+               style="background:#f9fafb;padding:16px;border-radius:14px;margin-bottom:14px;border-right:4px solid #ff6b35;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.05)">
+            ${imgHtml}
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+              <div style="flex:1">
+                <h5 style="font-size:16px;margin-bottom:6px;color:var(--primary);font-weight:700">${escapeHtml(offer.title)}</h5>
+                ${priceHtml}
+                ${descHtml}
+                <div style="font-size:12px;color:#6b7280;margin-top:6px">${logoHtml} ${escapeHtml(merchant.name)}</div>
+              </div>
+              <div style="background:#1a2a6c;color:#fff;padding:8px 16px;border-radius:30px;font-weight:700;font-size:15px;white-space:nowrap">${escapeHtml(offer.discount)}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // 5. نعرض التجار المطابقين
+    if (matchingMerchants.length) {
+      html += `<div class="section-title" style="margin-top:20px"><h3>🏪 متاجر مطابقة (${matchingMerchants.length})</h3></div>`;
+      html += matchingMerchants.map(m => {
+        const rate = m.cashback_rate || 15;
+        const tier = getTier(rate);
+        return `
+          <div class="store-item" onclick="window.openMerchant('${escapeHtml(m.bank_code)}')">
+            <div class="icon" style="overflow:hidden">${logoImgHtml(m)}</div>
+            <div class="info">
+              <h4>${escapeHtml(m.name)} <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></h4>
+              <div class="desc">${(m.offers || []).length} عرض • كاش باك ${rate}%</div>
+            </div>
+            <div class="badge">${rate}%</div>
+          </div>`;
+      }).join('');
+    }
+
+    el.innerHTML = html;
+    return;
   }
+
+  // ✅ لو مفيش بحث، نرجع للفلترة العادية
   list = list.filter(m => matchesCatSubs(m, homeCategories, homeSubCategories));
 
   if (viewMode === 'shop') {
@@ -267,7 +344,6 @@ function renderMerchantsList() {
     list.sort((a, b) => getMaxDiscount(b) - getMaxDiscount(a));
   }
 
-  const el = $('merchantsList');
   if (!list.length) {
     el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج في نطاق ${escapeHtml(String(radius))} كم</div>`;
     return;
