@@ -156,10 +156,14 @@ export async function completeGoogleProfile({ phone, name, role = 'customer', ba
     }
   }
 
-  // ✅ لو أدمن، لازم نتحقق من البنكود
-  if (role === 'admin' && adminCode?.trim() !== 'PETAD-12321') {
+if (role === 'admin') {
+  const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
+    p_code: adminCode.trim()
+  });
+  if (checkErr || !check.ok) {
     throw new Error('بنكود الأدمن غير صحيح');
   }
+}
 
   // ✅ نحدّث الـ profile
   const { error: profErr } = await supabase
