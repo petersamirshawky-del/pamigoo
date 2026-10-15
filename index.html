@@ -954,23 +954,6 @@
   <script type="module" src="ui.js"></script>
   <script type="module" src="i18n.js"></script>
   <script type="module" src="app.js"></script>
-  <script>
-    window.togglePass = function(inputId, btn) {
-      const input = document.getElementById(inputId);
-      if (!input) return;
-      const isHidden = input.type === 'password';
-      input.type = isHidden ? 'text' : 'password';
-      btn.innerText = isHidden ? '🙈' : '👁️';
-    };
-    window.closeForgotModal = function(e) {
-      if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
-      const modal = document.getElementById('forgotModal');
-      modal.classList.remove('active');
-      modal.style.display = 'none';
-    };
-  </script>
-  <script type="module">
-  </script>
 
   <div class="modal-overlay" id="merchantReportModal" style="display:none" onclick="window.closeMerchantReport(event)">
     <div class="modal-box" onclick="event.stopPropagation()" style="max-width:520px">
