@@ -65,6 +65,19 @@ const { rateMerchant, getMerchantRatings } = await import('./ratings.js');
 const $ = (id) => document.getElementById(id);
 
 // ============================================================
+// ✅ XSS Protection
+// ============================================================
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ============================================================
 // State
 // ============================================================
 let currentProfile = null;
@@ -92,35 +105,52 @@ let viewMode = 'all';
 let currentOfferFullData = null;
 let pendingGoogleUser = null;
 
+// ✅ Debounce timer للبحث
+let searchDebounceTimer = null;
+
 // ============================================================
-// Load merchants
+// ✅ Load merchants (باستخدام Promise.all)
 // ============================================================
 async function loadMerchants() {
-  const { data: merchantsData, error: merr } = await supabase
-    .from('merchants').select('*').eq('frozen', false);
-  if (merr) { console.error('Merchants error:', merr); return []; }
-  if (!merchantsData || !merchantsData.length) return [];
+  try {
+    const [merchantsResult, offersResult, ratingsResult] = await Promise.all([
+      supabase.from('merchants').select('*').eq('frozen', false),
+      supabase.from('offers').select('*'),
+      supabase.from('ratings').select('*')
+    ]);
 
-  const { data: allOffers } = await supabase.from('offers').select('*');
-  const { data: allRatings } = await supabase.from('ratings').select('*');
+    if (merchantsResult.error) {
+      console.error('Merchants error:', merchantsResult.error);
+      return [];
+    }
 
-  const offersByMerchant = {};
-  (allOffers || []).forEach(o => {
-    if (!offersByMerchant[o.merchant_id]) offersByMerchant[o.merchant_id] = [];
-    offersByMerchant[o.merchant_id].push(o);
-  });
+    const merchantsData = merchantsResult.data || [];
+    if (!merchantsData.length) return [];
 
-  const ratingsByMerchant = {};
-  (allRatings || []).forEach(r => {
-    if (!ratingsByMerchant[r.merchant_id]) ratingsByMerchant[r.merchant_id] = [];
-    ratingsByMerchant[r.merchant_id].push(r);
-  });
+    const allOffers = offersResult.data || [];
+    const allRatings = ratingsResult.data || [];
 
-  return merchantsData.map(m => ({
-    ...m,
-    offers: offersByMerchant[m.id] || [],
-    ratings: ratingsByMerchant[m.id] || []
-  }));
+    const offersByMerchant = {};
+    allOffers.forEach(o => {
+      if (!offersByMerchant[o.merchant_id]) offersByMerchant[o.merchant_id] = [];
+      offersByMerchant[o.merchant_id].push(o);
+    });
+
+    const ratingsByMerchant = {};
+    allRatings.forEach(r => {
+      if (!ratingsByMerchant[r.merchant_id]) ratingsByMerchant[r.merchant_id] = [];
+      ratingsByMerchant[r.merchant_id].push(r);
+    });
+
+    return merchantsData.map(m => ({
+      ...m,
+      offers: offersByMerchant[m.id] || [],
+      ratings: ratingsByMerchant[m.id] || []
+    }));
+  } catch (err) {
+    console.error('loadMerchants error:', err);
+    return [];
+  }
 }
 
 // ============================================================
@@ -191,9 +221,9 @@ function matchesCatSubs(m, cats, subs) {
 
 function logoImgHtml(m) {
   if (m.logo_url) {
-    return `<img src="${m.logo_url}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit" onerror="this.parentElement.innerHTML='${m.icon || '🏪'}'">`;
+    return `<img src="${escapeHtml(m.logo_url)}" alt="${escapeHtml(m.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit" onerror="this.parentElement.innerHTML='${escapeHtml(m.icon || '🏪')}'">`;
   }
-  return m.icon || '🏪';
+  return escapeHtml(m.icon || '🏪');
 }
 
 // ============================================================
@@ -239,7 +269,7 @@ function renderMerchantsList() {
 
   const el = $('merchantsList');
   if (!list.length) {
-    el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج في نطاق ${radius} كم</div>`;
+    el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج في نطاق ${escapeHtml(String(radius))} كم</div>`;
     return;
   }
 
@@ -257,12 +287,12 @@ function renderMerchantsList() {
     }
 
     return `
-      <div class="store-item" onclick="window.openMerchant('${m.bank_code}')">
+      <div class="store-item" onclick="window.openMerchant('${escapeHtml(m.bank_code)}')">
         <div class="icon" style="overflow:hidden">${logoImgHtml(m)}</div>
         <div class="info">
-          <h4>${m.name} <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></h4>
+          <h4>${escapeHtml(m.name)} <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></h4>
           <div class="desc">${dist ? dist + ' • ' : ''}${(m.offers || []).length} عرض • كاش باك ${rate}%${maxDisc ? ' • خصم لحد ' + maxDisc + '%' : ''}</div>
-          ${subNames ? `<div style="font-size:11px;color:#8b5cf6;margin-top:2px">${subNames}</div>` : ''}
+          ${subNames ? `<div style="font-size:11px;color:#8b5cf6;margin-top:2px">${escapeHtml(subNames)}</div>` : ''}
           ${m.delivery_available ? '<div style="font-size:11px;color:#10b981;margin-top:2px">🛵 التوصيل متاح</div>' : ''}
           <div style="font-size:12px;color:#f59e0b;margin-top:2px">${rating ? '⭐'.repeat(Math.floor(rating)) + ' ' + rating : '⭐ لا تقييمات'}</div>
         </div>
@@ -283,11 +313,11 @@ function renderTopDeals() {
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
     return `
-      <div class="deal-card" onclick="window.openMerchant('${m.bank_code}')">
+      <div class="deal-card" onclick="window.openMerchant('${escapeHtml(m.bank_code)}')">
         <div class="tier-badge">${tier.icon}</div>
         <div class="discount">${rate}%</div>
         <div class="icon" style="overflow:hidden;display:flex;align-items:center;justify-content:center;border-radius:16px">${logoImgHtml(m)}</div>
-        <div class="tag">${m.name}</div>
+        <div class="tag">${escapeHtml(m.name)}</div>
         <div style="font-size:11px;color:#ff6b35;margin-top:4px">كاش باك ${rate}%</div>
       </div>
     `;
@@ -300,7 +330,6 @@ function renderOffersGrid() {
 
   const el = $('offersGrid');
   if (!list.length) {
-    // ✅ نظهر الزرار للتاجر بس
     const isMerchant = currentProfile && currentProfile.role === 'merchant';
     const addOfferBtn = isMerchant
       ? `<button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer">➕ أضف عرضك</button>`
@@ -319,13 +348,13 @@ function renderOffersGrid() {
     const tier = getTier(rate);
     const maxDisc = getMaxDiscount(m);
     return `
-      <div class="deal-card" onclick="window.openMerchant('${m.bank_code}')" style="min-width:auto;text-align:center">
+      <div class="deal-card" onclick="window.openMerchant('${escapeHtml(m.bank_code)}')" style="min-width:auto;text-align:center">
         <div class="tier-badge">${tier.icon}</div>
         <div style="width:70px;height:70px;margin:0 auto;border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-soft);font-size:48px">
           ${logoImgHtml(m)}
         </div>
         <div class="discount" style="font-size:20px">${maxDisc > 0 ? maxDisc + '%' : '---'}</div>
-        <div style="font-size:13px;font-weight:600">${m.name}</div>
+        <div style="font-size:13px;font-weight:600">${escapeHtml(m.name)}</div>
         <div style="font-size:11px;color:#ff6b35;margin-top:4px">كاش باك ${rate}%</div>
         <div style="font-size:11px;color:#6b7280;margin-top:2px">${(m.offers || []).length} عرض</div>
       </div>
@@ -339,7 +368,7 @@ function renderSubCategoriesGeneric({ categories, subs, wrapperEl, containerEl, 
   wrapperEl.style.display = 'block';
   const list = SUB_CATEGORIES[singleCat];
   containerEl.innerHTML = list.map(sub => `
-    <button class="category-chip ${subs.includes(sub.id) ? 'active' : ''}" data-sub="${sub.id}">${sub.name}</button>
+    <button class="category-chip ${subs.includes(sub.id) ? 'active' : ''}" data-sub="${escapeHtml(sub.id)}">${escapeHtml(sub.name)}</button>
   `).join('');
   containerEl.querySelectorAll('.category-chip').forEach(btn => {
     btn.addEventListener('click', () => onToggle(btn.dataset.sub, btn));
@@ -405,11 +434,11 @@ async function openMerchant(bankCode) {
   const tier = getTier(rate);
   const isWarehouse = m.merchant_type === 'warehouse';
   const logoHtml = m.logo_url
-    ? `<img src="${m.logo_url}" style="width:70px;height:70px;object-fit:cover;border-radius:16px;margin:0 auto 10px;display:block">`
-    : `<div style="font-size:60px;text-align:center">${m.icon || '🏪'}</div>`;
+    ? `<img src="${escapeHtml(m.logo_url)}" style="width:70px;height:70px;object-fit:cover;border-radius:16px;margin:0 auto 10px;display:block">`
+    : `<div style="font-size:60px;text-align:center">${escapeHtml(m.icon || '🏪')}</div>`;
 
-  $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${m.name}</div>`;
-  $('modalMerchantInfo').innerHTML = `${m.icon || '🏪'} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}${isWarehouse ? ' • 📦 مخزن' : ''}`;
+  $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${escapeHtml(m.name)}</div>`;
+  $('modalMerchantInfo').innerHTML = `${escapeHtml(m.icon || '🏪')} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}${isWarehouse ? ' • 📦 مخزن' : ''}`;
 
   const offerViews = await getMerchantOffersViews(m.id);
 
@@ -423,11 +452,11 @@ async function openMerchant(bankCode) {
   $('modalOffersList').innerHTML = (sortedOffers || []).length
     ? sortedOffers.map((o, i) => {
         const imgHtml = o.image_url
-          ? `<img src="${o.image_url}"
-                 onclick="event.stopPropagation(); window.openImageLightbox('${o.image_url}')"
+          ? `<img src="${escapeHtml(o.image_url)}"
+                 onclick="event.stopPropagation(); window.openImageLightbox('${escapeHtml(o.image_url)}')"
                  style="width:100%;max-width:220px;height:140px;object-fit:cover;border-radius:10px;margin-bottom:8px;cursor:zoom-in;display:block">`
           : '';
-        const descHtml = o.description ? `<p style="font-size:13px;color:#4b5563;margin-top:6px">${o.description}</p>` : '';
+        const descHtml = o.description ? `<p style="font-size:13px;color:#4b5563;margin-top:6px">${escapeHtml(o.description)}</p>` : '';
         const priceHtml = o.price ? `<div style="font-size:15px;color:#10b981;font-weight:700;margin-bottom:4px">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : '';
         const viewsCount = offerViews[o.id] || 0;
         const viewsHtml = viewsCount > 0 ? `<span style="font-size:11px;color:#f59e0b;margin-right:8px">👁️ ${viewsCount} مشاهدة</span>` : '';
@@ -436,7 +465,7 @@ async function openMerchant(bankCode) {
           : '';
 
         return `
-          <div onclick="window.openOfferFull('${o.id}','${m.id}')"
+          <div onclick="window.openOfferFull('${escapeHtml(o.id)}','${escapeHtml(m.id)}')"
                style="background:#f9fafb;padding:16px;border-radius:14px;margin-bottom:14px;border-right:4px solid #ff6b35;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.05)"
                onmouseover="this.style.background='#f0f4ff'"
                onmouseout="this.style.background='#f9fafb'">
@@ -444,12 +473,12 @@ async function openMerchant(bankCode) {
             ${imgHtml}
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
               <div style="flex:1">
-                <h5 style="font-size:16px;margin-bottom:6px;color:var(--primary);font-weight:700">${o.title}</h5>
+                <h5 style="font-size:16px;margin-bottom:6px;color:var(--primary);font-weight:700">${escapeHtml(o.title)}</h5>
                 ${priceHtml}
                 ${descHtml}
                 <p style="font-size:11px;color:#9ca3af;margin-top:6px">عرض ${i + 1} من ${m.offers.length} • ${viewsHtml}</p>
               </div>
-              <div style="background:#1a2a6c;color:#fff;padding:8px 16px;border-radius:30px;font-weight:700;font-size:15px;white-space:nowrap">${o.discount}</div>
+              <div style="background:#1a2a6c;color:#fff;padding:8px 16px;border-radius:30px;font-weight:700;font-size:15px;white-space:nowrap">${escapeHtml(o.discount)}</div>
             </div>
           </div>`;
       }).join('')
@@ -468,12 +497,12 @@ async function openMerchant(bankCode) {
 
   if (m.lat && m.lng && m.merchant_type !== 'warehouse') {
     actionsBar.innerHTML = `
-      <button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>
-      ${m.delivery_available ? `<button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
+      <button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${escapeHtml(m.id)}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>
+      ${m.delivery_available ? `<button onclick="window.contactDelivery('${escapeHtml(m.delivery_phone || m.phone)}','${escapeHtml(m.id)}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
     `;
   } else if (m.delivery_available) {
     actionsBar.innerHTML = `
-      <button onclick="window.contactDelivery('${m.delivery_phone || m.phone}','${m.id}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>
+      <button onclick="window.contactDelivery('${escapeHtml(m.delivery_phone || m.phone)}','${escapeHtml(m.id)}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>
     `;
   } else {
     actionsBar.innerHTML = '';
@@ -491,9 +520,9 @@ async function openMerchant(bankCode) {
       $('modalRatingsContent').innerHTML = ratings.slice(0, 10).map(r => {
         const name = r.profiles?.name || 'عميل';
         return `<div class="rating-item">
-          <div class="name">👤 ${name}</div>
+          <div class="name">👤 ${escapeHtml(name)}</div>
           <div class="stars-row">${'⭐'.repeat(r.stars)}</div>
-          ${r.comment ? `<div class="comment">${r.comment}</div>` : ''}
+          ${r.comment ? `<div class="comment">${escapeHtml(r.comment)}</div>` : ''}
           <div class="date">${new Date(r.created_at).toLocaleDateString('ar-EG')}</div>
         </div>`;
       }).join('');
@@ -535,10 +564,10 @@ window.openOfferFull = async function(offerId, merchantId) {
   } catch (e) { console.error(e); }
 
   const logoHtml = m.logo_url
-    ? `<img src="${m.logo_url}" alt="${m.name}">`
-    : `<span style="font-size:20px">${m.icon || '🏪'}</span>`;
+    ? `<img src="${escapeHtml(m.logo_url)}" alt="${escapeHtml(m.name)}">`
+    : `<span style="font-size:20px">${escapeHtml(m.icon || '🏪')}</span>`;
 
-  $('offerFullMerchant').innerHTML = `${logoHtml}<span>${m.name}</span>`;
+  $('offerFullMerchant').innerHTML = `${logoHtml}<span>${escapeHtml(m.name)}</span>`;
 
   if (o.image_url) {
     $('offerFullImage').src = o.image_url;
@@ -566,12 +595,12 @@ window.openOfferFull = async function(offerId, merchantId) {
 
   $('offerFullStats').innerHTML = `
     <span>👁️ ${viewsCount} مشاهدة</span>
-    <span>🏪 ${m.name}</span>
+    <span>🏪 ${escapeHtml(m.name)}</span>
     ${m.delivery_available ? '<span>🛵 التوصيل متاح</span>' : ''}
   `;
 
   const requestBtnHtml = `
-    <button onclick="window.openRequestOfferModal('${o.id}','${m.id}','${(o.title || '').replace(/'/g, "\\'")}')"
+    <button onclick="window.openRequestOfferModal('${escapeHtml(o.id)}','${escapeHtml(m.id)}','${escapeHtml((o.title || '').replace(/'/g, "\\'"))}')"
             style="width:100%;background:linear-gradient(135deg,#ff6b35,#f7931e);color:#fff;border:none;padding:16px;border-radius:30px;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 12px rgba(255,107,53,0.4)">
       📩 اطلب العرض ده
     </button>
@@ -579,14 +608,14 @@ window.openOfferFull = async function(offerId, merchantId) {
 
   let actionsHtml = '';
   if (m.lat && m.lng && m.merchant_type !== 'warehouse') {
-    actionsHtml += `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${m.id}')" style="background:#1a2a6c">📍 الموقع على الخريطة</button>`;
+    actionsHtml += `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${escapeHtml(m.id)}')" style="background:#1a2a6c">📍 الموقع على الخريطة</button>`;
   }
   $('offerFullActions').innerHTML = requestBtnHtml + (actionsHtml || '');
 
   const typeLabel = m.merchant_type === 'warehouse' ? '📦 مخزن' : (m.merchant_type === 'both' ? '🔄 محل ومخزن' : '🏪 محل');
   $('offerFullMerchantInfo').innerHTML = `
-    <div><strong>🏪 ${m.name}</strong> ${typeLabel}</div>
-    ${m.category ? `<div>📂 التصنيف: ${m.category}</div>` : ''}
+    <div><strong>🏪 ${escapeHtml(m.name)}</strong> ${typeLabel}</div>
+    ${m.category ? `<div>📂 التصنيف: ${escapeHtml(m.category)}</div>` : ''}
     ${m.lat && m.lng && m.merchant_type !== 'warehouse' ? `<div>📍 ${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div>` : ''}
     <div>💰 نسبة الكاش باك: ${m.cashback_rate || 15}%</div>
   `;
@@ -736,7 +765,7 @@ async function handleCompleteProfile() {
   if (!phone || !name) { res.style.color = '#ef4444'; res.innerText = '❌ املأ الاسم والموبايل'; return; }
   if (role === 'merchant' && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم البنكود'; return; }
   if (role === 'admin' && !adminCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم بنكود الأدمن'; return; }
-  
+
   const btn = $('completeProfileBtn');
   btn.disabled = true;
   btn.innerText = '⏳ جاري الحفظ...';
@@ -832,15 +861,15 @@ async function renderMyPendingInvoices() {
       const m = inv.merchants || {};
       return `<div style="background:#fffbeb;padding:12px;border-radius:12px;margin-bottom:8px;border-right:4px solid #f59e0b">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <strong style="color:#92400e">📄 #${inv.number}</strong>
+          <strong style="color:#92400e">📄 #${escapeHtml(inv.number)}</strong>
           <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span>
         </div>
-        <div style="font-size:13px;color:#6b7280;margin-top:4px">🏪 ${m.icon || '🏪'} ${m.name || ''}</div>
+        <div style="font-size:13px;color:#6b7280;margin-top:4px">🏪 ${escapeHtml(m.icon || '🏪')} ${escapeHtml(m.name || '')}</div>
         <div style="font-size:13px;color:#10b981;font-weight:700;margin-top:4px">💰 كاش باك متوقع: ${parseFloat(inv.cashback || 0).toFixed(2)} ج</div>
         <div style="font-size:12px;color:#9ca3af;margin-top:2px">🕒 ${new Date(inv.created_at).toLocaleString('ar-EG')}</div>
         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-          <button class="admin-btn success" onclick="window.confirmInvoiceClick('${inv.id}')">✅ استلمت البضاعة</button>
-          <button class="admin-btn danger" onclick="window.rejectInvoiceClick('${inv.id}')">❌ مش استلمت</button>
+          <button class="admin-btn success" onclick="window.confirmInvoiceClick('${escapeHtml(inv.id)}')">✅ استلمت البضاعة</button>
+          <button class="admin-btn danger" onclick="window.rejectInvoiceClick('${escapeHtml(inv.id)}')">❌ مش استلمت</button>
         </div>
       </div>`;
     }).join('');
@@ -906,7 +935,7 @@ async function renderMerchantInvoiceExtras() {
     if (!wallets.length) el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا يوجد أرصدة</p>';
     else el.innerHTML = wallets.map(w => `
       <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
-        <div style="font-weight:600">${w.profiles?.name || 'عميل'} (${w.profiles?.phone || '?'})</div>
+        <div style="font-weight:600">${escapeHtml(w.profiles?.name || 'عميل')} (${escapeHtml(w.profiles?.phone || '?')})</div>
         <div style="font-size:13px;color:#10b981;font-weight:600;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
       </div>`).join('');
   } catch (e) { console.error(e); }
@@ -925,10 +954,10 @@ async function renderMerchantInvoiceExtras() {
             : '<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:2px 8px;border-radius:20px">⏳ في الانتظار</span>';
       return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <strong>📄 #${inv.number}</strong>
+          <strong>📄 #${escapeHtml(inv.number)}</strong>
           <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span>
         </div>
-        <div style="color:#6b7280;margin-top:2px">📱 ${inv.customer_phone} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج ${statusBadge}</div>
+        <div style="color:#6b7280;margin-top:2px">📱 ${escapeHtml(inv.customer_phone || '')} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج ${statusBadge}</div>
       </div>`;
     }).join('');
   } catch (e) { console.error(e); }
@@ -952,7 +981,7 @@ async function renderMyWalletAndInvoices() {
       el.innerHTML = active.length ? active.map(w => {
         const m = w.merchants || {};
         return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
-          <div style="font-weight:600">${m.icon || '🏪'} ${m.name || ''}</div>
+          <div style="font-weight:600">${escapeHtml(m.icon || '🏪')} ${escapeHtml(m.name || '')}</div>
           <div style="font-size:14px;color:#10b981;font-weight:700;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
         </div>`;
       }).join('') : '<p style="color:#6b7280;font-size:14px">لا توجد أرصدة</p>';
@@ -961,7 +990,7 @@ async function renderMyWalletAndInvoices() {
       sel.innerHTML = '<option value="">اختار المتجر</option>' +
         active.filter(w => parseFloat(w.balance) > 0).map(w => {
           const m = w.merchants || {};
-          return `<option value="${w.merchant_id}">${m.icon || ''} ${m.name || ''} - ${parseFloat(w.balance).toFixed(2)} ج</option>`;
+          return `<option value="${escapeHtml(w.merchant_id)}">${escapeHtml(m.icon || '')} ${escapeHtml(m.name || '')} - ${parseFloat(w.balance).toFixed(2)} ج</option>`;
         }).join('');
     } else {
       $('customerBalanceBanner').style.display = 'none';
@@ -977,7 +1006,7 @@ async function renderMyWalletAndInvoices() {
       $('customerInvoicesList').innerHTML = invoices.map(inv => {
         const m = inv.merchants || {};
         return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
-          <div><strong>📄 #${inv.number}</strong> • ${m.icon || ''} ${m.name || ''}</div>
+          <div><strong>📄 #${escapeHtml(inv.number)}</strong> • ${escapeHtml(m.icon || '')} ${escapeHtml(m.name || '')}</div>
           <div style="color:#6b7280;margin-top:2px">💰 ${parseFloat(inv.amount).toFixed(2)} ج • كاش باك ${parseFloat(inv.cashback).toFixed(2)} ج</div>
         </div>`;
       }).join('');
@@ -1222,48 +1251,48 @@ async function renderMyRequests() {
       const m = r.merchants || {};
       const isAccepted = req.accepted_response_id === r.id;
       const imageHtml = r.image_url
-        ? `<img src="${r.image_url}" style="width:100%;max-width:150px;border-radius:10px;margin:6px 0;border:2px solid #eee" onerror="this.style.display='none'">` : '';
+        ? `<img src="${escapeHtml(r.image_url)}" style="width:100%;max-width:150px;border-radius:10px;margin:6px 0;border:2px solid #eee" onerror="this.style.display='none'">` : '';
       const acceptBtn = isAccepted
         ? `<button class="accept-btn" style="background:#94a3b8;cursor:not-allowed">✅ مقبول</button>`
-        : (req.status === 'accepted' ? '' : `<button class="accept-btn" onclick="window.acceptOfferClick('${req.id}','${r.id}')">قبول</button>`);
+        : (req.status === 'accepted' ? '' : `<button class="accept-btn" onclick="window.acceptOfferClick('${escapeHtml(req.id)}','${escapeHtml(r.id)}')">قبول</button>`);
       const msgs = (r.customer_messages || []).map(msg =>
-        `<div style="background:#dbeafe;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>👤 أنت:</strong> ${msg.text}</div>`
+        `<div style="background:#dbeafe;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>👤 أنت:</strong> ${escapeHtml(msg.text)}</div>`
       ).join('');
       const replyHtml = r.merchant_reply
-        ? `<div style="background:#fef3c7;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>🏪 ${m.name || ''}:</strong> ${r.merchant_reply}</div>` : '';
+        ? `<div style="background:#fef3c7;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>🏪 ${escapeHtml(m.name || '')}:</strong> ${escapeHtml(r.merchant_reply)}</div>` : '';
 
       return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-top:8px;border-right:4px solid var(--primary)">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <strong style="color:var(--primary)">🏪 ${m.name || ''}</strong>
+          <strong style="color:var(--primary)">🏪 ${escapeHtml(m.name || '')}</strong>
           <span style="color:#ff6b35;font-weight:700">💰 ${parseFloat(r.price || 0).toFixed(0)} ج</span>
         </div>
         ${imageHtml}
-        <div style="font-size:13px;color:#4b5563;margin-top:4px">${r.message || ''}</div>
+        <div style="font-size:13px;color:#4b5563;margin-top:4px">${escapeHtml(r.message || '')}</div>
         <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
           ${m.lat && m.lng ? `<button class="admin-btn primary" onclick="window.open('https://www.google.com/maps?q=${m.lat},${m.lng}','_blank')">📍</button>` : ''}
           ${acceptBtn}
-          <button class="admin-btn purple" onclick="window.askImageClick('${r.id}')">📸 اسأل عن صورة</button>
+          <button class="admin-btn purple" onclick="window.askImageClick('${escapeHtml(r.id)}')">📸 اسأل عن صورة</button>
         </div>
         ${msgs}${replyHtml}
       </div>`;
     }).join('') : '<div style="color:#92400e;text-align:center;padding:10px">⏳ جاري انتظار رد التجار...</div>';
 
     const custImg = req.image_url
-      ? `<img src="${req.image_url}" style="width:100%;max-width:200px;border-radius:10px;margin:6px 0;border:2px solid #ddd">` : '';
+      ? `<img src="${escapeHtml(req.image_url)}" style="width:100%;max-width:200px;border-radius:10px;margin:6px 0;border:2px solid #ddd">` : '';
 
     let actions = '';
     if (req.status === 'pending' || req.status === 'responded') {
-      actions = `<button class="admin-btn danger" onclick="window.cancelReqClick('${req.id}')" style="margin-top:8px">🚫 إلغاء</button>`;
+      actions = `<button class="admin-btn danger" onclick="window.cancelReqClick('${escapeHtml(req.id)}')" style="margin-top:8px">🚫 إلغاء</button>`;
     } else if (req.status === 'accepted' || req.status === 'cancelled') {
-      actions = `<button class="admin-btn danger" onclick="window.deleteReqClick('${req.id}')" style="margin-top:8px">🗑️ حذف</button>`;
+      actions = `<button class="admin-btn danger" onclick="window.deleteReqClick('${escapeHtml(req.id)}')" style="margin-top:8px">🗑️ حذف</button>`;
     }
 
     return `<div class="card" style="padding:14px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-        <h4 style="margin:0">📦 ${req.product}</h4>${statusBadge}
+        <h4 style="margin:0">📦 ${escapeHtml(req.product)}</h4>${statusBadge}
       </div>
       ${custImg}
-      <div style="color:#4b5563;font-size:14px;margin:6px 0">${req.details || ''}</div>
+      <div style="color:#4b5563;font-size:14px;margin:6px 0">${escapeHtml(req.details || '')}</div>
       <div style="font-size:12px;color:#6b7280">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
       ${responses.length ? `<div style="font-size:12px;color:#6b7280;margin-top:6px">💬 ${responses.length} تاجر رد</div>` : ''}
       ${respHtml}${actions}
@@ -1293,16 +1322,16 @@ async function renderMyOfferRequests() {
       if (req.offer_response === 'available') {
         responseHtml = `<div style="background:#d1fae5;padding:10px;border-radius:10px;margin-top:8px;border-right:4px solid #10b981">
           <div style="font-size:13px;color:#065f46;font-weight:700">✅ التاجر رد: متاح</div>
-          ${req.offer_reply ? `<div style="font-size:13px;color:#065f46;margin-top:4px">💬 ${req.offer_reply}</div>` : ''}
+          ${req.offer_reply ? `<div style="font-size:13px;color:#065f46;margin-top:4px">💬 ${escapeHtml(req.offer_reply)}</div>` : ''}
           ${m.phone ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-            <a href="tel:${m.phone}" style="background:#10b981;color:#fff;text-decoration:none;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700">📞 اتصل</a>
-            ${m.whatsapp ? `<a href="https://wa.me/${m.whatsapp}" target="_blank" style="background:#25D366;color:#fff;text-decoration:none;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700">💬 واتساب</a>` : ''}
+            <a href="tel:${escapeHtml(m.phone)}" style="background:#10b981;color:#fff;text-decoration:none;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700">📞 اتصل</a>
+            ${m.whatsapp ? `<a href="https://wa.me/${escapeHtml(m.whatsapp)}" target="_blank" style="background:#25D366;color:#fff;text-decoration:none;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700">💬 واتساب</a>` : ''}
           </div>` : ''}
         </div>`;
       } else if (req.offer_response === 'unavailable') {
         responseHtml = `<div style="background:#fee2e2;padding:10px;border-radius:10px;margin-top:8px;border-right:4px solid #ef4444">
           <div style="font-size:13px;color:#991b1b;font-weight:700">❌ التاجر رد: مش متاح حالياً</div>
-          ${req.offer_reply ? `<div style="font-size:13px;color:#991b1b;margin-top:4px">💬 ${req.offer_reply}</div>` : ''}
+          ${req.offer_reply ? `<div style="font-size:13px;color:#991b1b;margin-top:4px">💬 ${escapeHtml(req.offer_reply)}</div>` : ''}
         </div>`;
       } else {
         responseHtml = `<div style="color:#92400e;text-align:center;padding:10px;font-size:13px">⏳ في انتظار رد التاجر...</div>`;
@@ -1310,17 +1339,17 @@ async function renderMyOfferRequests() {
 
       let actions = '';
       if (req.status === 'pending') {
-        actions = `<button class="admin-btn danger" onclick="window.cancelOfferReqClick('${req.id}')" style="margin-top:8px">🚫 إلغاء</button>`;
+        actions = `<button class="admin-btn danger" onclick="window.cancelOfferReqClick('${escapeHtml(req.id)}')" style="margin-top:8px">🚫 إلغاء</button>`;
       } else if (req.status === 'responded' || req.status === 'cancelled') {
-        actions = `<button class="admin-btn danger" onclick="window.deleteOfferReqClick('${req.id}')" style="margin-top:8px">🗑️ حذف</button>`;
+        actions = `<button class="admin-btn danger" onclick="window.deleteOfferReqClick('${escapeHtml(req.id)}')" style="margin-top:8px">🗑️ حذف</button>`;
       }
 
       return `<div class="card" style="padding:14px;border-right:4px solid #ff6b35">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-          <h4 style="margin:0">🎁 ${req.product}</h4>${statusBadge}
+          <h4 style="margin:0">🎁 ${escapeHtml(req.product)}</h4>${statusBadge}
         </div>
-        <div style="font-size:13px;color:#6b7280;margin-top:6px">🏪 التاجر: ${m.name || ''}</div>
-        ${req.details ? `<div style="font-size:13px;color:#4b5563;margin-top:6px">📝 ${req.details}</div>` : ''}
+        <div style="font-size:13px;color:#6b7280;margin-top:6px">🏪 التاجر: ${escapeHtml(m.name || '')}</div>
+        ${req.details ? `<div style="font-size:13px;color:#4b5563;margin-top:6px">📝 ${escapeHtml(req.details)}</div>` : ''}
         <div style="font-size:12px;color:#9ca3af;margin-top:4px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
         ${responseHtml}
         ${actions}
@@ -1344,12 +1373,12 @@ async function renderMerchantRequestsList() {
       const myReply = (req.request_responses || []).find(r => r.merchant_id === currentMerchant.id);
       const statusBadge = getStatusBadge(req.status);
       const imageHtml = req.image_url
-        ? `<img src="${req.image_url}" style="width:100%;max-width:180px;border-radius:10px;margin:8px 0;border:2px solid #ddd">` : '';
+        ? `<img src="${escapeHtml(req.image_url)}" style="width:100%;max-width:180px;border-radius:10px;margin:8px 0;border:2px solid #ddd">` : '';
 
       const customerMsgs = myReply && myReply.customer_messages && myReply.customer_messages.length
         ? `<div style="background:#dbeafe;padding:8px;border-radius:8px;margin-top:8px">
             <div style="font-size:11px;color:#1e40af;font-weight:700">👤 رسائل العميل:</div>
-            ${myReply.customer_messages.map(m => `<div style="font-size:12px;color:#1e40af">• ${m.text}</div>`).join('')}
+            ${myReply.customer_messages.map(m => `<div style="font-size:12px;color:#1e40af">• ${escapeHtml(m.text)}</div>`).join('')}
           </div>` : '';
 
       let replyHtml = '';
@@ -1357,23 +1386,23 @@ async function renderMerchantRequestsList() {
         replyHtml = `<div style="background:#d1fae5;padding:10px;border-radius:10px;margin-top:8px">
           <div style="font-size:12px;color:#065f46;font-weight:700">✅ ردك:</div>
           <div style="font-size:14px;color:#065f46;margin-top:4px">💰 ${parseFloat(myReply.price).toFixed(0)} ج</div>
-          <div style="font-size:13px;color:#065f46">${myReply.message}</div>
-          ${myReply.image_url ? `<img src="${myReply.image_url}" style="width:100%;max-width:140px;border-radius:8px;margin-top:6px">` : ''}
+          <div style="font-size:13px;color:#065f46">${escapeHtml(myReply.message)}</div>
+          ${myReply.image_url ? `<img src="${escapeHtml(myReply.image_url)}" style="width:100%;max-width:140px;border-radius:8px;margin-top:6px">` : ''}
         </div>`;
       }
 
       return `<div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:12px;border-right:4px solid var(--success)">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <h5 style="color:var(--primary);margin:0">📦 ${req.product}</h5>${statusBadge}
+          <h5 style="color:var(--primary);margin:0">📦 ${escapeHtml(req.product)}</h5>${statusBadge}
         </div>
-        <div style="font-size:13px;color:#4b5563;margin-top:6px">${req.details || ''}</div>
+        <div style="font-size:13px;color:#4b5563;margin-top:6px">${escapeHtml(req.details || '')}</div>
         ${imageHtml}
         <div style="font-size:12px;color:#6b7280;margin-top:4px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
         ${customerMsgs}${replyHtml}
         <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-          ${!myReply ? `<button class="admin-btn primary" onclick="window.replyToReq('${req.id}')">📩 الرد</button>` : ''}
-          ${myReply ? `<button class="admin-btn purple" onclick="window.sendExtraImage('${myReply.id}')">📸 صورة إضافية</button>` : ''}
-          <button class="admin-btn danger" onclick="window.hideReq('${req.id}')">🗑️ مسح</button>
+          ${!myReply ? `<button class="admin-btn primary" onclick="window.replyToReq('${escapeHtml(req.id)}')">📩 الرد</button>` : ''}
+          ${myReply ? `<button class="admin-btn purple" onclick="window.sendExtraImage('${escapeHtml(myReply.id)}')">📸 صورة إضافية</button>` : ''}
+          <button class="admin-btn danger" onclick="window.hideReq('${escapeHtml(req.id)}')">🗑️ مسح</button>
         </div>
       </div>`;
     }).join('');
@@ -1429,7 +1458,7 @@ function renderOfferRequestCard(req) {
       <div style="font-size:13px;color:${isAvail ? '#065f46' : '#991b1b'};font-weight:700">
         ${isAvail ? '✅ رديت: متاح' : '❌ رديت: مش متاح'}
       </div>
-      ${req.offer_reply ? `<div style="font-size:13px;color:${isAvail ? '#065f46' : '#991b1b'};margin-top:4px">💬 ${req.offer_reply}</div>` : ''}
+      ${req.offer_reply ? `<div style="font-size:13px;color:${isAvail ? '#065f46' : '#991b1b'};margin-top:4px">💬 ${escapeHtml(req.offer_reply)}</div>` : ''}
     </div>`;
   }
 
@@ -1437,30 +1466,31 @@ function renderOfferRequestCard(req) {
   if (!req.offer_response) {
     actionsHtml = `
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-        <button class="admin-btn success" onclick="window.replyOfferReqClick('${req.id}', true)">✅ متاح</button>
-        <button class="admin-btn danger" onclick="window.replyOfferReqClick('${req.id}', false)">❌ مش متاح</button>
+        <button class="admin-btn success" onclick="window.replyOfferReqClick('${escapeHtml(req.id)}', true)">✅ متاح</button>
+        <button class="admin-btn danger" onclick="window.replyOfferReqClick('${escapeHtml(req.id)}', false)">❌ مش متاح</button>
       </div>
     `;
   }
 
   const phoneHtml = custPhone
-    ? `<div style="margin-top:4px">📱 <a href="tel:${custPhone}" style="color:var(--primary);font-weight:700">${custPhone}</a></div>`
+    ? `<div style="margin-top:4px">📱 <a href="tel:${escapeHtml(custPhone)}" style="color:var(--primary);font-weight:700">${escapeHtml(custPhone)}</a></div>`
     : `<div style="margin-top:4px;color:#9ca3af;font-size:12px">🔒 رقم العميل هيظهر بعد ما ترد "متاح"</div>`;
 
   return `<div style="background:#f9fafb;padding:14px;border-radius:12px;margin-bottom:12px;border-right:4px solid ${req.offer_response ? '#10b981' : '#ff6b35'}">
     <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-      <h5 style="color:var(--primary);margin:0">🎁 ${req.product}</h5>${statusBadge}
+      <h5 style="color:var(--primary);margin:0">🎁 ${escapeHtml(req.product)}</h5>${statusBadge}
     </div>
     <div style="background:#fff;padding:10px;border-radius:8px;margin-top:8px;font-size:13px">
-      <div><strong>👤 ${custName}</strong></div>
+      <div><strong>👤 ${escapeHtml(custName)}</strong></div>
       ${phoneHtml}
     </div>
-    ${req.details ? `<div style="font-size:13px;color:#4b5563;margin-top:8px;background:#fef3c7;padding:8px;border-radius:8px">📝 ${req.details}</div>` : ''}
+    ${req.details ? `<div style="font-size:13px;color:#4b5563;margin-top:8px;background:#fef3c7;padding:8px;border-radius:8px">📝 ${escapeHtml(req.details)}</div>` : ''}
     <div style="font-size:12px;color:#9ca3af;margin-top:6px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
     ${responseHtml}
     ${actionsHtml}
   </div>`;
 }
+
 window.replyOfferReqClick = async function(requestId, available) {
   const replyText = prompt(
     available ? 'اكتب رسالة للعميل (اختياري):' : 'اكتب سبب عدم التوفر (اختياري):',
@@ -1646,13 +1676,13 @@ window.openMerchantReport = async function(merchantId) {
   if (!m) { toast('❌ التاجر غير موجود', 'error'); return; }
 
   const logoHtml = m.logo_url
-    ? `<img src="${m.logo_url}" style="width:50px;height:50px;object-fit:cover;border-radius:12px;display:block;margin:0 auto 8px">`
-    : `<div style="font-size:40px;text-align:center">${m.icon || '🏪'}</div>`;
+    ? `<img src="${escapeHtml(m.logo_url)}" style="width:50px;height:50px;object-fit:cover;border-radius:12px;display:block;margin:0 auto 8px">`
+    : `<div style="font-size:40px;text-align:center">${escapeHtml(m.icon || '🏪')}</div>`;
 
   $('reportMerchantName').innerHTML = `
     ${logoHtml}
-    <div style="text-align:center;font-weight:700;color:var(--primary);margin-top:6px">${m.name}</div>
-    <div style="text-align:center;font-size:12px;color:#6b7280;margin-top:4px">🔑 ${m.bank_code || '-'} | 📱 ${m.phone || '-'}</div>
+    <div style="text-align:center;font-weight:700;color:var(--primary);margin-top:6px">${escapeHtml(m.name)}</div>
+    <div style="text-align:center;font-size:12px;color:#6b7280;margin-top:4px">🔑 ${escapeHtml(m.bank_code || '-')} | 📱 ${escapeHtml(m.phone || '-')}</div>
   `;
 
   $('reportMerchantContent').innerHTML = '<p style="text-align:center;padding:20px;color:#6b7280">⏳ جاري التحميل...</p>';
@@ -1815,18 +1845,18 @@ async function renderDashboard() {
     const el = $('myOffersList');
     el.innerHTML = offers.length ? offers.map(o => {
       const imgHtml = o.image_url
-        ? `<img src="${o.image_url}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0">` : '';
+        ? `<img src="${escapeHtml(o.image_url)}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0">` : '';
       return `<div class="merchant-offer-card" style="background:#f9fafb;padding:10px;border-radius:12px;margin-bottom:8px;border-right:4px solid #ff6b35;display:flex;align-items:center;gap:10px">
         ${imgHtml}
         <div style="flex:1">
-          <span style="font-weight:600">${o.title}</span><br>
-          <span style="color:#ff6b35;font-weight:700">${o.discount}</span>
+          <span style="font-weight:600">${escapeHtml(o.title)}</span><br>
+          <span style="color:#ff6b35;font-weight:700">${escapeHtml(o.discount)}</span>
           ${o.price ? `<div style="font-size:12px;color:#10b981;font-weight:700;margin-top:2px">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : ''}
-          ${o.description ? `<div style="font-size:11px;color:#6b7280;margin-top:2px">${o.description}</div>` : ''}
+          ${o.description ? `<div style="font-size:11px;color:#6b7280;margin-top:2px">${escapeHtml(o.description)}</div>` : ''}
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
-          <button onclick="window.openEditOffer('${o.id}')" style="background:#3b82f6;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">✏️</button>
-          <button class="del-btn" onclick="window.deleteOfferClick('${o.id}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
+          <button onclick="window.openEditOffer('${escapeHtml(o.id)}')" style="background:#3b82f6;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">✏️</button>
+          <button class="del-btn" onclick="window.deleteOfferClick('${escapeHtml(o.id)}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
         </div>
       </div>`;
     }).join('') : '<p style="color:#6b7280">لا توجد عروض</p>';
@@ -1843,7 +1873,7 @@ async function renderDashboard() {
           <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:8px;border-right:4px solid #f59e0b;display:flex;align-items:center;gap:10px">
             <div style="font-size:20px;font-weight:700;color:#f59e0b;min-width:30px">#${i + 1}</div>
             <div style="flex:1">
-              <div style="font-weight:600;font-size:14px">${o.title}</div>
+              <div style="font-weight:600;font-size:14px">${escapeHtml(o.title)}</div>
               <div style="display:flex;gap:12px;margin-top:4px;font-size:12px;color:#6b7280;flex-wrap:wrap">
                 <span>👁️ ${o.views}</span>
                 <span>👆 ${o.clicks}</span>
@@ -1851,7 +1881,7 @@ async function renderDashboard() {
                 <span>📍 ${o.maps}</span>
               </div>
             </div>
-            <div style="background:#1a2a6c;color:#fff;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700">${o.discount}</div>
+            <div style="background:#1a2a6c;color:#fff;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700">${escapeHtml(o.discount)}</div>
           </div>
         `).join('');
       }
@@ -1863,7 +1893,7 @@ async function renderDashboard() {
     const el = $('myCustomersList');
     el.innerHTML = customers.length ? customers.map(c => `
       <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
-        <strong>📱 ${c.phone}</strong>
+        <strong>📱 ${escapeHtml(c.phone)}</strong>
         <div style="color:#6b7280;margin-top:2px">${c.count} فاتورة • ${c.total.toFixed(2)} ج</div>
       </div>`).join('') : '<p style="color:#6b7280">لا يوجد عملاء</p>';
   } catch (e) { console.error(e); }
@@ -1881,13 +1911,13 @@ async function renderDashboard() {
             : '<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:20px;font-size:11px">⏳ معلقة</span>';
       return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <strong>📄 #${inv.number}</strong>
+          <strong>📄 #${escapeHtml(inv.number)}</strong>
           <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span>
         </div>
-        <div style="color:#6b7280;margin-top:2px">📱 ${inv.customer_phone || '-'} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج ${statusBadge}</div>
+        <div style="color:#6b7280;margin-top:2px">📱 ${escapeHtml(inv.customer_phone || '-')} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج ${statusBadge}</div>
         ${inv.confirmation_status === 'confirmed' && inv.status === 'active' ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
-          <button class="admin-btn primary" onclick="window.editInvClick('${inv.id}')">✏️ تعديل</button>
-          <button class="admin-btn danger" onclick="window.returnInvClick('${inv.id}')">🔄 مرتجع</button>
+          <button class="admin-btn primary" onclick="window.editInvClick('${escapeHtml(inv.id)}')">✏️ تعديل</button>
+          <button class="admin-btn danger" onclick="window.returnInvClick('${escapeHtml(inv.id)}')">🔄 مرتجع</button>
         </div>` : ''}
       </div>`;
     }).join('') : '<p style="color:#6b7280">لا توجد فواتير</p>';
@@ -1898,7 +1928,7 @@ async function renderDashboard() {
     const el = $('dashWalletsList');
     el.innerHTML = wallets.length ? wallets.map(w => `
       <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
-        <div style="font-weight:600">📱 ${w.profiles?.phone || '?'} ${w.profiles?.name ? '(' + w.profiles.name + ')' : ''}</div>
+        <div style="font-weight:600">📱 ${escapeHtml(w.profiles?.phone || '?')} ${w.profiles?.name ? '(' + escapeHtml(w.profiles.name) + ')' : ''}</div>
         <div style="font-size:13px;color:#10b981;font-weight:600;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
       </div>`).join('') : '<p style="color:#6b7280">لا يوجد أرصدة</p>';
   } catch (e) { console.error(e); }
@@ -2259,23 +2289,23 @@ async function renderAdminTraders() {
   el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
     const logo = m.logo_url
-      ? `<img src="${m.logo_url}" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle">`
-      : (m.icon || '🏪');
+      ? `<img src="${escapeHtml(m.logo_url)}" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle">`
+      : escapeHtml(m.icon || '🏪');
     const typeBadge = m.merchant_type === 'warehouse' ? '📦' : (m.merchant_type === 'both' ? '🔄' : '🏪');
     return `<div class="admin-item">
       <div class="head">
-        <span class="title">${logo} ${m.name} ${typeBadge}</span>
+        <span class="title">${logo} ${escapeHtml(m.name)} ${typeBadge}</span>
         ${m.frozen ? '<span class="frozen-badge">❄️ موقوف</span>' : '<span class="active-badge">✅ نشط</span>'}
       </div>
-      <div class="info">🔑 ${m.bank_code} | 📱 ${m.phone || '-'} | 💰 ${rate}%</div>
+      <div class="info">🔑 ${escapeHtml(m.bank_code)} | 📱 ${escapeHtml(m.phone || '-')} | 💰 ${rate}%</div>
       <div class="info">📍 ${m.lat?.toFixed(4) || '-'} , ${m.lng?.toFixed(4) || '-'}</div>
-      <div class="info">📂 ${m.category} | 🎁 ${(m.offers || []).length} عرض${m.delivery_available ? ' | 🛵 توصيل' : ''}</div>
+      <div class="info">📂 ${escapeHtml(m.category)} | 🎁 ${(m.offers || []).length} عرض${m.delivery_available ? ' | 🛵 توصيل' : ''}</div>
       <div class="actions">
-        <button class="admin-btn primary" onclick="window.adminEditMerchantFull('${m.id}')">✏️ تعديل كامل</button>
-        <button class="admin-btn success" onclick="window.openMerchantReport('${m.id}')">📊 تقرير</button>
-        <button class="admin-btn ${m.frozen ? 'success' : 'warning'}" onclick="window.toggleFreeze('${m.id}')">${m.frozen ? '✅ إلغاء' : '❄️ إيقاف'}</button>
-        <button class="admin-btn purple" onclick="window.adminChangePassMerchant('${m.id}')">🔒 كلمة المرور</button>
-        <button class="admin-btn danger" onclick="window.delTrader('${m.id}')">🗑️ حذف</button>
+        <button class="admin-btn primary" onclick="window.adminEditMerchantFull('${escapeHtml(m.id)}')">✏️ تعديل كامل</button>
+        <button class="admin-btn success" onclick="window.openMerchantReport('${escapeHtml(m.id)}')">📊 تقرير</button>
+        <button class="admin-btn ${m.frozen ? 'success' : 'warning'}" onclick="window.toggleFreeze('${escapeHtml(m.id)}')">${m.frozen ? '✅ إلغاء' : '❄️ إيقاف'}</button>
+        <button class="admin-btn purple" onclick="window.adminChangePassMerchant('${escapeHtml(m.id)}')">🔒 كلمة المرور</button>
+        <button class="admin-btn danger" onclick="window.delTrader('${escapeHtml(m.id)}')">🗑️ حذف</button>
       </div>
     </div>`;
   }).join('');
@@ -2352,17 +2382,17 @@ async function renderAdminCustomers() {
   el.innerHTML = list.map(c => `
     <div class="admin-item">
       <div class="head">
-        <span class="title">📱 ${c.phone}${c.name ? ' - ' + c.name : ''}</span>
+        <span class="title">📱 ${escapeHtml(c.phone)}${c.name ? ' - ' + escapeHtml(c.name) : ''}</span>
         <span class="active-badge">✅ نشط</span>
       </div>
       <div class="info">🏪 ${c.shops} تاجر | 💰 كسب: ${c.earned.toFixed(2)} | 💵 صرف: ${c.spent.toFixed(2)}</div>
-      <div class="info">📊 الرصيد: <strong>${c.balance.toFixed(2)} ج</strong>${c.email ? ' | 📧 ' + c.email : ''}</div>
+      <div class="info">📊 الرصيد: <strong>${c.balance.toFixed(2)} ج</strong>${c.email ? ' | 📧 ' + escapeHtml(c.email) : ''}</div>
       <div class="actions">
-        <button class="admin-btn primary" onclick="window.adminEditCustomerFull('${c.phone}')">✏️ تعديل بيانات</button>
-        <button class="admin-btn purple" onclick="window.adminChangePassCustomer('${c.id}')">🔒 كلمة المرور</button>
-        <button class="admin-btn success" onclick="window.adminAdjustBal('${c.phone}')">💰 رصيد</button>
-        <button class="admin-btn warning" onclick="window.adminResetBal('${c.phone}')">🔄 تصفير</button>
-        <button class="admin-btn danger" onclick="window.adminDelCustomer('${c.phone}')">🗑️ حذف</button>
+        <button class="admin-btn primary" onclick="window.adminEditCustomerFull('${escapeHtml(c.phone)}')">✏️ تعديل بيانات</button>
+        <button class="admin-btn purple" onclick="window.adminChangePassCustomer('${escapeHtml(c.id)}')">🔒 كلمة المرور</button>
+        <button class="admin-btn success" onclick="window.adminAdjustBal('${escapeHtml(c.phone)}')">💰 رصيد</button>
+        <button class="admin-btn warning" onclick="window.adminResetBal('${escapeHtml(c.phone)}')">🔄 تصفير</button>
+        <button class="admin-btn danger" onclick="window.adminDelCustomer('${escapeHtml(c.phone)}')">🗑️ حذف</button>
       </div>
     </div>`).join('');
 }
@@ -2433,19 +2463,19 @@ async function renderAdminInvoices() {
 
     return `<div class="admin-item">
       <div class="head">
-        <span class="title">📄 #${inv.number}</span>
+        <span class="title">📄 #${escapeHtml(inv.number)}</span>
         <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span>
       </div>
-      <div class="info">🏪 ${inv.merchants?.name || ''} | 📱 ${inv.customer_phone || '-'} | 💵 كاش باك ${parseFloat(inv.cashback).toFixed(2)} ج</div>
+      <div class="info">🏪 ${escapeHtml(inv.merchants?.name || '')} | 📱 ${escapeHtml(inv.customer_phone || '-')} | 💵 كاش باك ${parseFloat(inv.cashback).toFixed(2)} ج</div>
       <div class="info">${statusBadge}</div>
       <div class="info" style="font-size:12px">🕒 ${new Date(inv.created_at).toLocaleString('ar-EG')}</div>
       <div class="actions">
         ${inv.status === 'active' ? `
-          <button class="admin-btn primary" onclick="window.adminEditInv('${inv.id}')">✏️ تعديل</button>
-          <button class="admin-btn danger" onclick="window.adminReturnInv('${inv.id}')">🔄 مرتجع</button>
+          <button class="admin-btn primary" onclick="window.adminEditInv('${escapeHtml(inv.id)}')">✏️ تعديل</button>
+          <button class="admin-btn danger" onclick="window.adminReturnInv('${escapeHtml(inv.id)}')">🔄 مرتجع</button>
         ` : ''}
-        <button class="admin-btn danger" onclick="window.adminDeleteWithCashback('${inv.id}')">🗑️ حذف + كاش باك</button>
-        <button class="admin-btn warning" onclick="window.adminDeleteOnly('${inv.id}')">🗑️ حذف فقط</button>
+        <button class="admin-btn danger" onclick="window.adminDeleteWithCashback('${escapeHtml(inv.id)}')">🗑️ حذف + كاش باك</button>
+        <button class="admin-btn warning" onclick="window.adminDeleteOnly('${escapeHtml(inv.id)}')">🗑️ حذف فقط</button>
       </div>
     </div>`;
   }).join('');
@@ -2502,16 +2532,16 @@ async function renderAdminRequests() {
       const respHtml = responses.map(resp => {
         const m = resp.merchants || {};
         return `<div style="background:#f9fafb;padding:8px;border-radius:8px;margin-top:6px;border-right:3px solid var(--primary);font-size:12px">
-          <strong>🏪 ${m.name || ''}</strong> • 💰 ${parseFloat(resp.price || 0).toFixed(0)} ج
-          <div style="color:#6b7280">${resp.message || ''}</div>
+          <strong>🏪 ${escapeHtml(m.name || '')}</strong> • 💰 ${parseFloat(resp.price || 0).toFixed(0)} ج
+          <div style="color:#6b7280">${escapeHtml(resp.message || '')}</div>
         </div>`;
       }).join('');
       return `<div class="admin-item">
         <div class="head">
-          <span class="title">📦 ${r.product}</span>
+          <span class="title">📦 ${escapeHtml(r.product)}</span>
           ${getStatusBadge(r.status)}
         </div>
-        <div class="info">${r.details || ''}</div>
+        <div class="info">${escapeHtml(r.details || '')}</div>
         <div class="info" style="font-size:12px">🕒 ${new Date(r.created_at).toLocaleString('ar-EG')}</div>
         ${respHtml}
       </div>`;
@@ -2525,8 +2555,8 @@ async function renderAdminNotifHistory() {
   if (!notifs.length) { el.innerHTML = '<p style="color:#6b7280">لا توجد إشعارات</p>'; return; }
   el.innerHTML = notifs.map(n => `
     <div class="admin-item">
-      <div class="head"><span class="title">📢 ${n.title}</span></div>
-      <div class="info">${n.message}</div>
+      <div class="head"><span class="title">📢 ${escapeHtml(n.title)}</span></div>
+      <div class="info">${escapeHtml(n.message)}</div>
       <div class="info" style="font-size:12px">🕒 ${new Date(n.created_at).toLocaleString('ar-EG')}</div>
     </div>`).join('');
 }
@@ -2543,10 +2573,10 @@ async function renderOfferEventsTable() {
   container.innerHTML = events.map(e => `
     <div class="admin-item">
       <div class="head">
-        <span class="title">${e.merchant_icon} ${e.merchant_name}</span>
+        <span class="title">${escapeHtml(e.merchant_icon)} ${escapeHtml(e.merchant_name)}</span>
         <span style="background:#dbeafe;color:#1e40af;font-size:12px;padding:3px 12px;border-radius:20px;font-weight:700">${e.total} تفاعل</span>
       </div>
-      <div class="info">📦 ${e.offer_title} | 💰 ${e.offer_discount}</div>
+      <div class="info">📦 ${escapeHtml(e.offer_title)} | 💰 ${escapeHtml(e.offer_discount)}</div>
       <div class="info" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px">
         <span>👁️ مشاهدات: <strong>${e.views}</strong></span>
         <span>👆 ضغطات: <strong>${e.clicks}</strong></span>
@@ -2574,7 +2604,7 @@ function renderNewTraderSubs() {
   const cat = $('newTraderCategory').value;
   const subs = SUB_CATEGORIES[cat] || [];
   $('newTraderSubs').innerHTML = subs.map(s =>
-    `<button type="button" class="category-chip" data-sub="${s.id}">${s.name}</button>`
+    `<button type="button" class="category-chip" data-sub="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button>`
   ).join('');
   $('newTraderSubs').querySelectorAll('.category-chip').forEach(btn => {
     btn.onclick = () => btn.classList.toggle('active');
@@ -2585,7 +2615,7 @@ function renderEditTraderSubs(selected = []) {
   const cat = $('editTraderCategory').value;
   const subs = SUB_CATEGORIES[cat] || [];
   $('editTraderSubs').innerHTML = subs.map(s =>
-    `<button type="button" class="category-chip ${selected.includes(s.id) ? 'active' : ''}" data-sub="${s.id}">${s.name}</button>`
+    `<button type="button" class="category-chip ${selected.includes(s.id) ? 'active' : ''}" data-sub="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button>`
   ).join('');
   $('editTraderSubs').querySelectorAll('.category-chip').forEach(btn => {
     btn.onclick = () => btn.classList.toggle('active');
@@ -2705,7 +2735,7 @@ async function initAccountMapUI() {
       $('customerWalletsBreakdown').innerHTML = wallets.map(w => {
         const m = w.merchants || {};
         return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
-          <div style="font-weight:600">${m.icon || '🏪'} ${m.name || ''}</div>
+          <div style="font-weight:600">${escapeHtml(m.icon || '🏪')} ${escapeHtml(m.name || '')}</div>
           <div style="font-size:14px;color:#10b981;font-weight:700;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
         </div>`;
       }).join('');
@@ -2899,15 +2929,16 @@ async function handleLogin(e) {
       }
     }
 
-  if (role === 'admin') {
-  const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
-    p_code: adminCode.trim()
-  });
-  if (checkErr || !check.ok) {
-    await signOut();
-    throw new Error('بنكود الأدمن غير صحيح');
-  }
-}
+    if (role === 'admin') {
+      const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
+        p_code: adminCode.trim()
+      });
+      if (checkErr || !check.ok) {
+        await signOut();
+        throw new Error('بنكود الأدمن غير صحيح');
+      }
+    }
+
     await showMainScreen(profile);
 
   } catch (err) {
@@ -3119,9 +3150,13 @@ function bindEvents() {
 
   $('refreshLocation').addEventListener('click', updateLocation);
 
+  // ✅ Debounce للبحث
   $('searchInput').addEventListener('input', (e) => {
-    searchQuery = e.target.value.trim();
-    renderMerchantsList();
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      searchQuery = e.target.value.trim();
+      renderMerchantsList();
+    }, 300);
   });
 
   $('homeRadiusSlider').addEventListener('input', (e) => {
@@ -3381,7 +3416,7 @@ window.openImageLightbox = function(imageUrl) {
   `;
 
   lightbox.innerHTML = `
-    <img src="${imageUrl}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 0 30px rgba(0,0,0,0.5)">
+    <img src="${escapeHtml(imageUrl)}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 0 30px rgba(0,0,0,0.5)">
     <button onclick="document.getElementById('pamigoLightbox').remove()"
             style="position:absolute;top:20px;left:20px;background:#fff;color:#000;border:none;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;font-weight:bold;line-height:1">
       ✕
