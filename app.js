@@ -298,12 +298,22 @@ function renderOffersGrid() {
   let list = [...allMerchants].filter(m => (m.offers || []).length > 0)
     .filter(m => matchesCatSubs(m, offersCategories, offersSubCategories));
 
+function renderOffersGrid() {
+  let list = [...allMerchants].filter(m => (m.offers || []).length > 0)
+    .filter(m => matchesCatSubs(m, offersCategories, offersSubCategories));
+
   const el = $('offersGrid');
   if (!list.length) {
+    // ✅ نظهر الزرار للتاجر بس
+    const isMerchant = currentProfile && currentProfile.role === 'merchant';
+    const addOfferBtn = isMerchant
+      ? `<button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer">➕ أضف عرضك</button>`
+      : '';
+
     el.innerHTML = `<div style="text-align:center;padding:30px;color:#6b7280">
       <div style="font-size:48px;margin-bottom:10px">🎁</div>
       <p style="margin-bottom:15px">لا توجد عروض حالياً</p>
-      <button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer">➕ أضف عرضك</button>
+      ${addOfferBtn}
     </div>`;
     return;
   }
