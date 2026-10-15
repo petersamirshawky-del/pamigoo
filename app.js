@@ -3424,21 +3424,12 @@ async function runInit() {
 // ============================================================
 // ✅ WINDOW EXPORTS
 // ============================================================
+// ملاحظة: الدوال اللي معرّفة فوق بـ window.xxx = function... 
+// مش محتاجة إعادة تصدير هنا، لأنها أصلاً على window.
+// السطور دي بس للدوال المعرّفة بـ function عادي.
+
 window.switchTab = switchTab;
 window.openMerchant = openMerchant;
-window.closeMerchantModal = closeMerchantModal;
-window.closeModal = closeModal;
-window.openOfferFull = openOfferFull;
-window.closeOfferFull = closeOfferFull;
-window.openRequestOfferModal = openRequestOfferModal;
-window.closeRequestOfferModal = closeRequestOfferModal;
-window.switchRequestsSubtab = switchRequestsSubtab;
-window.replyOfferReqClick = replyOfferReqClick;
-window.cancelOfferReqClick = cancelOfferReqClick;
-window.deleteOfferReqClick = deleteOfferReqClick;
-window.updateOfferReqBadge = updateOfferReqBadge;
-window.openMerchantReport = openMerchantReport;
-window.closeMerchantReport = closeMerchantReport;
 window.renderOffersGrid = renderOffersGrid;
 window.renderMerchantsList = renderMerchantsList;
 window.renderRequestsTab = renderRequestsTab;
@@ -3471,15 +3462,9 @@ window.adminReturnInv = adminReturnInv;
 window.adminDeleteWithCashback = adminDeleteWithCashback;
 window.adminDeleteOnly = adminDeleteOnly;
 window.renderOfferEventsTable = renderOfferEventsTable;
-window.handleGoogleLogin = handleGoogleLogin;
-window.closeCompleteProfileModal = closeCompleteProfileModal;
-window.onCompleteProfileRoleChange = onCompleteProfileRoleChange;
-window.confirmInvoiceClick = confirmInvoiceClick;
-window.rejectInvoiceClick = rejectInvoiceClick;
-window.openEditOffer = openEditOffer;
-window.closeEditOfferModal = closeEditOfferModal;
-window.onEditOfferTypeChange = onEditOfferTypeChange;
-window.deleteOfferImage = deleteOfferImage;
+window.updateOfferReqBadge = updateOfferReqBadge;
+
+// ✅ الدوال اللي بتستخدمها في HTML مباشرة (مش معرّفة بـ window فوق):
 window.togglePass = function(inputId, btn) {
   const input = document.getElementById(inputId);
   if (!input) return;
@@ -3487,6 +3472,7 @@ window.togglePass = function(inputId, btn) {
   input.type = isHidden ? 'text' : 'password';
   btn.innerText = isHidden ? '🙈' : '👁️';
 };
+
 window.closeForgotModal = function(e) {
   if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
   const modal = document.getElementById('forgotModal');
