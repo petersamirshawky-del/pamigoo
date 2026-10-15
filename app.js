@@ -3021,10 +3021,10 @@ async function handleLogin(e) {
       }
     }
 
-    if (role === 'admin') {
-      const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
-        p_code: adminCode.trim()
-      });
+if (role === 'admin') {
+  const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
+    p_code: (adminCode || '').trim()
+  });
       if (checkErr || !check.ok) {
         await signOut();
         throw new Error('بنكود الأدمن غير صحيح');
