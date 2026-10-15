@@ -101,9 +101,8 @@ export async function signUpMerchant({ phone, email, password, name, bankCode })
 }
 
 export async function signUpAdmin({ phone, email, password, name, adminCode }) {
-  // ✅ نتحقق من كود الأدمن عن طريق Supabase
   const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
-    p_code: adminCode.trim()
+    p_code: (adminCode || '').trim()
   });
 
   if (checkErr) throw new Error('فشل التحقق من الكود');
@@ -136,7 +135,7 @@ export async function signInWithGoogle() {
   return data;
 }
 
-// ✅ إكمال البيانات بعد تسجيل جوجل (رقم الموبايل + الاسم + الدور)
+// ✅ إكمال البيانات بعد تسجيل جوجل
 export async function completeGoogleProfile({ phone, name, role = 'customer', bankCode = null, adminCode = null }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('مش مسجل دخول');
@@ -145,7 +144,7 @@ export async function completeGoogleProfile({ phone, name, role = 'customer', ba
   if (role === 'merchant') {
     const code = bankCode?.trim().toUpperCase();
     if (!code) throw new Error('لازم البنكود');
-    
+
     const { data: merchant, error: merr } = await supabase
       .from('merchants').select('id, owner_id')
       .eq('bank_code', code).single();
@@ -156,14 +155,15 @@ export async function completeGoogleProfile({ phone, name, role = 'customer', ba
     }
   }
 
-if (role === 'admin') {
-  const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
-    p_code: adminCode.trim()
-  });
-  if (checkErr || !check.ok) {
-    throw new Error('بنكود الأدمن غير صحيح');
+  // ✅ لو أدمن، نتحقق من كود الأدمن
+  if (role === 'admin') {
+    const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
+      p_code: (adminCode || '').trim()
+    });
+    if (checkErr || !check.ok) {
+      throw new Error('بنكود الأدمن غير صحيح');
+    }
   }
-}
 
   // ✅ نحدّث الـ profile
   const { error: profErr } = await supabase
