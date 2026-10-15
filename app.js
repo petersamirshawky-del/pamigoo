@@ -1,5 +1,5 @@
 // ============================================================
-// PAMIGO - Main Entry
+// PAMIGO - Main Entry (v2.0 - Modified)
 // ============================================================
 const { supabase } = await import('./supabase.js');
 const { toast, showLoader, hideLoader } = await import('./ui.js');
@@ -77,6 +77,17 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+// ✅ NEW: JavaScript String Escape
+function escapeJs(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
+}
+
 // ============================================================
 // State
 // ============================================================
@@ -104,12 +115,10 @@ let lastRatedMerchantName = '';
 let viewMode = 'all';
 let currentOfferFullData = null;
 let pendingGoogleUser = null;
-
-// ✅ Debounce timer للبحث
 let searchDebounceTimer = null;
 
 // ============================================================
-// ✅ Load merchants (Promise.all)
+// ✅ Load merchants
 // ============================================================
 async function loadMerchants() {
   try {
@@ -227,17 +236,15 @@ function logoImgHtml(m) {
 }
 
 // ============================================================
-// ✅ Render: merchants list (مع البحث عن العروض + التجار)
+// ✅ Render: merchants list
 // ============================================================
 function renderMerchantsList() {
   let list = [...allMerchants];
   const el = $('merchantsList');
 
-  // ✅ لو فيه بحث، نعرض العروض + التجار
   if (searchQuery && searchQuery.trim()) {
     const q = searchQuery.toLowerCase().trim();
 
-    // 1. نجمع كل العروض اللي فيها كلمة البحث
     const matchingOffers = [];
     allMerchants.forEach(m => {
       (m.offers || []).forEach(o => {
@@ -249,12 +256,10 @@ function renderMerchantsList() {
       });
     });
 
-    // 2. نجمع التجار اللي اسمهم فيه كلمة البحث
     const matchingMerchants = allMerchants.filter(m =>
       m.name && m.name.toLowerCase().includes(q)
     );
 
-    // 3. لو مفيش نتائج
     if (!matchingOffers.length && !matchingMerchants.length) {
       el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج للبحث "${escapeHtml(searchQuery)}"</div>`;
       return;
@@ -262,7 +267,6 @@ function renderMerchantsList() {
 
     let html = '';
 
-    // 4. نعرض العروض المطابقة أولاً
     if (matchingOffers.length) {
       html += `<div class="section-title"><h3>🎁 عروض مطابقة (${matchingOffers.length})</h3></div>`;
       html += matchingOffers.map(({ offer, merchant }) => {
@@ -276,7 +280,7 @@ function renderMerchantsList() {
           : `<span style="font-size:16px">${escapeHtml(merchant.icon || '🏪')}</span>`;
 
         return `
-          <div onclick="window.openOfferFull('${escapeHtml(offer.id)}','${escapeHtml(merchant.id)}')"
+          <div onclick="window.openOfferFull('${escapeJs(offer.id)}','${escapeJs(merchant.id)}')"
                style="background:#f9fafb;padding:16px;border-radius:14px;margin-bottom:14px;border-right:4px solid #ff6b35;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.05)">
             ${imgHtml}
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
@@ -292,14 +296,13 @@ function renderMerchantsList() {
       }).join('');
     }
 
-    // 5. نعرض التجار المطابقين
     if (matchingMerchants.length) {
       html += `<div class="section-title" style="margin-top:20px"><h3>🏪 متاجر مطابقة (${matchingMerchants.length})</h3></div>`;
       html += matchingMerchants.map(m => {
         const rate = m.cashback_rate || 15;
         const tier = getTier(rate);
         return `
-          <div class="store-item" onclick="window.openMerchant('${escapeHtml(m.bank_code)}')">
+          <div class="store-item" onclick="window.openMerchant('${escapeJs(m.bank_code)}')">
             <div class="icon" style="overflow:hidden">${logoImgHtml(m)}</div>
             <div class="info">
               <h4>${escapeHtml(m.name)} <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></h4>
@@ -314,7 +317,6 @@ function renderMerchantsList() {
     return;
   }
 
-  // ✅ لو مفيش بحث، نرجع للفلترة العادية
   list = list.filter(m => matchesCatSubs(m, homeCategories, homeSubCategories));
 
   if (viewMode === 'shop') {
@@ -363,7 +365,7 @@ function renderMerchantsList() {
     }
 
     return `
-      <div class="store-item" onclick="window.openMerchant('${escapeHtml(m.bank_code)}')">
+      <div class="store-item" onclick="window.openMerchant('${escapeJs(m.bank_code)}')">
         <div class="icon" style="overflow:hidden">${logoImgHtml(m)}</div>
         <div class="info">
           <h4>${escapeHtml(m.name)} <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></h4>
@@ -378,18 +380,22 @@ function renderMerchantsList() {
   }).join('');
 }
 
+// ============================================================
+// ✅ Render: Top Deals
+// ============================================================
 function renderTopDeals() {
   const sorted = [...allMerchants].filter(m => (m.offers || []).length > 0)
     .sort((a, b) => (b.cashback_rate || 0) - (a.cashback_rate || 0)).slice(0, 10);
 
   const el = $('dealsScroll');
+  if (!el) return;
   if (!sorted.length) { el.innerHTML = ''; return; }
 
   el.innerHTML = sorted.map(m => {
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
     return `
-      <div class="deal-card" onclick="window.openMerchant('${escapeHtml(m.bank_code)}')">
+      <div class="deal-card" onclick="window.openMerchant('${escapeJs(m.bank_code)}')">
         <div class="tier-badge">${tier.icon}</div>
         <div class="discount">${rate}%</div>
         <div class="icon" style="overflow:hidden;display:flex;align-items:center;justify-content:center;border-radius:16px">${logoImgHtml(m)}</div>
@@ -400,11 +406,15 @@ function renderTopDeals() {
   }).join('');
 }
 
+// ============================================================
+// ✅ Render: Offers Grid
+// ============================================================
 function renderOffersGrid() {
   let list = [...allMerchants].filter(m => (m.offers || []).length > 0)
     .filter(m => matchesCatSubs(m, offersCategories, offersSubCategories));
 
   const el = $('offersGrid');
+  if (!el) return;
   if (!list.length) {
     const isMerchant = currentProfile && currentProfile.role === 'merchant';
     const addOfferBtn = isMerchant
@@ -424,7 +434,7 @@ function renderOffersGrid() {
     const tier = getTier(rate);
     const maxDisc = getMaxDiscount(m);
     return `
-      <div class="deal-card" onclick="window.openMerchant('${escapeHtml(m.bank_code)}')" style="min-width:auto;text-align:center">
+      <div class="deal-card" onclick="window.openMerchant('${escapeJs(m.bank_code)}')" style="min-width:auto;text-align:center">
         <div class="tier-badge">${tier.icon}</div>
         <div style="width:70px;height:70px;margin:0 auto;border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-soft);font-size:48px">
           ${logoImgHtml(m)}
@@ -438,7 +448,11 @@ function renderOffersGrid() {
   }).join('');
 }
 
+// ============================================================
+// ✅ Categories
+// ============================================================
 function renderSubCategoriesGeneric({ categories, subs, wrapperEl, containerEl, onToggle }) {
+  if (!wrapperEl || !containerEl) return;
   const singleCat = categories.length === 1 && categories[0] !== 'all' ? categories[0] : null;
   if (!singleCat || !SUB_CATEGORIES[singleCat]) { wrapperEl.style.display = 'none'; return; }
   wrapperEl.style.display = 'block';
@@ -499,6 +513,9 @@ function renderOffersSubCategories() {
   });
 }
 
+// ============================================================
+// ✅ Open Merchant Modal
+// ============================================================
 async function openMerchant(bankCode) {
   const m = allMerchants.find(x => x.bank_code === bankCode);
   if (!m) return;
@@ -516,7 +533,7 @@ async function openMerchant(bankCode) {
   $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${escapeHtml(m.name)}</div>`;
   $('modalMerchantInfo').innerHTML = `${escapeHtml(m.icon || '🏪')} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}${isWarehouse ? ' • 📦 مخزن' : ''}`;
 
-  const offerViews = await getMerchantOffersViews(m.id);
+  const offerViews = await getMerchantOffersViews(m.id).catch(() => ({}));
 
   const sortedOffers = [...(m.offers || [])].sort((a, b) =>
     (offerViews[b.id] || 0) - (offerViews[a.id] || 0)
@@ -529,7 +546,7 @@ async function openMerchant(bankCode) {
     ? sortedOffers.map((o, i) => {
         const imgHtml = o.image_url
           ? `<img src="${escapeHtml(o.image_url)}"
-                 onclick="event.stopPropagation(); window.openImageLightbox('${escapeHtml(o.image_url)}')"
+                 onclick="event.stopPropagation(); window.openImageLightbox('${escapeJs(o.image_url)}')"
                  style="width:100%;max-width:220px;height:140px;object-fit:cover;border-radius:10px;margin-bottom:8px;cursor:zoom-in;display:block">`
           : '';
         const descHtml = o.description ? `<p style="font-size:13px;color:#4b5563;margin-top:6px">${escapeHtml(o.description)}</p>` : '';
@@ -541,7 +558,7 @@ async function openMerchant(bankCode) {
           : '';
 
         return `
-          <div onclick="window.openOfferFull('${escapeHtml(o.id)}','${escapeHtml(m.id)}')"
+          <div onclick="window.openOfferFull('${escapeJs(o.id)}','${escapeJs(m.id)}')"
                style="background:#f9fafb;padding:16px;border-radius:14px;margin-bottom:14px;border-right:4px solid #ff6b35;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.05)"
                onmouseover="this.style.background='#f0f4ff'"
                onmouseout="this.style.background='#f9fafb'">
@@ -573,15 +590,13 @@ async function openMerchant(bankCode) {
 
   if (m.lat && m.lng && m.merchant_type !== 'warehouse') {
     actionsBar.innerHTML = `
-      <button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${escapeHtml(m.id)}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>
-      ${m.delivery_available ? `<button onclick="window.contactDelivery('${escapeHtml(m.delivery_phone || m.phone)}','${escapeHtml(m.id)}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
+      <button onclick="window.openMerchantMap('${escapeJs(m.lat)}','${escapeJs(m.lng)}','${escapeJs(m.id)}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>
+      ${m.delivery_available ? `<button onclick="window.contactDelivery('${escapeJs(m.delivery_phone || m.phone)}','${escapeJs(m.id)}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
     `;
   } else if (m.delivery_available) {
     actionsBar.innerHTML = `
-      <button onclick="window.contactDelivery('${escapeHtml(m.delivery_phone || m.phone)}','${escapeHtml(m.id)}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>
+      <button onclick="window.contactDelivery('${escapeJs(m.delivery_phone || m.phone)}','${escapeJs(m.id)}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>
     `;
-  } else {
-    actionsBar.innerHTML = '';
   }
 
   if (actionsBar.innerHTML.trim()) {
@@ -620,7 +635,7 @@ function closeModal(e) {
 }
 
 // ============================================================
-// عرض تفاصيل العرض في صفحة كاملة
+// ✅ Offer Full View
 // ============================================================
 window.openOfferFull = async function(offerId, merchantId) {
   const m = allMerchants.find(x => x.id === merchantId);
@@ -675,8 +690,9 @@ window.openOfferFull = async function(offerId, merchantId) {
     ${m.delivery_available ? '<span>🛵 التوصيل متاح</span>' : ''}
   `;
 
+  const safeTitle = escapeJs(o.title || '');
   const requestBtnHtml = `
-    <button onclick="window.openRequestOfferModal('${escapeHtml(o.id)}','${escapeHtml(m.id)}','${escapeHtml((o.title || '').replace(/'/g, "\\'"))}')"
+    <button onclick="window.openRequestOfferModal('${escapeJs(o.id)}','${escapeJs(m.id)}','${safeTitle}')"
             style="width:100%;background:linear-gradient(135deg,#ff6b35,#f7931e);color:#fff;border:none;padding:16px;border-radius:30px;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 12px rgba(255,107,53,0.4)">
       📩 اطلب العرض ده
     </button>
@@ -684,7 +700,7 @@ window.openOfferFull = async function(offerId, merchantId) {
 
   let actionsHtml = '';
   if (m.lat && m.lng && m.merchant_type !== 'warehouse') {
-    actionsHtml += `<button onclick="window.openMerchantMap('${m.lat}','${m.lng}','${escapeHtml(m.id)}')" style="background:#1a2a6c">📍 الموقع على الخريطة</button>`;
+    actionsHtml += `<button onclick="window.openMerchantMap('${escapeJs(m.lat)}','${escapeJs(m.lng)}','${escapeJs(m.id)}')" style="background:#1a2a6c">📍 الموقع على الخريطة</button>`;
   }
   $('offerFullActions').innerHTML = requestBtnHtml + (actionsHtml || '');
 
@@ -712,7 +728,7 @@ window.closeOfferFull = function(e) {
 };
 
 // ============================================================
-// طلب عرض معين
+// ✅ Request Offer Modal
 // ============================================================
 window.openRequestOfferModal = function(offerId, merchantId, offerTitle) {
   $('reqOfferId').value = offerId;
@@ -753,7 +769,6 @@ async function handleSendOfferRequest() {
 
   try {
     await requestSpecificOffer({ offerId, merchantId, offerTitle, note });
-
     res.style.color = '#10b981';
     res.innerText = '✅ تم إرسال طلبك للتاجر';
 
@@ -773,7 +788,7 @@ async function handleSendOfferRequest() {
 }
 
 // ============================================================
-// تسجيل الدخول بجوجل
+// ✅ Google Login
 // ============================================================
 window.handleGoogleLogin = async function() {
   const btn = $('googleLoginBtn');
@@ -866,7 +881,7 @@ async function handleCompleteProfile() {
 }
 
 // ============================================================
-// Tabs
+// ✅ Tabs
 // ============================================================
 function updateTabsVisibility() {
   if (!currentProfile) return;
@@ -898,7 +913,7 @@ function switchTab(name) {
 }
 
 // ============================================================
-// INVOICE
+// ✅ INVOICE
 // ============================================================
 async function renderInvoiceTab() {
   if (!currentProfile) return;
@@ -944,8 +959,8 @@ async function renderMyPendingInvoices() {
         <div style="font-size:13px;color:#10b981;font-weight:700;margin-top:4px">💰 كاش باك متوقع: ${parseFloat(inv.cashback || 0).toFixed(2)} ج</div>
         <div style="font-size:12px;color:#9ca3af;margin-top:2px">🕒 ${new Date(inv.created_at).toLocaleString('ar-EG')}</div>
         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-          <button class="admin-btn success" onclick="window.confirmInvoiceClick('${escapeHtml(inv.id)}')">✅ استلمت البضاعة</button>
-          <button class="admin-btn danger" onclick="window.rejectInvoiceClick('${escapeHtml(inv.id)}')">❌ مش استلمت</button>
+          <button class="admin-btn success" onclick="window.confirmInvoiceClick('${escapeJs(inv.id)}')">✅ استلمت البضاعة</button>
+          <button class="admin-btn danger" onclick="window.rejectInvoiceClick('${escapeJs(inv.id)}')">❌ مش استلمت</button>
         </div>
       </div>`;
     }).join('');
@@ -1123,12 +1138,12 @@ async function handleSubmitInvoice() {
     let merchantId = null;
     let merchantName = '';
     if (isMerchant) {
-      const r = await createInvoice({ number: num, customerPhone: phone, amount, merchantId: currentMerchant.id, usedCashback });
+      await createInvoice({ number: num, customerPhone: phone, amount, merchantId: currentMerchant.id, usedCashback });
       merchantId = currentMerchant.id;
       merchantName = currentMerchant.name;
       res.style.color = '#10b981'; res.innerText = `✅ تم رفع الفاتورة - في انتظار تأكيد العميل`;
     } else {
-      const r = await createInvoiceByBankCode({ number: num, customerPhone: phone, amount, bankCode, usedCashback });
+      await createInvoiceByBankCode({ number: num, customerPhone: phone, amount, bankCode, usedCashback });
       res.style.color = '#10b981'; res.innerText = `✅ تم رفع الفاتورة - في انتظار تأكيد العميل`;
       const m = allMerchants.find(x => (x.bank_code || '').toUpperCase() === bankCode.toUpperCase());
       if (m) { merchantId = m.id; merchantName = m.name; }
@@ -1169,7 +1184,7 @@ async function handleRedeem() {
 }
 
 // ============================================================
-// RATINGS
+// ✅ RATINGS
 // ============================================================
 async function handleSubmitRating() {
   const res = $('ratingResult');
@@ -1192,7 +1207,7 @@ async function handleSubmitRating() {
 }
 
 // ============================================================
-// REQUESTS
+// ✅ REQUESTS
 // ============================================================
 function handleReqImage(e) {
   const file = e.target.files[0];
@@ -1264,8 +1279,6 @@ async function renderRequestsTab() {
 }
 
 window.switchRequestsSubtab = function(type) {
-  console.log('🔄 switchRequestsSubtab called with:', type);
-
   document.querySelectorAll('.req-subtab').forEach(b =>
     b.classList.toggle('active', b.dataset.req === type));
 
@@ -1330,7 +1343,7 @@ async function renderMyRequests() {
         ? `<img src="${escapeHtml(r.image_url)}" style="width:100%;max-width:150px;border-radius:10px;margin:6px 0;border:2px solid #eee" onerror="this.style.display='none'">` : '';
       const acceptBtn = isAccepted
         ? `<button class="accept-btn" style="background:#94a3b8;cursor:not-allowed">✅ مقبول</button>`
-        : (req.status === 'accepted' ? '' : `<button class="accept-btn" onclick="window.acceptOfferClick('${escapeHtml(req.id)}','${escapeHtml(r.id)}')">قبول</button>`);
+        : (req.status === 'accepted' ? '' : `<button class="accept-btn" onclick="window.acceptOfferClick('${escapeJs(req.id)}','${escapeJs(r.id)}')">قبول</button>`);
       const msgs = (r.customer_messages || []).map(msg =>
         `<div style="background:#dbeafe;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>👤 أنت:</strong> ${escapeHtml(msg.text)}</div>`
       ).join('');
@@ -1347,7 +1360,7 @@ async function renderMyRequests() {
         <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
           ${m.lat && m.lng ? `<button class="admin-btn primary" onclick="window.open('https://www.google.com/maps?q=${m.lat},${m.lng}','_blank')">📍</button>` : ''}
           ${acceptBtn}
-          <button class="admin-btn purple" onclick="window.askImageClick('${escapeHtml(r.id)}')">📸 اسأل عن صورة</button>
+          <button class="admin-btn purple" onclick="window.askImageClick('${escapeJs(r.id)}')">📸 اسأل عن صورة</button>
         </div>
         ${msgs}${replyHtml}
       </div>`;
@@ -1358,9 +1371,9 @@ async function renderMyRequests() {
 
     let actions = '';
     if (req.status === 'pending' || req.status === 'responded') {
-      actions = `<button class="admin-btn danger" onclick="window.cancelReqClick('${escapeHtml(req.id)}')" style="margin-top:8px">🚫 إلغاء</button>`;
+      actions = `<button class="admin-btn danger" onclick="window.cancelReqClick('${escapeJs(req.id)}')" style="margin-top:8px">🚫 إلغاء</button>`;
     } else if (req.status === 'accepted' || req.status === 'cancelled') {
-      actions = `<button class="admin-btn danger" onclick="window.deleteReqClick('${escapeHtml(req.id)}')" style="margin-top:8px">🗑️ حذف</button>`;
+      actions = `<button class="admin-btn danger" onclick="window.deleteReqClick('${escapeJs(req.id)}')" style="margin-top:8px">🗑️ حذف</button>`;
     }
 
     return `<div class="card" style="padding:14px">
@@ -1415,9 +1428,9 @@ async function renderMyOfferRequests() {
 
       let actions = '';
       if (req.status === 'pending') {
-        actions = `<button class="admin-btn danger" onclick="window.cancelOfferReqClick('${escapeHtml(req.id)}')" style="margin-top:8px">🚫 إلغاء</button>`;
+        actions = `<button class="admin-btn danger" onclick="window.cancelOfferReqClick('${escapeJs(req.id)}')" style="margin-top:8px">🚫 إلغاء</button>`;
       } else if (req.status === 'responded' || req.status === 'cancelled') {
-        actions = `<button class="admin-btn danger" onclick="window.deleteOfferReqClick('${escapeHtml(req.id)}')" style="margin-top:8px">🗑️ حذف</button>`;
+        actions = `<button class="admin-btn danger" onclick="window.deleteOfferReqClick('${escapeJs(req.id)}')" style="margin-top:8px">🗑️ حذف</button>`;
       }
 
       return `<div class="card" style="padding:14px;border-right:4px solid #ff6b35">
@@ -1476,9 +1489,9 @@ async function renderMerchantRequestsList() {
         <div style="font-size:12px;color:#6b7280;margin-top:4px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
         ${customerMsgs}${replyHtml}
         <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-          ${!myReply ? `<button class="admin-btn primary" onclick="window.replyToReq('${escapeHtml(req.id)}')">📩 الرد</button>` : ''}
-          ${myReply ? `<button class="admin-btn purple" onclick="window.sendExtraImage('${escapeHtml(myReply.id)}')">📸 صورة إضافية</button>` : ''}
-          <button class="admin-btn danger" onclick="window.hideReq('${escapeHtml(req.id)}')">🗑️ مسح</button>
+          ${!myReply ? `<button class="admin-btn primary" onclick="window.replyToReq('${escapeJs(req.id)}')">📩 الرد</button>` : ''}
+          ${myReply ? `<button class="admin-btn purple" onclick="window.sendExtraImage('${escapeJs(myReply.id)}')">📸 صورة إضافية</button>` : ''}
+          <button class="admin-btn danger" onclick="window.hideReq('${escapeJs(req.id)}')">🗑️ مسح</button>
         </div>
       </div>`;
     }).join('');
@@ -1542,8 +1555,8 @@ function renderOfferRequestCard(req) {
   if (!req.offer_response) {
     actionsHtml = `
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
-        <button class="admin-btn success" onclick="window.replyOfferReqClick('${escapeHtml(req.id)}', true)">✅ متاح</button>
-        <button class="admin-btn danger" onclick="window.replyOfferReqClick('${escapeHtml(req.id)}', false)">❌ مش متاح</button>
+        <button class="admin-btn success" onclick="window.replyOfferReqClick('${escapeJs(req.id)}', true)">✅ متاح</button>
+        <button class="admin-btn danger" onclick="window.replyOfferReqClick('${escapeJs(req.id)}', false)">❌ مش متاح</button>
       </div>
     `;
   }
@@ -1577,7 +1590,6 @@ window.replyOfferReqClick = async function(requestId, available) {
   try {
     await replyToOfferRequest({ requestId, available, replyText });
     toast(available ? '✅ تم إرسال الرد' : '❌ تم إرسال الرد', 'success');
-
     await new Promise(r => setTimeout(r, 500));
     await renderMerchantOfferRequestsList();
   } catch (e) {
@@ -1696,7 +1708,7 @@ async function hideReq(reqId) {
 }
 
 // ============================================================
-// تحديث الأرقام (Badge)
+// ✅ Badge Update
 // ============================================================
 async function updateOfferReqBadge() {
   const mainBadge = $('mainReqBadge');
@@ -1745,7 +1757,7 @@ async function updateOfferReqBadge() {
 }
 
 // ============================================================
-// عرض تقرير التاجر (للأدمن)
+// ✅ Merchant Report
 // ============================================================
 window.openMerchantReport = async function(merchantId) {
   const m = adminData.merchants.find(x => x.id === merchantId);
@@ -1828,7 +1840,7 @@ window.closeMerchantReport = function(e) {
 };
 
 // ============================================================
-// MERCHANT LOGO
+// ✅ Merchant Logo
 // ============================================================
 function renderLogoPreview() {
   if (!currentMerchant) return;
@@ -1893,7 +1905,7 @@ async function handleDeleteLogo() {
 }
 
 // ============================================================
-// DASHBOARD
+// ✅ Dashboard
 // ============================================================
 async function renderDashboard() {
   if (!currentMerchant) return;
@@ -1931,8 +1943,8 @@ async function renderDashboard() {
           ${o.description ? `<div style="font-size:11px;color:#6b7280;margin-top:2px">${escapeHtml(o.description)}</div>` : ''}
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
-          <button onclick="window.openEditOffer('${escapeHtml(o.id)}')" style="background:#3b82f6;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">✏️</button>
-          <button class="del-btn" onclick="window.deleteOfferClick('${escapeHtml(o.id)}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
+          <button onclick="window.openEditOffer('${escapeJs(o.id)}')" style="background:#3b82f6;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">✏️</button>
+          <button class="del-btn" onclick="window.deleteOfferClick('${escapeJs(o.id)}')" style="background:#ef4444;color:#fff;border:none;border-radius:30px;padding:2px 10px;cursor:pointer">🗑️</button>
         </div>
       </div>`;
     }).join('') : '<p style="color:#6b7280">لا توجد عروض</p>';
@@ -1992,8 +2004,8 @@ async function renderDashboard() {
         </div>
         <div style="color:#6b7280;margin-top:2px">📱 ${escapeHtml(inv.customer_phone || '-')} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج ${statusBadge}</div>
         ${inv.confirmation_status === 'confirmed' && inv.status === 'active' ? `<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
-          <button class="admin-btn primary" onclick="window.editInvClick('${escapeHtml(inv.id)}')">✏️ تعديل</button>
-          <button class="admin-btn danger" onclick="window.returnInvClick('${escapeHtml(inv.id)}')">🔄 مرتجع</button>
+          <button class="admin-btn primary" onclick="window.editInvClick('${escapeJs(inv.id)}')">✏️ تعديل</button>
+          <button class="admin-btn danger" onclick="window.returnInvClick('${escapeJs(inv.id)}')">🔄 مرتجع</button>
         </div>` : ''}
       </div>`;
     }).join('') : '<p style="color:#6b7280">لا توجد فواتير</p>';
@@ -2120,7 +2132,11 @@ window.openEditOffer = async function(offerId) {
   $('editOfferCustom').value = custom;
   window.onEditOfferTypeChange(type);
 
+  // ✅ تنظيف حقل الصورة
   uploadedEditOfferImage = null;
+  const editImgInput = document.getElementById('editOfferImage');
+  if (editImgInput) editImgInput.value = '';
+
   const currentImageWrap = $('editOfferCurrentImageWrap');
   const currentImage = $('editOfferCurrentImage');
   const preview = $('editOfferImagePreview');
@@ -2256,7 +2272,7 @@ function handleOfferImage(e) {
 }
 
 // ============================================================
-// REPORTS
+// ✅ Reports
 // ============================================================
 async function renderReports(period) {
   if (!currentMerchant) return;
@@ -2293,7 +2309,7 @@ function exportReportPDF() {
 }
 
 // ============================================================
-// ANALYTICS
+// ✅ Analytics
 // ============================================================
 async function renderAnalyticsTab() {
   if (!currentMerchant) return;
@@ -2312,7 +2328,7 @@ async function renderAnalyticsTab() {
 }
 
 // ============================================================
-// ADMIN
+// ✅ ADMIN
 // ============================================================
 async function renderAdminSection(section) {
   document.querySelectorAll('.admin-subtab').forEach(b =>
@@ -2377,11 +2393,11 @@ async function renderAdminTraders() {
       <div class="info">📍 ${m.lat?.toFixed(4) || '-'} , ${m.lng?.toFixed(4) || '-'}</div>
       <div class="info">📂 ${escapeHtml(m.category)} | 🎁 ${(m.offers || []).length} عرض${m.delivery_available ? ' | 🛵 توصيل' : ''}</div>
       <div class="actions">
-        <button class="admin-btn primary" onclick="window.adminEditMerchantFull('${escapeHtml(m.id)}')">✏️ تعديل كامل</button>
-        <button class="admin-btn success" onclick="window.openMerchantReport('${escapeHtml(m.id)}')">📊 تقرير</button>
-        <button class="admin-btn ${m.frozen ? 'success' : 'warning'}" onclick="window.toggleFreeze('${escapeHtml(m.id)}')">${m.frozen ? '✅ إلغاء' : '❄️ إيقاف'}</button>
-        <button class="admin-btn purple" onclick="window.adminChangePassMerchant('${escapeHtml(m.id)}')">🔒 كلمة المرور</button>
-        <button class="admin-btn danger" onclick="window.delTrader('${escapeHtml(m.id)}')">🗑️ حذف</button>
+        <button class="admin-btn primary" onclick="window.adminEditMerchantFull('${escapeJs(m.id)}')">✏️ تعديل كامل</button>
+        <button class="admin-btn success" onclick="window.openMerchantReport('${escapeJs(m.id)}')">📊 تقرير</button>
+        <button class="admin-btn ${m.frozen ? 'success' : 'warning'}" onclick="window.toggleFreeze('${escapeJs(m.id)}')">${m.frozen ? '✅ إلغاء' : '❄️ إيقاف'}</button>
+        <button class="admin-btn purple" onclick="window.adminChangePassMerchant('${escapeJs(m.id)}')">🔒 كلمة المرور</button>
+        <button class="admin-btn danger" onclick="window.delTrader('${escapeJs(m.id)}')">🗑️ حذف</button>
       </div>
     </div>`;
   }).join('');
@@ -2464,11 +2480,11 @@ async function renderAdminCustomers() {
       <div class="info">🏪 ${c.shops} تاجر | 💰 كسب: ${c.earned.toFixed(2)} | 💵 صرف: ${c.spent.toFixed(2)}</div>
       <div class="info">📊 الرصيد: <strong>${c.balance.toFixed(2)} ج</strong>${c.email ? ' | 📧 ' + escapeHtml(c.email) : ''}</div>
       <div class="actions">
-        <button class="admin-btn primary" onclick="window.adminEditCustomerFull('${escapeHtml(c.phone)}')">✏️ تعديل بيانات</button>
-        <button class="admin-btn purple" onclick="window.adminChangePassCustomer('${escapeHtml(c.id)}')">🔒 كلمة المرور</button>
-        <button class="admin-btn success" onclick="window.adminAdjustBal('${escapeHtml(c.phone)}')">💰 رصيد</button>
-        <button class="admin-btn warning" onclick="window.adminResetBal('${escapeHtml(c.phone)}')">🔄 تصفير</button>
-        <button class="admin-btn danger" onclick="window.adminDelCustomer('${escapeHtml(c.phone)}')">🗑️ حذف</button>
+        <button class="admin-btn primary" onclick="window.adminEditCustomerFull('${escapeJs(c.phone)}')">✏️ تعديل بيانات</button>
+        <button class="admin-btn purple" onclick="window.adminChangePassCustomer('${escapeJs(c.id)}')">🔒 كلمة المرور</button>
+        <button class="admin-btn success" onclick="window.adminAdjustBal('${escapeJs(c.phone)}')">💰 رصيد</button>
+        <button class="admin-btn warning" onclick="window.adminResetBal('${escapeJs(c.phone)}')">🔄 تصفير</button>
+        <button class="admin-btn danger" onclick="window.adminDelCustomer('${escapeJs(c.phone)}')">🗑️ حذف</button>
       </div>
     </div>`).join('');
 }
@@ -2547,11 +2563,11 @@ async function renderAdminInvoices() {
       <div class="info" style="font-size:12px">🕒 ${new Date(inv.created_at).toLocaleString('ar-EG')}</div>
       <div class="actions">
         ${inv.status === 'active' ? `
-          <button class="admin-btn primary" onclick="window.adminEditInv('${escapeHtml(inv.id)}')">✏️ تعديل</button>
-          <button class="admin-btn danger" onclick="window.adminReturnInv('${escapeHtml(inv.id)}')">🔄 مرتجع</button>
+          <button class="admin-btn primary" onclick="window.adminEditInv('${escapeJs(inv.id)}')">✏️ تعديل</button>
+          <button class="admin-btn danger" onclick="window.adminReturnInv('${escapeJs(inv.id)}')">🔄 مرتجع</button>
         ` : ''}
-        <button class="admin-btn danger" onclick="window.adminDeleteWithCashback('${escapeHtml(inv.id)}')">🗑️ حذف + كاش باك</button>
-        <button class="admin-btn warning" onclick="window.adminDeleteOnly('${escapeHtml(inv.id)}')">🗑️ حذف فقط</button>
+        <button class="admin-btn danger" onclick="window.adminDeleteWithCashback('${escapeJs(inv.id)}')">🗑️ حذف + كاش باك</button>
+        <button class="admin-btn warning" onclick="window.adminDeleteOnly('${escapeJs(inv.id)}')">🗑️ حذف فقط</button>
       </div>
     </div>`;
   }).join('');
@@ -2791,7 +2807,7 @@ async function handleGetLocation() {
 }
 
 // ============================================================
-// ACCOUNT
+// ✅ ACCOUNT
 // ============================================================
 async function initAccountMapUI() {
   if (!currentProfile) return;
@@ -2908,7 +2924,7 @@ async function handleSendReset() {
 }
 
 // ============================================================
-// AUTH
+// ✅ AUTH
 // ============================================================
 function showMessage(text, type = 'error') {
   const el = $('authMessage');
@@ -3101,7 +3117,7 @@ function updateLoginVisibility() {
 }
 
 // ============================================================
-// BIND
+// ✅ BIND
 // ============================================================
 function bindEvents() {
   $('loginForm').addEventListener('submit', handleLogin);
@@ -3226,7 +3242,6 @@ function bindEvents() {
 
   $('refreshLocation').addEventListener('click', updateLocation);
 
-  // ✅ Debounce للبحث
   $('searchInput').addEventListener('input', (e) => {
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => {
@@ -3327,7 +3342,7 @@ function bindEvents() {
 }
 
 // ============================================================
-// INIT
+// ✅ INIT
 // ============================================================
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', runInit);
@@ -3367,8 +3382,14 @@ async function runInit() {
       return;
     }
     if (event === 'SIGNED_IN' && session) {
-      const done = await handleGoogleCallback();
-      if (!done) {
+      const isGoogle = session.user.app_metadata?.provider === 'google';
+      if (isGoogle) {
+        const done = await handleGoogleCallback();
+        if (!done) {
+          const profile = await getProfile();
+          if (profile) await showMainScreen(profile);
+        }
+      } else {
         const profile = await getProfile();
         if (profile) await showMainScreen(profile);
       }
@@ -3380,8 +3401,14 @@ async function runInit() {
   try {
     const { data: { session: initialSession } } = await supabase.auth.getSession();
     if (initialSession?.user) {
-      const done = await handleGoogleCallback();
-      if (!done) {
+      const isGoogle = initialSession.user.app_metadata?.provider === 'google';
+      if (isGoogle) {
+        const done = await handleGoogleCallback();
+        if (!done) {
+          const profile = await getProfile();
+          if (profile) await showMainScreen(profile);
+        }
+      } else {
         const profile = await getProfile();
         if (profile) await showMainScreen(profile);
       }
@@ -3395,7 +3422,7 @@ async function runInit() {
 }
 
 // ============================================================
-// كشف كل الدوال للـ HTML
+// ✅ WINDOW EXPORTS
 // ============================================================
 window.switchTab = switchTab;
 window.openMerchant = openMerchant;
@@ -3449,6 +3476,10 @@ window.closeCompleteProfileModal = closeCompleteProfileModal;
 window.onCompleteProfileRoleChange = onCompleteProfileRoleChange;
 window.confirmInvoiceClick = confirmInvoiceClick;
 window.rejectInvoiceClick = rejectInvoiceClick;
+window.openEditOffer = openEditOffer;
+window.closeEditOfferModal = closeEditOfferModal;
+window.onEditOfferTypeChange = onEditOfferTypeChange;
+window.deleteOfferImage = deleteOfferImage;
 window.togglePass = function(inputId, btn) {
   const input = document.getElementById(inputId);
   if (!input) return;
