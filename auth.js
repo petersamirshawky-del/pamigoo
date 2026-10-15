@@ -101,7 +101,14 @@ export async function signUpMerchant({ phone, email, password, name, bankCode })
 }
 
 export async function signUpAdmin({ phone, email, password, name, adminCode }) {
-  if (adminCode.trim() !== 'PETAD-12321') throw new Error('بنكود الأدمن غير صحيح');
+  // ✅ نتحقق من كود الأدمن عن طريق Supabase
+  const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
+    p_code: adminCode.trim()
+  });
+
+  if (checkErr) throw new Error('فشل التحقق من الكود');
+  if (!check.ok) throw new Error('بنكود الأدمن غير صحيح');
+
   const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
     password,
