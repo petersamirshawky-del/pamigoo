@@ -736,7 +736,7 @@ async function handleCompleteProfile() {
   if (!phone || !name) { res.style.color = '#ef4444'; res.innerText = '❌ املأ الاسم والموبايل'; return; }
   if (role === 'merchant' && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم البنكود'; return; }
   if (role === 'admin' && !adminCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم بنكود الأدمن'; return; }
-
+  
   const btn = $('completeProfileBtn');
   btn.disabled = true;
   btn.innerText = '⏳ جاري الحفظ...';
