@@ -74,16 +74,19 @@ export async function signUpCustomer({ phone, email, password, name }) {
   return data;
 }
 
+// ✅ التعديل 1: signUpMerchant — نستخدم RPC بدل القراءة المباشرة
 export async function signUpMerchant({ phone, email, password, name, bankCode }) {
   const code = bankCode.trim().toUpperCase();
 
-  const { data: merchant, error: merr } = await supabase
-    .from('merchants').select('id, owner_id, name')
-    .eq('bank_code', code).single();
+  // ✅ التحقق من البنكود عن طريق RPC (مش في الفرونت)
+  const { data: check, error: checkErr } = await supabase.rpc('verify_merchant_bank_code', {
+    p_bank_code: code
+  });
 
-  if (merr || !merchant) throw new Error('البنكود غير موجود');
-  if (merchant.owner_id) throw new Error('البنكود ده مرتبط بحساب تاني بالفعل');
+  if (checkErr) throw new Error('فشل التحقق من البنكود');
+  if (!check.ok) throw new Error(check.error || 'البنكود غير موجود');
 
+  // ✅ نعمل الحساب
   const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
     password,
@@ -91,12 +94,21 @@ export async function signUpMerchant({ phone, email, password, name, bankCode })
   });
   if (error) throw error;
 
+  // ✅ نربط المتجر بالمستخدم عن طريق RPC
   const userId = data.user?.id;
   if (userId) {
-    const { error: linkErr } = await supabase
-      .from('merchants').update({ owner_id: userId }).eq('id', merchant.id);
-    if (linkErr) { console.error('Link error:', linkErr); throw new Error('تم التسجيل بس ربط المتجر فشل'); }
+    // ✅ ملاحظة: RPC ده هيشتغل بعد ما المستخدم يعمل login
+    // لما الجلسة تبقى active، هيقدر يربط المتجر
+    const { data: linkResult, error: linkErr } = await supabase.rpc('link_merchant_to_user', {
+      p_bank_code: code
+    });
+
+    if (linkErr) {
+      console.error('Link error:', linkErr);
+      // متعملش throw عشان الحساب اتعمل خلاص
+    }
   }
+
   return data;
 }
 
@@ -135,24 +147,22 @@ export async function signInWithGoogle() {
   return data;
 }
 
-// ✅ إكمال البيانات بعد تسجيل جوجل
+// ✅ التعديل 2: completeGoogleProfile — نستخدم RPC للبنكود
 export async function completeGoogleProfile({ phone, name, role = 'customer', bankCode = null, adminCode = null }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('مش مسجل دخول');
 
-  // ✅ لو تاجر، لازم نتحقق من البنكود
+  // ✅ لو تاجر، لازم نتحقق من البنكود عن طريق RPC
   if (role === 'merchant') {
     const code = bankCode?.trim().toUpperCase();
     if (!code) throw new Error('لازم البنكود');
 
-    const { data: merchant, error: merr } = await supabase
-      .from('merchants').select('id, owner_id')
-      .eq('bank_code', code).single();
+    const { data: check, error: checkErr } = await supabase.rpc('verify_merchant_bank_code', {
+      p_bank_code: code
+    });
 
-    if (merr || !merchant) throw new Error('البنكود غير موجود');
-    if (merchant.owner_id && merchant.owner_id !== user.id) {
-      throw new Error('البنكود ده مرتبط بحساب تاني');
-    }
+    if (checkErr) throw new Error('فشل التحقق من البنكود');
+    if (!check.ok) throw new Error(check.error || 'البنكود غير موجود');
   }
 
   // ✅ لو أدمن، نتحقق من كود الأدمن
@@ -177,13 +187,21 @@ export async function completeGoogleProfile({ phone, name, role = 'customer', ba
     });
   if (profErr) throw profErr;
 
-  // ✅ لو تاجر، نربط الحساب بالمتجر
+  // ✅ لو تاجر، نربط الحساب بالمتجر عن طريق RPC
   if (role === 'merchant') {
     const code = bankCode.trim().toUpperCase();
-    const { error: linkErr } = await supabase
-      .from('merchants').update({ owner_id: user.id })
-      .eq('bank_code', code);
-    if (linkErr) throw linkErr;
+    const { data: linkResult, error: linkErr } = await supabase.rpc('link_merchant_to_user', {
+      p_bank_code: code
+    });
+
+    if (linkErr) {
+      console.error('Link error:', linkErr);
+      throw new Error('تم حفظ البيانات بس ربط المتجر فشل');
+    }
+
+    if (!linkResult.ok) {
+      throw new Error(linkResult.error || 'فشل ربط المتجر');
+    }
   }
 
   return { success: true };
@@ -212,11 +230,17 @@ export async function signOut() {
 // ============================================================
 // Get profile
 // ============================================================
+// ✅ التعديل 3: getProfile — نحدد الأعمدة اللي محتاجينها
 export async function getProfile() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+
   const { data, error } = await supabase
-    .from('profiles').select('*').eq('id', user.id).single();
+    .from('profiles')
+    .select('id, name, phone, email, role')
+    .eq('id', user.id)
+    .single();
+
   if (error) { console.error('Profile error:', error); return null; }
   return data;
 }
