@@ -300,10 +300,16 @@ function renderOffersGrid() {
 
   const el = $('offersGrid');
   if (!list.length) {
+    // ✅ نظهر الزرار للتاجر بس
+    const isMerchant = currentProfile && currentProfile.role === 'merchant';
+    const addOfferBtn = isMerchant
+      ? `<button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer">➕ أضف عرضك</button>`
+      : '';
+
     el.innerHTML = `<div style="text-align:center;padding:30px;color:#6b7280">
       <div style="font-size:48px;margin-bottom:10px">🎁</div>
       <p style="margin-bottom:15px">لا توجد عروض حالياً</p>
-      <button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer">➕ أضف عرضك</button>
+      ${addOfferBtn}
     </div>`;
     return;
   }
@@ -1166,7 +1172,6 @@ window.switchRequestsSubtab = function(type) {
     return;
   }
 
-  // ✅ نظهر ونخفي الأقسام الأول
   if (type === 'special') {
     specialSection.style.display = 'block';
     offerSection.style.display = 'none';
@@ -1175,7 +1180,6 @@ window.switchRequestsSubtab = function(type) {
     offerSection.style.display = 'block';
   }
 
-  // ✅ نستنى شوية صغيرة عشان الـ HTML يظهر، وبعدين نحمل البيانات
   setTimeout(() => {
     if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
       if (type === 'special') {
@@ -1457,7 +1461,6 @@ function renderOfferRequestCard(req) {
     ${actionsHtml}
   </div>`;
 }
-
 window.replyOfferReqClick = async function(requestId, available) {
   const replyText = prompt(
     available ? 'اكتب رسالة للعميل (اختياري):' : 'اكتب سبب عدم التوفر (اختياري):',
@@ -1468,6 +1471,8 @@ window.replyOfferReqClick = async function(requestId, available) {
   try {
     await replyToOfferRequest({ requestId, available, replyText });
     toast(available ? '✅ تم إرسال الرد' : '❌ تم إرسال الرد', 'success');
+
+    await new Promise(r => setTimeout(r, 500));
     await renderMerchantOfferRequestsList();
   } catch (e) {
     toast('❌ ' + e.message, 'error');
