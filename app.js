@@ -2899,11 +2899,15 @@ async function handleLogin(e) {
       }
     }
 
-    if (role === 'admin' && adminCode !== 'PETAD-12321') {
-      await signOut();
-      throw new Error('بنكود الأدمن غير صحيح');
-    }
-
+  if (role === 'admin') {
+  const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
+    p_code: adminCode.trim()
+  });
+  if (checkErr || !check.ok) {
+    await signOut();
+    throw new Error('بنكود الأدمن غير صحيح');
+  }
+}
     await showMainScreen(profile);
 
   } catch (err) {
