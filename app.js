@@ -1272,14 +1272,11 @@ async function renderRequestsTab() {
     $('myRequestsList').innerHTML = '<div class="no-requests">مش مسجل كعميل أو تاجر</div>';
   }
 
-  // ✅ التعديل: نجبر الصفحة تفتح على "طلبات خاصة" أول ما ندخل
-  window.switchRequestsSubtab('special');
-
   setTimeout(updateOfferReqBadge, 300);
 }
 
 window.switchRequestsSubtab = function(type) {
-  // تغيير شكل الزراير
+  // 1. تغيير شكل الزراير (عشان يبان مين اللي متعلم عليه)
   document.querySelectorAll('.req-subtab').forEach(b => {
     if (b.dataset.req === type) {
       b.classList.add('active');
@@ -1288,22 +1285,19 @@ window.switchRequestsSubtab = function(type) {
     }
   });
 
-  // جلب الأقسام باستخدام الـ ID المباشر
+  // 2. جلب الأقسام
   const specialSection = document.getElementById('specialRequestsSection');
   const offerSection = document.getElementById('offerRequestsSection');
 
-  if (!specialSection || !offerSection) {
-    console.error('❌ Sections not found in HTML');
-    return;
-  }
+  if (!specialSection || !offerSection) return;
 
-  // الإظهار والإخفاء باستخدام الطريقة الأضمن
+  // 3. الإظهار والإخفاء
   if (type === 'special') {
-    specialSection.style.setProperty('display', 'block', 'important');
-    offerSection.style.setProperty('display', 'none', 'important');
+    specialSection.style.display = 'block';
+    offerSection.style.display = 'none';
   } else if (type === 'offer') {
-    specialSection.style.setProperty('display', 'none', 'important');
-    offerSection.style.setProperty('display', 'block', 'important');
+    specialSection.style.display = 'none';
+    offerSection.style.display = 'block';
   }
 };
 
