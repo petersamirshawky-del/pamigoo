@@ -1,10 +1,10 @@
 // ============================================================
-// PAMIGO - Main Entry (v2.2 - Final with split request tabs)
+// PAMIGO - Main Entry (v2.3 - Full Hierarchical Offers)
 // ============================================================
 const { supabase } = await import('./supabase.js');
 const { toast, showLoader, hideLoader } = await import('./ui.js');
 const { initI18n, setLang, currentLang, applyI18nToHTML } = await import('./i18n.js');
-const { SUB_CATEGORIES, CATEGORY_ICONS } = await import('./config.js');
+const { SUB_CATEGORIES, CATEGORY_ICONS, CATEGORY_NAMES } = await import('./config.js');
 
 const {
   signUpCustomer, signUpMerchant, signUpAdmin, signOut,
@@ -70,21 +70,15 @@ const $ = (id) => document.getElementById(id);
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function escapeJs(str) {
   if (str === null || str === undefined) return '';
   return String(str)
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r');
+    .replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 }
 
 // ============================================================
@@ -93,6 +87,7 @@ function escapeJs(str) {
 let currentProfile = null;
 let currentMerchant = null;
 let allMerchants = [];
+let allOffers = []; // ✅ تخزين كل العروض للفلترة
 let userLat = null, userLng = null;
 let searchQuery = '';
 let homeRadius = 2, homeCategories = ['all'], homeSubCategories = [], homeSort = 'nearest';
@@ -100,7 +95,6 @@ let offersCategories = ['all'], offersSubCategories = [];
 let currentModalMerchant = null;
 let uploadedReqImage = null;
 let currentReqFilter = 'all';
-let currentOfferReqFilter = 'all';
 let myRequestsCache = [];
 let myOfferRequestsCache = [];
 let myPendingInvoicesCache = [];
@@ -117,13 +111,13 @@ let pendingGoogleUser = null;
 let searchDebounceTimer = null;
 
 // ============================================================
-// ✅ Load merchants
+// ✅ Load merchants & offers
 // ============================================================
 async function loadMerchants() {
   try {
     const [merchantsResult, offersResult, ratingsResult] = await Promise.all([
       supabase.from('merchants').select('*').eq('frozen', false),
-      supabase.from('offers').select('*').limit(500),
+      supabase.from('offers').select('*, merchants(name, icon, logo_url, bank_code, merchant_type, lat, lng, delivery_available, delivery_phone, phone, cashback_rate)').limit(1000),
       supabase.from('ratings').select('*').limit(1000)
     ]);
 
@@ -133,9 +127,7 @@ async function loadMerchants() {
     }
 
     const merchantsData = merchantsResult.data || [];
-    if (!merchantsData.length) return [];
-
-    const allOffers = offersResult.data || [];
+    allOffers = offersResult.data || [];
     const allRatings = ratingsResult.data || [];
 
     const offersByMerchant = {};
@@ -168,9 +160,7 @@ function calcDistance(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) ** 2;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -244,7 +234,6 @@ function renderMerchantsList() {
 
   if (searchQuery && searchQuery.trim()) {
     const q = searchQuery.toLowerCase().trim();
-
     const matchingOffers = [];
     allMerchants.forEach(m => {
       (m.offers || []).forEach(o => {
@@ -266,18 +255,13 @@ function renderMerchantsList() {
     }
 
     let html = '';
-
     if (matchingOffers.length) {
       html += `<div class="section-title"><h3>🎁 عروض مطابقة (${matchingOffers.length})</h3></div>`;
       html += matchingOffers.map(({ offer, merchant }) => {
-        const imgHtml = offer.image_url
-          ? `<img src="${escapeHtml(offer.image_url)}" style="width:100%;max-width:220px;height:140px;object-fit:cover;border-radius:10px;margin-bottom:8px;display:block" onerror="this.style.display='none'">`
-          : '';
+        const imgHtml = offer.image_url ? `<img src="${escapeHtml(offer.image_url)}" style="width:100%;max-width:220px;height:140px;object-fit:cover;border-radius:10px;margin-bottom:8px;display:block" onerror="this.style.display='none'">` : '';
         const descHtml = offer.description ? `<p style="font-size:13px;color:#4b5563;margin-top:6px">${escapeHtml(offer.description)}</p>` : '';
         const priceHtml = offer.price ? `<div style="font-size:15px;color:#10b981;font-weight:700;margin-bottom:4px">💰 ${parseFloat(offer.price).toFixed(2)} ج</div>` : '';
-        const logoHtml = merchant.logo_url
-          ? `<img src="${escapeHtml(merchant.logo_url)}" style="width:24px;height:24px;border-radius:6px;object-fit:cover;vertical-align:middle">`
-          : `<span style="font-size:16px">${escapeHtml(merchant.icon || '🏪')}</span>`;
+        const logoHtml = merchant.logo_url ? `<img src="${escapeHtml(merchant.logo_url)}" style="width:24px;height:24px;border-radius:6px;object-fit:cover;vertical-align:middle">` : `<span style="font-size:16px">${escapeHtml(merchant.icon || '🏪')}</span>`;
 
         return `
           <div onclick="window.openOfferFull('${escapeJs(offer.id)}','${escapeJs(merchant.id)}')"
@@ -286,8 +270,7 @@ function renderMerchantsList() {
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
               <div style="flex:1">
                 <h5 style="font-size:16px;margin-bottom:6px;color:var(--primary);font-weight:700">${escapeHtml(offer.title)}</h5>
-                ${priceHtml}
-                ${descHtml}
+                ${priceHtml}${descHtml}
                 <div style="font-size:12px;color:#6b7280;margin-top:6px">${logoHtml} ${escapeHtml(merchant.name)}</div>
               </div>
               <div style="background:#1a2a6c;color:#fff;padding:8px 16px;border-radius:30px;font-weight:700;font-size:15px;white-space:nowrap">${escapeHtml(offer.discount)}</div>
@@ -312,7 +295,6 @@ function renderMerchantsList() {
           </div>`;
       }).join('');
     }
-
     el.innerHTML = html;
     return;
   }
@@ -332,19 +314,12 @@ function renderMerchantsList() {
 
   const radius = parseFloat(homeRadius) || 2;
   if (viewMode !== 'online' && userLat !== null && userLng !== null) {
-    list = list.map(m => ({
-      ...m,
-      _dist: (m.lat && m.lng) ? calcDistance(userLat, userLng, m.lat, m.lng) : null
-    })).filter(m => m._dist === null || m._dist <= radius);
+    list = list.map(m => ({ ...m, _dist: (m.lat && m.lng) ? calcDistance(userLat, userLng, m.lat, m.lng) : null })).filter(m => m._dist === null || m._dist <= radius);
   }
 
-  if (homeSort === 'nearest' && userLat !== null) {
-    list.sort((a, b) => (a._dist || 0) - (b._dist || 0));
-  } else if (homeSort === 'cashback') {
-    list.sort((a, b) => (b.cashback_rate || 0) - (a.cashback_rate || 0));
-  } else if (homeSort === 'discount') {
-    list.sort((a, b) => getMaxDiscount(b) - getMaxDiscount(a));
-  }
+  if (homeSort === 'nearest' && userLat !== null) list.sort((a, b) => (a._dist || 0) - (b._dist || 0));
+  else if (homeSort === 'cashback') list.sort((a, b) => (b.cashback_rate || 0) - (a.cashback_rate || 0));
+  else if (homeSort === 'discount') list.sort((a, b) => getMaxDiscount(b) - getMaxDiscount(a));
 
   if (!list.length) {
     el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج في نطاق ${escapeHtml(String(radius))} كم</div>`;
@@ -381,12 +356,10 @@ function renderMerchantsList() {
 }
 
 // ============================================================
-// ✅ Render: Top Deals & Offers Grid
+// ✅ Render: Top Deals & Offers Grid (NEW HIERARCHICAL)
 // ============================================================
 function renderTopDeals() {
-  const sorted = [...allMerchants].filter(m => (m.offers || []).length > 0)
-    .sort((a, b) => (b.cashback_rate || 0) - (a.cashback_rate || 0)).slice(0, 10);
-
+  const sorted = [...allMerchants].filter(m => (m.offers || []).length > 0).sort((a, b) => (b.cashback_rate || 0) - (a.cashback_rate || 0)).slice(0, 10);
   const el = $('dealsScroll');
   if (!el) return;
   if (!sorted.length) { el.innerHTML = ''; return; }
@@ -407,46 +380,57 @@ function renderTopDeals() {
 }
 
 function renderOffersGrid() {
-  let list = [...allMerchants].filter(m => (m.offers || []).length > 0)
-    .filter(m => matchesCatSubs(m, offersCategories, offersSubCategories));
-
+  let list = [...allOffers];
   const el = $('offersGrid');
   if (!el) return;
+
+  if (!offersCategories.includes('all')) {
+    list = list.filter(o => o.category && offersCategories.includes(o.category));
+  }
+  if (offersSubCategories.length > 0) {
+    list = list.filter(o => o.sub_category && offersSubCategories.includes(o.sub_category));
+  }
+
   if (!list.length) {
     const isMerchant = currentProfile && currentProfile.role === 'merchant';
-    const addOfferBtn = isMerchant
-      ? `<button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer">➕ أضف عرضك</button>`
-      : '';
+    const addOfferBtn = isMerchant ? `<button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer">➕ أضف عرضك</button>` : '';
 
     el.innerHTML = `<div style="text-align:center;padding:30px;color:#6b7280">
       <div style="font-size:48px;margin-bottom:10px">🎁</div>
-      <p style="margin-bottom:15px">لا توجد عروض حالياً</p>
+      <p style="margin-bottom:15px">لا توجد عروض حالياً في هذا القسم</p>
       ${addOfferBtn}
     </div>`;
     return;
   }
 
-  el.innerHTML = list.map(m => {
+  el.innerHTML = list.map(o => {
+    const m = o.merchants || {};
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
-    const maxDisc = getMaxDiscount(m);
+    const logoHtml = m.logo_url ? `<img src="${escapeHtml(m.logo_url)}" style="width:24px;height:24px;border-radius:6px;object-fit:cover;vertical-align:middle">` : `<span style="font-size:16px">${escapeHtml(m.icon || '🏪')}</span>`;
+    const imgHtml = o.image_url ? `<img src="${escapeHtml(o.image_url)}" style="width:100%;height:140px;object-fit:cover;border-radius:10px;margin-bottom:10px" onerror="this.style.display='none'">` : '';
+    const priceHtml = o.price ? `<div style="font-size:16px;color:#10b981;font-weight:800;margin:4px 0">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : '';
+
     return `
-      <div class="deal-card" onclick="window.openMerchant('${escapeJs(m.bank_code)}')" style="min-width:auto;text-align:center">
-        <div class="tier-badge">${tier.icon}</div>
-        <div style="width:70px;height:70px;margin:0 auto;border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-soft);font-size:48px">
-          ${logoImgHtml(m)}
+      <div class="deal-card" onclick="window.openOfferFull('${escapeJs(o.id)}','${escapeJs(m.id)}')" style="min-width:auto;text-align:right;display:flex;flex-direction:column;height:100%;padding:12px;border:1px solid #eee;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)">
+        <div style="position:relative">
+          ${imgHtml}
+          <div style="position:absolute;top:8px;left:8px;background:#1a2a6c;color:#fff;padding:4px 10px;border-radius:20px;font-weight:700;font-size:13px">${escapeHtml(o.discount)}</div>
+          <div style="position:absolute;top:8px;right:8px;background:#fff;color:#1a2a6c;padding:4px;border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,0.1);font-size:12px">${tier.icon}</div>
         </div>
-        <div class="discount" style="font-size:20px">${maxDisc > 0 ? maxDisc + '%' : '---'}</div>
-        <div style="font-size:13px;font-weight:600">${escapeHtml(m.name)}</div>
-        <div style="font-size:11px;color:#ff6b35;margin-top:4px">كاش باك ${rate}%</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:2px">${(m.offers || []).length} عرض</div>
+        <h4 style="font-size:15px;font-weight:700;color:var(--primary);margin:0 0 6px 0;line-height:1.4">${escapeHtml(o.title)}</h4>
+        ${priceHtml}
+        <div style="display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:8px;border-top:1px solid #f3f4f6">
+          ${logoHtml}
+          <span style="font-size:12px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(m.name || '')}</span>
+        </div>
       </div>
     `;
   }).join('');
 }
 
 // ============================================================
-// ✅ Categories
+// ✅ Categories & Subcategories
 // ============================================================
 function renderSubCategoriesGeneric({ categories, subs, wrapperEl, containerEl, onToggle }) {
   if (!wrapperEl || !containerEl) return;
@@ -454,9 +438,7 @@ function renderSubCategoriesGeneric({ categories, subs, wrapperEl, containerEl, 
   if (!singleCat || !SUB_CATEGORIES[singleCat]) { wrapperEl.style.display = 'none'; return; }
   wrapperEl.style.display = 'block';
   const list = SUB_CATEGORIES[singleCat];
-  containerEl.innerHTML = list.map(sub => `
-    <button class="category-chip ${subs.includes(sub.id) ? 'active' : ''}" data-sub="${escapeHtml(sub.id)}">${escapeHtml(sub.name)}</button>
-  `).join('');
+  containerEl.innerHTML = list.map(sub => `<button class="category-chip ${subs.includes(sub.id) ? 'active' : ''}" data-sub="${escapeHtml(sub.id)}">${escapeHtml(sub.name)}</button>`).join('');
   containerEl.querySelectorAll('.category-chip').forEach(btn => {
     btn.addEventListener('click', () => onToggle(btn.dataset.sub, btn));
   });
@@ -510,6 +492,26 @@ function renderOffersSubCategories() {
   });
 }
 
+window.onOfferCategoryChange = function(category) {
+  const subWrap = $('offerSubCategoryWrap');
+  const subSelect = $('offerSubCategory');
+  if (!category) { subWrap.style.display = 'none'; subSelect.innerHTML = '<option value="">اختار التصنيف الفرعي</option>'; return; }
+  const subs = SUB_CATEGORIES[category] || [];
+  if (subs.length === 0) { subWrap.style.display = 'none'; subSelect.innerHTML = '<option value="">اختار التصنيف الفرعي</option>'; return; }
+  subSelect.innerHTML = '<option value="">اختار التصنيف الفرعي</option>' + subs.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
+  subWrap.style.display = 'block';
+};
+
+window.onEditOfferCategoryChange = function(category) {
+  const subWrap = $('editOfferSubCategoryWrap');
+  const subSelect = $('editOfferSubCategory');
+  if (!category) { subWrap.style.display = 'none'; subSelect.innerHTML = '<option value="">اختار التصنيف الفرعي</option>'; return; }
+  const subs = SUB_CATEGORIES[category] || [];
+  if (subs.length === 0) { subWrap.style.display = 'none'; subSelect.innerHTML = '<option value="">اختار التصنيف الفرعي</option>'; return; }
+  subSelect.innerHTML = '<option value="">اختار التصنيف الفرعي</option>' + subs.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
+  subWrap.style.display = 'block';
+};
+
 // ============================================================
 // ✅ Open Merchant Modal
 // ============================================================
@@ -517,55 +519,36 @@ async function openMerchant(bankCode) {
   const m = allMerchants.find(x => x.bank_code === bankCode);
   if (!m) return;
   currentModalMerchant = m;
-
   trackOfferEvent({ offerId: null, merchantId: m.id, eventType: 'click' });
 
   const rate = m.cashback_rate || 15;
   const tier = getTier(rate);
   const isWarehouse = m.merchant_type === 'warehouse';
-  const logoHtml = m.logo_url
-    ? `<img src="${escapeHtml(m.logo_url)}" style="width:70px;height:70px;object-fit:cover;border-radius:16px;margin:0 auto 10px;display:block">`
-    : `<div style="font-size:60px;text-align:center">${escapeHtml(m.icon || '🏪')}</div>`;
+  const logoHtml = m.logo_url ? `<img src="${escapeHtml(m.logo_url)}" style="width:70px;height:70px;object-fit:cover;border-radius:16px;margin:0 auto 10px;display:block">` : `<div style="font-size:60px;text-align:center">${escapeHtml(m.icon || '🏪')}</div>`;
 
   $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${escapeHtml(m.name)}</div>`;
   $('modalMerchantInfo').innerHTML = `${escapeHtml(m.icon || '🏪')} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}${isWarehouse ? ' • 📦 مخزن' : ''}`;
 
   const offerViews = await getMerchantOffersViews(m.id).catch(() => ({}));
-
-  const sortedOffers = [...(m.offers || [])].sort((a, b) =>
-    (offerViews[b.id] || 0) - (offerViews[a.id] || 0)
-  );
-  const topOfferId = sortedOffers.length > 0 && (offerViews[sortedOffers[0].id] || 0) > 0
-    ? sortedOffers[0].id
-    : null;
+  const sortedOffers = [...(m.offers || [])].sort((a, b) => (offerViews[b.id] || 0) - (offerViews[a.id] || 0));
+  const topOfferId = sortedOffers.length > 0 && (offerViews[sortedOffers[0].id] || 0) > 0 ? sortedOffers[0].id : null;
 
   $('modalOffersList').innerHTML = (sortedOffers || []).length
     ? sortedOffers.map((o, i) => {
-        const imgHtml = o.image_url
-          ? `<img src="${escapeHtml(o.image_url)}"
-                 onclick="event.stopPropagation(); window.openImageLightbox('${escapeJs(o.image_url)}')"
-                 style="width:100%;max-width:220px;height:140px;object-fit:cover;border-radius:10px;margin-bottom:8px;cursor:zoom-in;display:block">`
-          : '';
+        const imgHtml = o.image_url ? `<img src="${escapeHtml(o.image_url)}" onclick="event.stopPropagation(); window.openImageLightbox('${escapeJs(o.image_url)}')" style="width:100%;max-width:220px;height:140px;object-fit:cover;border-radius:10px;margin-bottom:8px;cursor:zoom-in;display:block">` : '';
         const descHtml = o.description ? `<p style="font-size:13px;color:#4b5563;margin-top:6px">${escapeHtml(o.description)}</p>` : '';
         const priceHtml = o.price ? `<div style="font-size:15px;color:#10b981;font-weight:700;margin-bottom:4px">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : '';
         const viewsCount = offerViews[o.id] || 0;
         const viewsHtml = viewsCount > 0 ? `<span style="font-size:11px;color:#f59e0b;margin-right:8px">👁️ ${viewsCount} مشاهدة</span>` : '';
-        const hotBadge = o.id === topOfferId
-          ? `<div style="background:#ff6b35;color:#fff;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;display:inline-block;margin-bottom:6px">🔥 الأكثر مشاهدة</div>`
-          : '';
+        const hotBadge = o.id === topOfferId ? `<div style="background:#ff6b35;color:#fff;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;display:inline-block;margin-bottom:6px">🔥 الأكثر مشاهدة</div>` : '';
 
         return `
-          <div onclick="window.openOfferFull('${escapeJs(o.id)}','${escapeJs(m.id)}')"
-               style="background:#f9fafb;padding:16px;border-radius:14px;margin-bottom:14px;border-right:4px solid #ff6b35;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.05)"
-               onmouseover="this.style.background='#f0f4ff'"
-               onmouseout="this.style.background='#f9fafb'">
-            ${hotBadge}
-            ${imgHtml}
+          <div onclick="window.openOfferFull('${escapeJs(o.id)}','${escapeJs(m.id)}')" style="background:#f9fafb;padding:16px;border-radius:14px;margin-bottom:14px;border-right:4px solid #ff6b35;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.05)" onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#f9fafb'">
+            ${hotBadge}${imgHtml}
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
               <div style="flex:1">
                 <h5 style="font-size:16px;margin-bottom:6px;color:var(--primary);font-weight:700">${escapeHtml(o.title)}</h5>
-                ${priceHtml}
-                ${descHtml}
+                ${priceHtml}${descHtml}
                 <p style="font-size:11px;color:#9ca3af;margin-top:6px">عرض ${i + 1} من ${m.offers.length} • ${viewsHtml}</p>
               </div>
               <div style="background:#1a2a6c;color:#fff;padding:8px 16px;border-radius:30px;font-weight:700;font-size:15px;white-space:nowrap">${escapeHtml(o.discount)}</div>
@@ -591,14 +574,10 @@ async function openMerchant(bankCode) {
       ${m.delivery_available ? `<button onclick="window.contactDelivery('${escapeJs(m.delivery_phone || m.phone)}','${escapeJs(m.id)}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
     `;
   } else if (m.delivery_available) {
-    actionsBar.innerHTML = `
-      <button onclick="window.contactDelivery('${escapeJs(m.delivery_phone || m.phone)}','${escapeJs(m.id)}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>
-    `;
+    actionsBar.innerHTML = `<button onclick="window.contactDelivery('${escapeJs(m.delivery_phone || m.phone)}','${escapeJs(m.id)}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>`;
   }
 
-  if (actionsBar.innerHTML.trim()) {
-    modal.querySelector('.modal-box').appendChild(actionsBar);
-  }
+  if (actionsBar.innerHTML.trim()) modal.querySelector('.modal-box').appendChild(actionsBar);
 
   $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
   getMerchantRatings(m.id).then(ratings => {
@@ -627,6 +606,7 @@ function closeMerchantModal() {
   modal.style.display = 'none';
   currentModalMerchant = null;
 }
+window.closeMerchantModal = closeMerchantModal; // ✅ تصدير هام
 
 function closeModal(e) {
   if (e && e.target && e.target.classList.contains('modal-overlay')) closeMerchantModal();
@@ -638,77 +618,41 @@ function closeModal(e) {
 window.openOfferFull = async function(offerId, merchantId) {
   const m = allMerchants.find(x => x.id === merchantId);
   if (!m) { toast('❌ التاجر غير موجود', 'error'); return; }
-
   const o = (m.offers || []).find(x => x.id === offerId);
   if (!o) { toast('❌ العرض غير موجود', 'error'); return; }
 
   currentOfferFullData = { offer: o, merchant: m };
-
   trackOfferEvent({ offerId: o.id, merchantId: m.id, eventType: 'view' });
 
   let viewsCount = 0;
-  try {
-    const views = await getMerchantOffersViews(m.id);
-    viewsCount = views[o.id] || 0;
-  } catch (e) { console.error(e); }
+  try { const views = await getMerchantOffersViews(m.id); viewsCount = views[o.id] || 0; } catch (e) { console.error(e); }
 
-  const logoHtml = m.logo_url
-    ? `<img src="${escapeHtml(m.logo_url)}" alt="${escapeHtml(m.name)}">`
-    : `<span style="font-size:20px">${escapeHtml(m.icon || '🏪')}</span>`;
-
+  const logoHtml = m.logo_url ? `<img src="${escapeHtml(m.logo_url)}" alt="${escapeHtml(m.name)}">` : `<span style="font-size:20px">${escapeHtml(m.icon || '🏪')}</span>`;
   $('offerFullMerchant').innerHTML = `${logoHtml}<span>${escapeHtml(m.name)}</span>`;
 
-  if (o.image_url) {
-    $('offerFullImage').src = o.image_url;
-    $('offerFullImageWrap').style.display = 'block';
-  } else {
-    $('offerFullImageWrap').style.display = 'none';
-  }
+  if (o.image_url) { $('offerFullImage').src = o.image_url; $('offerFullImageWrap').style.display = 'block'; }
+  else { $('offerFullImageWrap').style.display = 'none'; }
 
   $('offerFullDiscount').innerText = o.discount || '---';
   $('offerFullTitle').innerText = o.title || 'عرض';
 
-  if (o.price) {
-    $('offerFullPrice').innerText = `💰 ${parseFloat(o.price).toFixed(2)} ج`;
-    $('offerFullPrice').style.display = 'block';
-  } else {
-    $('offerFullPrice').style.display = 'none';
-  }
+  if (o.price) { $('offerFullPrice').innerText = `💰 ${parseFloat(o.price).toFixed(2)} ج`; $('offerFullPrice').style.display = 'block'; }
+  else { $('offerFullPrice').style.display = 'none'; }
 
-  if (o.description) {
-    $('offerFullDesc').innerText = o.description;
-    $('offerFullDesc').style.display = 'block';
-  } else {
-    $('offerFullDesc').style.display = 'none';
-  }
+  if (o.description) { $('offerFullDesc').innerText = o.description; $('offerFullDesc').style.display = 'block'; }
+  else { $('offerFullDesc').style.display = 'none'; }
 
-  $('offerFullStats').innerHTML = `
-    <span>👁️ ${viewsCount} مشاهدة</span>
-    <span>🏪 ${escapeHtml(m.name)}</span>
-    ${m.delivery_available ? '<span>🛵 التوصيل متاح</span>' : ''}
-  `;
+  $('offerFullStats').innerHTML = `<span>👁️ ${viewsCount} مشاهدة</span><span>🏪 ${escapeHtml(m.name)}</span>${m.delivery_available ? '<span>🛵 التوصيل متاح</span>' : ''}`;
 
   const safeTitle = escapeJs(o.title || '');
-  const requestBtnHtml = `
-    <button onclick="window.openRequestOfferModal('${escapeJs(o.id)}','${escapeJs(m.id)}','${safeTitle}')"
-            style="width:100%;background:linear-gradient(135deg,#ff6b35,#f7931e);color:#fff;border:none;padding:16px;border-radius:30px;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 12px rgba(255,107,53,0.4)">
-      📩 اطلب العرض ده
-    </button>
-  `;
+  const requestBtnHtml = `<button onclick="window.openRequestOfferModal('${escapeJs(o.id)}','${escapeJs(m.id)}','${safeTitle}')" style="width:100%;background:linear-gradient(135deg,#ff6b35,#f7931e);color:#fff;border:none;padding:16px;border-radius:30px;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 12px rgba(255,107,53,0.4)">📩 اطلب العرض ده</button>`;
 
   let actionsHtml = '';
-  if (m.lat && m.lng && m.merchant_type !== 'warehouse') {
-    actionsHtml += `<button onclick="window.openMerchantMap('${escapeJs(m.lat)}','${escapeJs(m.lng)}','${escapeJs(m.id)}')" style="background:#1a2a6c">📍 الموقع على الخريطة</button>`;
-  }
+  if (m.lat && m.lng && m.merchant_type !== 'warehouse') actionsHtml += `<button onclick="window.openMerchantMap('${escapeJs(m.lat)}','${escapeJs(m.lng)}','${escapeJs(m.id)}')" style="background:#1a2a6c">📍 الموقع على الخريطة</button>`;
   $('offerFullActions').innerHTML = requestBtnHtml + (actionsHtml || '');
 
   const typeLabel = m.merchant_type === 'warehouse' ? '📦 مخزن' : (m.merchant_type === 'both' ? '🔄 محل ومخزن' : '🏪 محل');
-  $('offerFullMerchantInfo').innerHTML = `
-    <div><strong>🏪 ${escapeHtml(m.name)}</strong> ${typeLabel}</div>
-    ${m.category ? `<div>📂 التصنيف: ${escapeHtml(m.category)}</div>` : ''}
-    ${m.lat && m.lng && m.merchant_type !== 'warehouse' ? `<div>📍 ${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div>` : ''}
-    <div>💰 نسبة الكاش باك: ${m.cashback_rate || 15}%</div>
-  `;
+  $('offerFullMerchantInfo').innerHTML = `<div><strong>🏪 ${escapeHtml(m.name)}</strong> ${typeLabel}</div>${m.category ? `<div>📂 التصنيف: ${escapeHtml(m.category)}</div>` : ''}${m.lat && m.lng && m.merchant_type !== 'warehouse' ? `<div>📍 ${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div>` : ''}<div>💰 نسبة الكاش باك: ${m.cashback_rate || 15}%</div>`;
 
   const modal = $('offerFullModal');
   modal.style.display = 'flex';
@@ -734,7 +678,6 @@ window.openRequestOfferModal = function(offerId, merchantId, offerTitle) {
   $('reqOfferTitle').innerText = offerTitle;
   $('reqOfferNote').value = '';
   $('reqOfferResult').innerText = '';
-
   const modal = $('requestOfferModal');
   modal.style.display = 'flex';
   modal.classList.add('active');
@@ -756,126 +699,23 @@ async function handleSendOfferRequest() {
   const res = $('reqOfferResult');
 
   if (!currentProfile || currentProfile.role !== 'customer') {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ لازم تسجل دخول كعميل';
-    return;
+    res.style.color = '#ef4444'; res.innerText = '❌ لازم تسجل دخول كعميل'; return;
   }
 
   const btn = $('sendOfferRequestBtn');
-  btn.disabled = true;
-  btn.innerText = '⏳ جاري الإرسال...';
+  btn.disabled = true; btn.innerText = '⏳ جاري الإرسال...';
 
   try {
     await requestSpecificOffer({ offerId, merchantId, offerTitle, note });
-    res.style.color = '#10b981';
-    res.innerText = '✅ تم إرسال طلبك للتاجر';
-
+    res.style.color = '#10b981'; res.innerText = '✅ تم إرسال طلبك للتاجر';
     setTimeout(() => {
       window.closeRequestOfferModal();
-      btn.disabled = false;
-      btn.innerText = '📩 إرسال الطلب';
-      // ✅ بعد إرسال طلب عرض، نحدّث تاب طلبات العروض
+      btn.disabled = false; btn.innerText = '📩 إرسال الطلب';
       if (currentProfile.role === 'customer') renderRequestsTab('offer');
     }, 1500);
-
   } catch (e) {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ ' + e.message;
-    btn.disabled = false;
-    btn.innerText = '📩 إرسال الطلب';
-  }
-}
-
-// ============================================================
-// ✅ Google Login & Complete Profile
-// ============================================================
-window.handleGoogleLogin = async function() {
-  const btn = $('googleLoginBtn');
-  if (btn) { btn.disabled = true; btn.innerText = '⏳ جاري التحويل...'; }
-
-  try {
-    await signInWithGoogle();
-  } catch (e) {
-    toast('❌ ' + e.message, 'error');
-    if (btn) { btn.disabled = false; btn.innerText = '🔵 الدخول بجوجل'; }
-  }
-};
-
-window.handleGoogleCallback = async function() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return false;
-
-  const profile = await getProfile();
-  if (!profile || !profile.phone) {
-    pendingGoogleUser = session.user;
-    openCompleteProfileModal(session.user);
-    return true;
-  }
-
-  await showMainScreen(profile);
-  return true;
-};
-
-function openCompleteProfileModal(user) {
-  $('completeProfileEmail').innerText = user.email || '';
-  $('completeProfilePhone').value = '';
-  $('completeProfileName').value = user.user_metadata?.name || '';
-  $('completeProfileRole').value = 'customer';
-  $('completeProfileBankCodeGroup').style.display = 'none';
-  $('completeProfileAdminCodeGroup').style.display = 'none';
-  $('completeProfileResult').innerText = '';
-
-  const modal = $('completeProfileModal');
-  modal.style.display = 'flex';
-  modal.classList.add('active');
-}
-
-window.closeCompleteProfileModal = function(e) {
-  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
-  const modal = $('completeProfileModal');
-  if (!modal) return;
-  modal.classList.remove('active');
-  modal.style.display = 'none';
-  supabase.auth.signOut();
-};
-
-window.onCompleteProfileRoleChange = function(value) {
-  $('completeProfileBankCodeGroup').style.display = value === 'merchant' ? 'block' : 'none';
-  $('completeProfileAdminCodeGroup').style.display = value === 'admin' ? 'block' : 'none';
-};
-
-async function handleCompleteProfile() {
-  const phone = $('completeProfilePhone').value.trim();
-  const name = $('completeProfileName').value.trim();
-  const role = $('completeProfileRole').value;
-  const bankCode = getRealValue('completeProfileBankCode');
-  const adminCode = getRealValue('completeProfileAdminCode');
-  const res = $('completeProfileResult');
-
-  if (!phone || !name) { res.style.color = '#ef4444'; res.innerText = '❌ املأ الاسم والموبايل'; return; }
-  if (role === 'merchant' && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم البنكود'; return; }
-  if (role === 'admin' && !adminCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم بنكود الأدمن'; return; }
-
-  const btn = $('completeProfileBtn');
-  btn.disabled = true;
-  btn.innerText = '⏳ جاري الحفظ...';
-
-  try {
-    await completeGoogleProfile({ phone, name, role, bankCode, adminCode });
-    res.style.color = '#10b981';
-    res.innerText = '✅ تم حفظ البيانات';
-
-    setTimeout(async () => {
-      window.closeCompleteProfileModal();
-      const profile = await getProfile();
-      if (profile) await showMainScreen(profile);
-    }, 1000);
-
-  } catch (e) {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ ' + e.message;
-    btn.disabled = false;
-    btn.innerText = '✅ حفظ البيانات';
+    res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
+    btn.disabled = false; btn.innerText = '📩 إرسال الطلب';
   }
 }
 
@@ -901,8 +741,8 @@ function switchTab(name) {
     c.classList.toggle('active', isTarget);
     c.style.display = isTarget ? 'block' : 'none';
   });
-
-  if (name === 'offers') renderOffersGrid();
+  
+  if (name === 'offers') { renderOffersGrid(); renderOffersSubCategories(); }
   if (name === 'invoice') renderInvoiceTab();
   if (name === 'special_requests') renderRequestsTab('special');
   if (name === 'offer_requests') renderRequestsTab('offer');
@@ -927,11 +767,7 @@ async function renderInvoiceTab() {
     $('merchantWalletsCard').style.display = 'none';
     $('merchantInvoicesCard').style.display = 'none';
   }
-
-  if (currentProfile.role === 'customer') {
-    await renderMyPendingInvoices();
-  }
-
+  if (currentProfile.role === 'customer') await renderMyPendingInvoices();
   await renderMyWalletAndInvoices();
 }
 
@@ -942,12 +778,7 @@ async function renderMyPendingInvoices() {
 
   try {
     myPendingInvoicesCache = await getMyPendingInvoices(currentProfile.phone);
-
-    if (!myPendingInvoicesCache.length) {
-      card.style.display = 'none';
-      return;
-    }
-
+    if (!myPendingInvoicesCache.length) { card.style.display = 'none'; return; }
     card.style.display = 'block';
     el.innerHTML = myPendingInvoicesCache.map(inv => {
       const m = inv.merchants || {};
@@ -965,9 +796,7 @@ async function renderMyPendingInvoices() {
         </div>
       </div>`;
     }).join('');
-
     updateInvoiceBadge();
-
   } catch (e) {
     console.error('Pending invoices error:', e);
     card.style.display = 'none';
@@ -980,9 +809,7 @@ window.confirmInvoiceClick = async function(invoiceId) {
     await confirmInvoice(invoiceId);
     toast('✅ تم تأكيد الفاتورة - الكاش باك اتضاف', 'success');
     await renderInvoiceTab();
-  } catch (e) {
-    toast('❌ ' + e.message, 'error');
-  }
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.rejectInvoiceClick = async function(invoiceId) {
@@ -992,9 +819,7 @@ window.rejectInvoiceClick = async function(invoiceId) {
     await rejectInvoice(invoiceId, reason);
     toast('❌ تم رفض الفاتورة', 'success');
     await renderInvoiceTab();
-  } catch (e) {
-    toast('❌ ' + e.message, 'error');
-  }
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 function updateInvoiceBadge() {
@@ -1037,13 +862,7 @@ async function renderMerchantInvoiceExtras() {
     const el = $('merchantInvoicesList');
     if (!invoices.length) el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد فواتير</p>';
     else el.innerHTML = invoices.map(inv => {
-      const statusBadge = inv.confirmation_status === 'confirmed'
-        ? '<span style="background:#d1fae5;color:#065f46;font-size:11px;padding:2px 8px;border-radius:20px">✅ مؤكد</span>'
-        : inv.confirmation_status === 'rejected'
-          ? '<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:2px 8px;border-radius:20px">❌ مرفوض</span>'
-          : inv.confirmation_status === 'expired'
-            ? '<span style="background:#f3f4f6;color:#6b7280;font-size:11px;padding:2px 8px;border-radius:20px">⏰ ملغي</span>'
-            : '<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:2px 8px;border-radius:20px">⏳ في الانتظار</span>';
+      const statusBadge = inv.confirmation_status === 'confirmed' ? '<span style="background:#d1fae5;color:#065f46;font-size:11px;padding:2px 8px;border-radius:20px">✅ مؤكد</span>' : inv.confirmation_status === 'rejected' ? '<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:2px 8px;border-radius:20px">❌ مرفوض</span>' : inv.confirmation_status === 'expired' ? '<span style="background:#f3f4f6;color:#6b7280;font-size:11px;padding:2px 8px;border-radius:20px">⏰ ملغي</span>' : '<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:2px 8px;border-radius:20px">⏳ في الانتظار</span>';
       return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
           <strong>📄 #${escapeHtml(inv.number)}</strong>
@@ -1079,11 +898,10 @@ async function renderMyWalletAndInvoices() {
       }).join('') : '<p style="color:#6b7280;font-size:14px">لا توجد أرصدة</p>';
 
       const sel = $('redeemMerchant');
-      sel.innerHTML = '<option value="">اختار المتجر</option>' +
-        active.filter(w => parseFloat(w.balance) > 0).map(w => {
-          const m = w.merchants || {};
-          return `<option value="${escapeHtml(w.merchant_id)}">${escapeHtml(m.icon || '')} ${escapeHtml(m.name || '')} - ${parseFloat(w.balance).toFixed(2)} ج</option>`;
-        }).join('');
+      sel.innerHTML = '<option value="">اختار المتجر</option>' + active.filter(w => parseFloat(w.balance) > 0).map(w => {
+        const m = w.merchants || {};
+        return `<option value="${escapeHtml(w.merchant_id)}">${escapeHtml(m.icon || '')} ${escapeHtml(m.name || '')} - ${parseFloat(w.balance).toFixed(2)} ج</option>`;
+      }).join('');
     } else {
       $('customerBalanceBanner').style.display = 'none';
       $('customerWalletsCard').style.display = 'none';
@@ -1119,16 +937,8 @@ async function handleSubmitInvoice() {
 
   try {
     const check = await checkCustomerPhone(phone);
-    if (!check || !check.ok) {
-      res.style.color = '#ef4444';
-      res.innerText = '❌ ' + (check?.error || 'الرقم ده مش مسجل كعميل');
-      return;
-    }
-  } catch (err) {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ فشل التحقق من الرقم';
-    return;
-  }
+    if (!check || !check.ok) { res.style.color = '#ef4444'; res.innerText = '❌ ' + (check?.error || 'الرقم ده مش مسجل كعميل'); return; }
+  } catch (err) { res.style.color = '#ef4444'; res.innerText = '❌ فشل التحقق من الرقم'; return; }
 
   const isMerchant = currentProfile.role === 'merchant' && currentMerchant;
   if (!isMerchant && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ ادخل البنكود'; return; }
@@ -1171,7 +981,6 @@ async function handleRedeem() {
   const original = parseFloat($('redeemOriginal').value);
   const amount = parseFloat($('redeemAmount').value);
   const res = $('redeemResult');
-
   if (!merchantId || !original || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
 
   try {
@@ -1181,7 +990,6 @@ async function handleRedeem() {
     setTimeout(() => renderInvoiceTab(), 1200);
   } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
-
 // ============================================================
 // ✅ RATINGS
 // ============================================================
@@ -1239,10 +1047,6 @@ async function handleSendRequest() {
   } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
 
-/**
- * ✅ النسخة الجديدة من renderRequestsTab — بتاخد نوع الطلب
- * type: 'special' | 'offer'
- */
 async function renderRequestsTab(type) {
   if (!currentProfile) return;
   if (type !== 'special' && type !== 'offer') type = 'special';
@@ -1308,16 +1112,10 @@ async function renderMyRequests() {
     const respHtml = responses.length ? responses.map(r => {
       const m = r.merchants || {};
       const isAccepted = req.accepted_response_id === r.id;
-      const imageHtml = r.image_url
-        ? `<img src="${escapeHtml(r.image_url)}" style="width:100%;max-width:150px;border-radius:10px;margin:6px 0;border:2px solid #eee" onerror="this.style.display='none'">` : '';
-      const acceptBtn = isAccepted
-        ? `<button class="accept-btn" style="background:#94a3b8;cursor:not-allowed">✅ مقبول</button>`
-        : (req.status === 'accepted' ? '' : `<button class="accept-btn" onclick="window.acceptOfferClick('${escapeJs(req.id)}','${escapeJs(r.id)}')">قبول</button>`);
-      const msgs = (r.customer_messages || []).map(msg =>
-        `<div style="background:#dbeafe;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>👤 أنت:</strong> ${escapeHtml(msg.text)}</div>`
-      ).join('');
-      const replyHtml = r.merchant_reply
-        ? `<div style="background:#fef3c7;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>🏪 ${escapeHtml(m.name || '')}:</strong> ${escapeHtml(r.merchant_reply)}</div>` : '';
+      const imageHtml = r.image_url ? `<img src="${escapeHtml(r.image_url)}" style="width:100%;max-width:150px;border-radius:10px;margin:6px 0;border:2px solid #eee" onerror="this.style.display='none'">` : '';
+      const acceptBtn = isAccepted ? `<button class="accept-btn" style="background:#94a3b8;cursor:not-allowed">✅ مقبول</button>` : (req.status === 'accepted' ? '' : `<button class="accept-btn" onclick="window.acceptOfferClick('${escapeJs(req.id)}','${escapeJs(r.id)}')">قبول</button>`);
+      const msgs = (r.customer_messages || []).map(msg => `<div style="background:#dbeafe;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>👤 أنت:</strong> ${escapeHtml(msg.text)}</div>`).join('');
+      const replyHtml = r.merchant_reply ? `<div style="background:#fef3c7;padding:6px 10px;border-radius:8px;margin:4px 0;font-size:12px"><strong>🏪 ${escapeHtml(m.name || '')}:</strong> ${escapeHtml(r.merchant_reply)}</div>` : '';
 
       return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-top:8px;border-right:4px solid var(--primary)">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
@@ -1335,8 +1133,7 @@ async function renderMyRequests() {
       </div>`;
     }).join('') : '<div style="color:#92400e;text-align:center;padding:10px">⏳ جاري انتظار رد التجار...</div>';
 
-    const custImg = req.image_url
-      ? `<img src="${escapeHtml(req.image_url)}" style="width:100%;max-width:200px;border-radius:10px;margin:6px 0;border:2px solid #ddd">` : '';
+    const custImg = req.image_url ? `<img src="${escapeHtml(req.image_url)}" style="width:100%;max-width:200px;border-radius:10px;margin:6px 0;border:2px solid #ddd">` : '';
 
     let actions = '';
     if (req.status === 'pending' || req.status === 'responded') {
@@ -1361,16 +1158,11 @@ async function renderMyRequests() {
 async function renderMyOfferRequests() {
   const el = $('myOfferRequestsList');
   if (!el) return;
-
   el.innerHTML = '<p style="color:#6b7280;text-align:center;padding:20px">⏳ جاري التحميل...</p>';
 
   try {
     myOfferRequestsCache = await getMyOfferRequests();
-
-    if (!myOfferRequestsCache.length) {
-      el.innerHTML = '<div class="no-requests">لا توجد طلبات عروض</div>';
-      return;
-    }
+    if (!myOfferRequestsCache.length) { el.innerHTML = '<div class="no-requests">لا توجد طلبات عروض</div>'; return; }
 
     el.innerHTML = myOfferRequestsCache.map(req => {
       const m = req.merchants || {};
@@ -1409,8 +1201,7 @@ async function renderMyOfferRequests() {
         <div style="font-size:13px;color:#6b7280;margin-top:6px">🏪 التاجر: ${escapeHtml(m.name || '')}</div>
         ${req.details ? `<div style="font-size:13px;color:#4b5563;margin-top:6px">📝 ${escapeHtml(req.details)}</div>` : ''}
         <div style="font-size:12px;color:#9ca3af;margin-top:4px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
-        ${responseHtml}
-        ${actions}
+        ${responseHtml}${actions}
       </div>`;
     }).join('');
   } catch (e) {
@@ -1423,15 +1214,12 @@ async function renderMerchantRequestsList() {
   if (!el) return;
   try {
     const requests = await getMerchantRequests(currentMerchant.id, currentMerchant.category);
-    if (!requests.length) {
-      el.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;padding:20px">مفيش طلبات 😴</p>';
-      return;
-    }
+    if (!requests.length) { el.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;padding:20px">مفيش طلبات 😴</p>'; return; }
+    
     el.innerHTML = requests.map(req => {
       const myReply = (req.request_responses || []).find(r => r.merchant_id === currentMerchant.id);
       const statusBadge = getStatusBadge(req.status);
-      const imageHtml = req.image_url
-        ? `<img src="${escapeHtml(req.image_url)}" style="width:100%;max-width:180px;border-radius:10px;margin:8px 0;border:2px solid #ddd">` : '';
+      const imageHtml = req.image_url ? `<img src="${escapeHtml(req.image_url)}" style="width:100%;max-width:180px;border-radius:10px;margin:8px 0;border:2px solid #ddd">` : '';
 
       const customerMsgs = myReply && myReply.customer_messages && myReply.customer_messages.length
         ? `<div style="background:#dbeafe;padding:8px;border-radius:8px;margin-top:8px">
@@ -1472,16 +1260,11 @@ async function renderMerchantRequestsList() {
 async function renderMerchantOfferRequestsList() {
   const el = $('merchantOfferRequestsList');
   if (!el) return;
-
   el.innerHTML = '<p style="color:#6b7280;text-align:center;padding:20px">⏳ جاري التحميل...</p>';
 
   try {
     const requests = await getMerchantOfferRequests(currentMerchant.id);
-
-    if (!requests.length) {
-      el.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;padding:20px">مفيش طلبات عروض 😴</p>';
-      return;
-    }
+    if (!requests.length) { el.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;padding:20px">مفيش طلبات عروض 😴</p>'; return; }
 
     const pending = requests.filter(r => !r.offer_response);
     const answered = requests.filter(r => r.offer_response);
@@ -1495,12 +1278,10 @@ async function renderMerchantOfferRequestsList() {
       html += `<h5 style="color:#10b981;margin:20px 0 8px">✅ تم الرد عليها (${answered.length})</h5>`;
       html += answered.map(req => renderOfferRequestCard(req)).join('');
     }
-
     el.innerHTML = html;
   } catch (e) {
     el.innerHTML = '<p style="color:#ef4444;text-align:center;padding:20px">❌ ' + e.message + '</p>';
   }
-
   updateOfferReqBadge();
 }
 
@@ -1513,21 +1294,17 @@ function renderOfferRequestCard(req) {
   if (req.offer_response) {
     const isAvail = req.offer_response === 'available';
     responseHtml = `<div style="background:${isAvail ? '#d1fae5' : '#fee2e2'};padding:10px;border-radius:10px;margin-top:8px">
-      <div style="font-size:13px;color:${isAvail ? '#065f46' : '#991b1b'};font-weight:700">
-        ${isAvail ? '✅ رديت: متاح' : '❌ رديت: مش متاح'}
-      </div>
+      <div style="font-size:13px;color:${isAvail ? '#065f46' : '#991b1b'};font-weight:700">${isAvail ? '✅ رديت: متاح' : '❌ رديت: مش متاح'}</div>
       ${req.offer_reply ? `<div style="font-size:13px;color:${isAvail ? '#065f46' : '#991b1b'};margin-top:4px">💬 ${escapeHtml(req.offer_reply)}</div>` : ''}
     </div>`;
   }
 
   let actionsHtml = '';
   if (!req.offer_response) {
-    actionsHtml = `
-      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+    actionsHtml = `<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
         <button class="admin-btn success" onclick="window.replyOfferReqClick('${escapeJs(req.id)}', true)">✅ متاح</button>
         <button class="admin-btn danger" onclick="window.replyOfferReqClick('${escapeJs(req.id)}', false)">❌ مش متاح</button>
-      </div>
-    `;
+      </div>`;
   }
 
   const phoneHtml = custPhone
@@ -1544,16 +1321,12 @@ function renderOfferRequestCard(req) {
     </div>
     ${req.details ? `<div style="font-size:13px;color:#4b5563;margin-top:8px;background:#fef3c7;padding:8px;border-radius:8px">📝 ${escapeHtml(req.details)}</div>` : ''}
     <div style="font-size:12px;color:#9ca3af;margin-top:6px">🕒 ${new Date(req.created_at).toLocaleString('ar-EG')}</div>
-    ${responseHtml}
-    ${actionsHtml}
+    ${responseHtml}${actionsHtml}
   </div>`;
 }
 
 window.replyOfferReqClick = async function(requestId, available) {
-  const replyText = prompt(
-    available ? 'اكتب رسالة للعميل (اختياري):' : 'اكتب سبب عدم التوفر (اختياري):',
-    available ? 'متوفر، تعالى خده' : 'مش متاح حالياً'
-  );
+  const replyText = prompt(available ? 'اكتب رسالة للعميل (اختياري):' : 'اكتب سبب عدم التوفر (اختياري):', available ? 'متوفر، تعالى خده' : 'مش متاح حالياً');
   if (replyText === null) return;
 
   try {
@@ -1561,9 +1334,7 @@ window.replyOfferReqClick = async function(requestId, available) {
     toast(available ? '✅ تم إرسال الرد' : '❌ تم إرسال الرد', 'success');
     await new Promise(r => setTimeout(r, 500));
     await renderMerchantOfferRequestsList();
-  } catch (e) {
-    toast('❌ ' + e.message, 'error');
-  }
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.cancelOfferReqClick = async function(requestId) {
@@ -1572,9 +1343,7 @@ window.cancelOfferReqClick = async function(requestId) {
     await cancelOfferRequest(requestId);
     toast('✅ تم الإلغاء', 'success');
     renderMyOfferRequests();
-  } catch (e) {
-    toast('❌ ' + e.message, 'error');
-  }
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 window.deleteOfferReqClick = async function(requestId) {
@@ -1583,9 +1352,7 @@ window.deleteOfferReqClick = async function(requestId) {
     await deleteOfferRequest(requestId);
     toast('✅ تم الحذف', 'success');
     renderMyOfferRequests();
-  } catch (e) {
-    toast('❌ ' + e.message, 'error');
-  }
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 };
 
 function getStatusBadge(status) {
@@ -1677,7 +1444,7 @@ async function hideReq(reqId) {
 }
 
 // ============================================================
-// ✅ Badge Update (split: mainReqBadge = special only, offerReqBadge = offers only)
+// ✅ Badge Update (معلقة بس)
 // ============================================================
 async function updateOfferReqBadge() {
   const mainBadge = $('mainReqBadge');
@@ -1703,18 +1470,14 @@ async function updateOfferReqBadge() {
       if (pendingSpecial > 0) {
         mainBadge.innerText = pendingSpecial > 9 ? '9+' : pendingSpecial;
         mainBadge.style.display = 'block';
-      } else {
-        mainBadge.style.display = 'none';
-      }
+      } else { mainBadge.style.display = 'none'; }
     }
 
     if (subBadge) {
       if (pendingOffers > 0) {
         subBadge.innerText = pendingOffers > 9 ? '9+' : pendingOffers;
         subBadge.style.display = 'block';
-      } else {
-        subBadge.style.display = 'none';
-      }
+      } else { subBadge.style.display = 'none'; }
     }
   } catch (e) {
     console.error('Badge error:', e);
@@ -1741,14 +1504,12 @@ window.openMerchantReport = async function(merchantId) {
   `;
 
   $('reportMerchantContent').innerHTML = '<p style="text-align:center;padding:20px;color:#6b7280">⏳ جاري التحميل...</p>';
-
   const modal = $('merchantReportModal');
   modal.style.display = 'flex';
   modal.classList.add('active');
 
   try {
     const r = await getMerchantFullReport(merchantId);
-
     $('reportMerchantContent').innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
         <div style="background:#dbeafe;padding:12px;border-radius:10px;text-align:center;grid-column:span 2">
@@ -1792,7 +1553,6 @@ window.openMerchantReport = async function(merchantId) {
         <p style="font-size:12px;color:#9ca3af">📅 التقرير ده بيعرض الفواتير الحالية بس</p>
       </div>
     `;
-
   } catch (e) {
     $('reportMerchantContent').innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px">❌ ${e.message}</p>`;
   }
@@ -1870,7 +1630,6 @@ async function handleDeleteLogo() {
     res.innerText = '❌ ' + e.message;
   }
 }
-
 // ============================================================
 // ✅ Dashboard
 // ============================================================
@@ -1899,8 +1658,7 @@ async function renderDashboard() {
     const offers = await getMerchantOffers(currentMerchant.id);
     const el = $('myOffersList');
     el.innerHTML = offers.length ? offers.map(o => {
-      const imgHtml = o.image_url
-        ? `<img src="${escapeHtml(o.image_url)}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0">` : '';
+      const imgHtml = o.image_url ? `<img src="${escapeHtml(o.image_url)}" style="width:60px;height:60px;object-fit:cover;border-radius:8px;flex-shrink:0">` : '';
       return `<div class="merchant-offer-card" style="background:#f9fafb;padding:10px;border-radius:12px;margin-bottom:8px;border-right:4px solid #ff6b35;display:flex;align-items:center;gap:10px">
         ${imgHtml}
         <div style="flex:1">
@@ -1930,10 +1688,8 @@ async function renderDashboard() {
             <div style="flex:1">
               <div style="font-weight:600;font-size:14px">${escapeHtml(o.title)}</div>
               <div style="display:flex;gap:12px;margin-top:4px;font-size:12px;color:#6b7280;flex-wrap:wrap">
-                <span>👁️ ${o.views}</span>
-                <span>👆 ${o.clicks}</span>
-                <span>📞 ${o.contacts}</span>
-                <span>📍 ${o.maps}</span>
+                <span>👁️ ${o.views}</span><span>👆 ${o.clicks}</span>
+                <span>📞 ${o.contacts}</span><span>📍 ${o.maps}</span>
               </div>
             </div>
             <div style="background:#1a2a6c;color:#fff;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700">${escapeHtml(o.discount)}</div>
@@ -1957,13 +1713,7 @@ async function renderDashboard() {
     const invoices = await getMerchantInvoicesList(currentMerchant.id);
     const el = $('dashInvoicesList');
     el.innerHTML = invoices.length ? invoices.slice(0, 30).map(inv => {
-      const statusBadge = inv.confirmation_status === 'confirmed'
-        ? '<span class="active-badge">✅ مؤكدة</span>'
-        : inv.confirmation_status === 'rejected'
-          ? '<span class="blocked-badge">❌ مرفوضة</span>'
-          : inv.confirmation_status === 'expired'
-            ? '<span style="background:#f3f4f6;color:#6b7280;padding:3px 10px;border-radius:20px;font-size:11px">⏰ ملغية</span>'
-            : '<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:20px;font-size:11px">⏳ معلقة</span>';
+      const statusBadge = inv.confirmation_status === 'confirmed' ? '<span class="active-badge">✅ مؤكدة</span>' : inv.confirmation_status === 'rejected' ? '<span class="blocked-badge">❌ مرفوضة</span>' : inv.confirmation_status === 'expired' ? '<span style="background:#f3f4f6;color:#6b7280;padding:3px 10px;border-radius:20px;font-size:11px">⏰ ملغية</span>' : '<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:20px;font-size:11px">⏳ معلقة</span>';
       return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
           <strong>📄 #${escapeHtml(inv.number)}</strong>
@@ -2018,8 +1768,13 @@ async function returnInvClick(invId) {
   catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
+// ============================================================
+// ✅ Offers Add/Edit (With Hierarchy)
+// ============================================================
 async function handleAddOffer() {
   const title = $('offerTitle').value.trim();
+  const category = $('offerCategory') ? $('offerCategory').value : '';
+  const subCategory = $('offerSubCategory') ? $('offerSubCategory').value : '';
   const type = $('offerType') ? $('offerType').value : 'percent';
   const percent = parseInt($('offerPercent')?.value) || 0;
   const custom = $('offerCustom')?.value.trim() || '';
@@ -2028,21 +1783,21 @@ async function handleAddOffer() {
   const res = $('offerResult');
 
   if (!title) { res.style.color = 'red'; res.innerText = '❌ اكتب اسم العرض'; return; }
+  if (!category) { res.style.color = 'red'; res.innerText = '❌ اختار التصنيف الرئيسي'; return; }
+  if (!subCategory) { res.style.color = 'red'; res.innerText = '❌ اختار التصنيف الفرعي'; return; }
 
   let discountText = '';
   let discountValue = 0;
 
   if (type === 'percent') {
     if (!percent || percent < 1 || percent > 100) { res.style.color = 'red'; res.innerText = '❌ النسبة لازم بين 1 و 100'; return; }
-    discountText = percent + '% OFF';
-    discountValue = percent;
+    discountText = percent + '% OFF'; discountValue = percent;
   } else if (type === '1+1') { discountText = '1+1'; discountValue = 50; }
   else if (type === '2+1') { discountText = '2+1'; discountValue = 33; }
   else if (type === '3+1') { discountText = '3+1'; discountValue = 25; }
   else if (type === 'custom') {
     if (!custom) { res.style.color = 'red'; res.innerText = '❌ اكتب وصف الخصم'; return; }
-    discountText = custom;
-    discountValue = 0;
+    discountText = custom; discountValue = 0;
   }
 
   try {
@@ -2050,7 +1805,7 @@ async function handleAddOffer() {
       merchantId: currentMerchant.id,
       title, discount: discountText, discountValue, description,
       imageBase64: uploadedOfferImage,
-      price
+      price, category, subCategory
     });
     res.style.color = 'green'; res.innerText = '✅ تم نشر العرض';
     $('offerTitle').value = '';
@@ -2059,11 +1814,15 @@ async function handleAddOffer() {
     if ($('offerCustom')) $('offerCustom').value = '';
     if ($('offerDescription')) $('offerDescription').value = '';
     if ($('offerType')) $('offerType').value = 'percent';
+    if ($('offerCategory')) $('offerCategory').value = '';
+    if ($('offerSubCategory')) $('offerSubCategory').value = '';
+    if ($('offerSubCategoryWrap')) $('offerSubCategoryWrap').style.display = 'none';
+    
     if (window.onOfferTypeChange) window.onOfferTypeChange('percent');
     uploadedOfferImage = null;
     const p = $('offerImagePreview'); if (p) { p.style.display = 'none'; p.src = ''; }
     const f = $('offerFileName'); if (f) f.innerText = 'لم يتم اختيار ملف';
-    setTimeout(() => { res.innerText = ''; renderDashboard(); }, 1000);
+    setTimeout(() => { res.innerText = ''; renderDashboard(); refreshData(); }, 1000);
   } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
 }
 
@@ -2077,21 +1836,21 @@ window.openEditOffer = async function(offerId) {
   $('editOfferPrice').value = o.price || '';
   $('editOfferDescription').value = o.description || '';
 
-  let type = 'percent';
-  let percent = 20;
-  let custom = '';
+  // التصنيفات
+  if ($('editOfferCategory')) {
+    $('editOfferCategory').value = o.category || '';
+    window.onEditOfferCategoryChange(o.category || '');
+    setTimeout(() => { if ($('editOfferSubCategory')) $('editOfferSubCategory').value = o.sub_category || ''; }, 50);
+  }
+
+  let type = 'percent'; let percent = 20; let custom = '';
 
   if (o.discount) {
-    if (o.discount.includes('% OFF')) {
-      type = 'percent';
-      percent = parseInt(o.discount) || 20;
-    } else if (o.discount === '1+1') type = '1+1';
+    if (o.discount.includes('% OFF')) { type = 'percent'; percent = parseInt(o.discount) || 20; }
+    else if (o.discount === '1+1') type = '1+1';
     else if (o.discount === '2+1') type = '2+1';
     else if (o.discount === '3+1') type = '3+1';
-    else {
-      type = 'custom';
-      custom = o.discount;
-    }
+    else { type = 'custom'; custom = o.discount; }
   }
 
   $('editOfferType').value = type;
@@ -2136,16 +1895,9 @@ window.onEditOfferTypeChange = function(value) {
   const percentWrap = $('editOfferPercentWrap');
   const customWrap = $('editOfferCustomWrap');
   if (!percentWrap || !customWrap) return;
-  if (value === 'percent') {
-    percentWrap.style.display = 'block';
-    customWrap.style.display = 'none';
-  } else if (value === 'custom') {
-    percentWrap.style.display = 'none';
-    customWrap.style.display = 'block';
-  } else {
-    percentWrap.style.display = 'none';
-    customWrap.style.display = 'none';
-  }
+  if (value === 'percent') { percentWrap.style.display = 'block'; customWrap.style.display = 'none'; }
+  else if (value === 'custom') { percentWrap.style.display = 'none'; customWrap.style.display = 'block'; }
+  else { percentWrap.style.display = 'none'; customWrap.style.display = 'none'; }
 };
 
 window.deleteOfferImage = function() {
@@ -2162,47 +1914,42 @@ async function handleSaveOfferEdit() {
   const type = $('editOfferType').value;
   const percent = parseInt($('editOfferPercent').value) || 0;
   const custom = $('editOfferCustom').value.trim();
+  
+  const category = $('editOfferCategory') ? $('editOfferCategory').value : '';
+  const subCategory = $('editOfferSubCategory') ? $('editOfferSubCategory').value : '';
+
   const res = $('editOfferResult');
 
   if (!title) { res.style.color = 'red'; res.innerText = '❌ اكتب اسم العرض'; return; }
+  if (!category) { res.style.color = 'red'; res.innerText = '❌ اختار التصنيف الرئيسي'; return; }
+  if (!subCategory) { res.style.color = 'red'; res.innerText = '❌ اختار التصنيف الفرعي'; return; }
 
-  let discountText = '';
-  let discountValue = 0;
+  let discountText = ''; let discountValue = 0;
 
   if (type === 'percent') {
     if (!percent || percent < 1 || percent > 100) { res.style.color = 'red'; res.innerText = '❌ النسبة لازم بين 1 و 100'; return; }
-    discountText = percent + '% OFF';
-    discountValue = percent;
+    discountText = percent + '% OFF'; discountValue = percent;
   } else if (type === '1+1') { discountText = '1+1'; discountValue = 50; }
   else if (type === '2+1') { discountText = '2+1'; discountValue = 33; }
   else if (type === '3+1') { discountText = '3+1'; discountValue = 25; }
   else if (type === 'custom') {
     if (!custom) { res.style.color = 'red'; res.innerText = '❌ اكتب وصف الخصم'; return; }
-    discountText = custom;
-    discountValue = 0;
+    discountText = custom; discountValue = 0;
   }
 
   try {
-    let imageBase64 = null;
-    let keepImage = true;
+    let imageBase64 = null; let keepImage = true;
 
-    if (uploadedEditOfferImage === 'DELETE') {
-      keepImage = false;
-    } else if (uploadedEditOfferImage) {
-      imageBase64 = uploadedEditOfferImage;
-    }
+    if (uploadedEditOfferImage === 'DELETE') keepImage = false;
+    else if (uploadedEditOfferImage) imageBase64 = uploadedEditOfferImage;
 
     await updateOffer({
       offerId: id, title, discount: discountText, discountValue,
-      description, imageBase64, price, keepImage
+      description, imageBase64, price, keepImage, category, subCategory
     });
 
     res.style.color = 'green'; res.innerText = '✅ تم حفظ التعديلات';
-
-    setTimeout(() => {
-      window.closeEditOfferModal();
-      renderDashboard();
-    }, 1500);
+    setTimeout(() => { window.closeEditOfferModal(); renderDashboard(); refreshData(); }, 1500);
   } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
 }
 
@@ -2242,8 +1989,7 @@ function handleOfferImage(e) {
 // ============================================================
 async function renderReports(period) {
   if (!currentMerchant) return;
-  document.querySelectorAll('.report-period-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.period === period));
+  document.querySelectorAll('.report-period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === period));
   const r = await getReportData(currentMerchant.id, period);
   $('reportPeriodLabel').innerText = '📅 ' + r.periodLabel;
   $('repInvoices').innerText = r.invoicesCount;
@@ -2264,13 +2010,7 @@ async function renderReports(period) {
 function exportReportPDF() {
   if (typeof html2pdf === 'undefined') { toast('❌ المكتبة مش محملة', 'error'); return; }
   const element = document.getElementById('reportContent');
-  const opt = {
-    margin: 10,
-    filename: `PAMIGO-Report-${Date.now()}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2 },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  };
+  const opt = { margin: 10, filename: `PAMIGO-Report-${Date.now()}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
   html2pdf().set(opt).from(element).save();
 }
 
@@ -2294,10 +2034,8 @@ async function renderAnalyticsTab() {
 // ✅ ADMIN
 // ============================================================
 async function renderAdminSection(section) {
-  document.querySelectorAll('.admin-subtab').forEach(b =>
-    b.classList.toggle('active', b.dataset.admin === section));
-  document.querySelectorAll('.admin-section').forEach(s =>
-    s.classList.remove('active'));
+  document.querySelectorAll('.admin-subtab').forEach(b => b.classList.toggle('active', b.dataset.admin === section));
+  document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
   const el = $('admin-' + section);
   if (el) el.classList.add('active');
 
@@ -2328,24 +2066,12 @@ async function renderAdminTraders() {
   const search = ($('adminTraderSearch')?.value || '').trim().toLowerCase();
   let list = adminData.merchants;
 
-  if (search) {
-    list = list.filter(m =>
-      (m.name || '').toLowerCase().includes(search) ||
-      (m.phone || '').includes(search) ||
-      (m.bank_code || '').toLowerCase().includes(search)
-    );
-  }
-
-  if (!list.length) {
-    el.innerHTML = `<p style="color:#6b7280;text-align:center;padding:20px">${search ? '🔍 مفيش نتائج مطابقة' : 'لا يوجد تجار'}</p>`;
-    return;
-  }
+  if (search) list = list.filter(m => (m.name || '').toLowerCase().includes(search) || (m.phone || '').includes(search) || (m.bank_code || '').toLowerCase().includes(search));
+  if (!list.length) { el.innerHTML = `<p style="color:#6b7280;text-align:center;padding:20px">${search ? '🔍 مفيش نتائج مطابقة' : 'لا يوجد تجار'}</p>`; return; }
 
   el.innerHTML = list.map(m => {
     const rate = m.cashback_rate || 15;
-    const logo = m.logo_url
-      ? `<img src="${escapeHtml(m.logo_url)}" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle">`
-      : escapeHtml(m.icon || '🏪');
+    const logo = m.logo_url ? `<img src="${escapeHtml(m.logo_url)}" style="width:32px;height:32px;object-fit:cover;border-radius:8px;vertical-align:middle">` : escapeHtml(m.icon || '🏪');
     const typeBadge = m.merchant_type === 'warehouse' ? '📦' : (m.merchant_type === 'both' ? '🔄' : '🏪');
     return `<div class="admin-item">
       <div class="head">
@@ -2396,10 +2122,8 @@ async function adminChangePassMerchant(merchantId) {
   if (!m || !m.owner_id) { toast('❌ التاجر ده مش مرتبط بحساب', 'error'); return; }
   const newPass = prompt('اكتب كلمة المرور الجديدة (6+ أحرف):');
   if (!newPass || newPass.length < 6) { toast('❌ قصيرة', 'error'); return; }
-  try {
-    await adminChangePassword(m.owner_id, newPass);
-    toast('✅ تم تغيير كلمة المرور', 'success');
-  } catch (e) { toast('❌ ' + e.message, 'error'); }
+  try { await adminChangePassword(m.owner_id, newPass); toast('✅ تم تغيير كلمة المرور', 'success'); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
 async function toggleFreeze(id) {
@@ -2421,18 +2145,8 @@ async function renderAdminCustomers() {
   const search = ($('adminCustomerSearch')?.value || '').trim().toLowerCase();
   let list = adminData.customers;
 
-  if (search) {
-    list = list.filter(c =>
-      (c.name || '').toLowerCase().includes(search) ||
-      (c.phone || '').includes(search) ||
-      (c.email || '').toLowerCase().includes(search)
-    );
-  }
-
-  if (!list.length) {
-    el.innerHTML = `<p style="color:#6b7280;text-align:center;padding:20px">${search ? '🔍 مفيش نتائج مطابقة' : 'لا يوجد عملاء'}</p>`;
-    return;
-  }
+  if (search) list = list.filter(c => (c.name || '').toLowerCase().includes(search) || (c.phone || '').includes(search) || (c.email || '').toLowerCase().includes(search));
+  if (!list.length) { el.innerHTML = `<p style="color:#6b7280;text-align:center;padding:20px">${search ? '🔍 مفيش نتائج مطابقة' : 'لا يوجد عملاء'}</p>`; return; }
 
   el.innerHTML = list.map(c => `
     <div class="admin-item">
@@ -2459,21 +2173,15 @@ async function adminEditCustomerFull(phone) {
   if (newName === null) return;
   const newPhone = prompt(`الموبايل الحالي: ${c.phone}\nالجديد:`, c.phone);
   if (newPhone === null) return;
-
-  try {
-    await adminUpdateCustomer(phone, newName.trim(), newPhone.trim());
-    toast('✅ تم التعديل', 'success');
-    renderAdminCustomers();
-  } catch (e) { toast('❌ ' + e.message, 'error'); }
+  try { await adminUpdateCustomer(phone, newName.trim(), newPhone.trim()); toast('✅ تم التعديل', 'success'); renderAdminCustomers(); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
 async function adminChangePassCustomer(userId) {
   const newPass = prompt('اكتب كلمة المرور الجديدة (6+):');
   if (!newPass || newPass.length < 6) { toast('❌ قصيرة', 'error'); return; }
-  try {
-    await adminChangePassword(userId, newPass);
-    toast('✅ تم', 'success');
-  } catch (e) { toast('❌ ' + e.message, 'error'); }
+  try { await adminChangePassword(userId, newPass); toast('✅ تم', 'success'); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
 async function adminAdjustBal(phone) {
@@ -2487,7 +2195,6 @@ async function adminAdjustBal(phone) {
   if (!amount) return;
   const a = parseFloat(amount);
   if (isNaN(a)) return;
-
   try { await adjustCustomerBalance(phone, m.id, a); toast('✅ تم', 'success'); renderAdminCustomers(); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
 }
@@ -2512,10 +2219,7 @@ async function renderAdminInvoices() {
   if (!adminData.invoices.length) { el.innerHTML = '<p style="color:#6b7280">لا توجد فواتير</p>'; return; }
 
   el.innerHTML = adminData.invoices.map(inv => {
-    const statusBadge = inv.status === 'active'
-      ? '<span class="active-badge">✅ نشطة</span>'
-      : `<span class="blocked-badge">❌ ${inv.status === 'returned' ? 'مرتجع' : 'مرتجع جزئي'}</span>`;
-
+    const statusBadge = inv.status === 'active' ? '<span class="active-badge">✅ نشطة</span>' : `<span class="blocked-badge">❌ ${inv.status === 'returned' ? 'مرتجع' : 'مرتجع جزئي'}</span>`;
     return `<div class="admin-item">
       <div class="head">
         <span class="title">📄 #${escapeHtml(inv.number)}</span>
@@ -2561,20 +2265,14 @@ async function adminReturnInv(id) {
 
 async function adminDeleteWithCashback(id) {
   if (!confirm('⚠️ حذف الفاتورة + الكاش باك من محفظة العميل؟\n\nده هيأثر على رصيد العميل.')) return;
-  try {
-    await deleteInvoice(id, true);
-    toast('✅ تم حذف الفاتورة + الكاش باك', 'success');
-    renderAdminInvoices();
-  } catch (e) { toast('❌ ' + e.message, 'error'); }
+  try { await deleteInvoice(id, true); toast('✅ تم حذف الفاتورة + الكاش باك', 'success'); renderAdminInvoices(); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
 async function adminDeleteOnly(id) {
   if (!confirm('حذف الفاتورة فقط؟\n\nالكاش باك هيفضل في محفظة العميل.')) return;
-  try {
-    await deleteInvoice(id, false);
-    toast('✅ تم حذف الفاتورة فقط', 'success');
-    renderAdminInvoices();
-  } catch (e) { toast('❌ ' + e.message, 'error'); }
+  try { await deleteInvoice(id, false); toast('✅ تم حذف الفاتورة فقط', 'success'); renderAdminInvoices(); }
+  catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
 async function renderAdminRequests() {
@@ -2592,10 +2290,7 @@ async function renderAdminRequests() {
         </div>`;
       }).join('');
       return `<div class="admin-item">
-        <div class="head">
-          <span class="title">📦 ${escapeHtml(r.product)}</span>
-          ${getStatusBadge(r.status)}
-        </div>
+        <div class="head"><span class="title">📦 ${escapeHtml(r.product)}</span>${getStatusBadge(r.status)}</div>
         <div class="info">${escapeHtml(r.details || '')}</div>
         <div class="info" style="font-size:12px">🕒 ${new Date(r.created_at).toLocaleString('ar-EG')}</div>
         ${respHtml}
@@ -2621,10 +2316,7 @@ async function renderOfferEventsTable() {
   if (!container) return;
   container.innerHTML = '<p style="text-align:center;padding:20px;color:#6b7280">جاري التحميل...</p>';
   const events = await getAdminOfferEventsStats();
-  if (!events.length) {
-    container.innerHTML = '<p style="text-align:center;padding:20px;color:#6b7280">مفيش تفاعل لحد دلوقتي</p>';
-    return;
-  }
+  if (!events.length) { container.innerHTML = '<p style="text-align:center;padding:20px;color:#6b7280">مفيش تفاعل لحد دلوقتي</p>'; return; }
   container.innerHTML = events.map(e => `
     <div class="admin-item">
       <div class="head">
@@ -2658,23 +2350,15 @@ async function handleSendNotif() {
 function renderNewTraderSubs() {
   const cat = $('newTraderCategory').value;
   const subs = SUB_CATEGORIES[cat] || [];
-  $('newTraderSubs').innerHTML = subs.map(s =>
-    `<button type="button" class="category-chip" data-sub="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button>`
-  ).join('');
-  $('newTraderSubs').querySelectorAll('.category-chip').forEach(btn => {
-    btn.onclick = () => btn.classList.toggle('active');
-  });
+  $('newTraderSubs').innerHTML = subs.map(s => `<button type="button" class="category-chip" data-sub="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button>`).join('');
+  $('newTraderSubs').querySelectorAll('.category-chip').forEach(btn => { btn.onclick = () => btn.classList.toggle('active'); });
 }
 
 function renderEditTraderSubs(selected = []) {
   const cat = $('editTraderCategory').value;
   const subs = SUB_CATEGORIES[cat] || [];
-  $('editTraderSubs').innerHTML = subs.map(s =>
-    `<button type="button" class="category-chip ${selected.includes(s.id) ? 'active' : ''}" data-sub="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button>`
-  ).join('');
-  $('editTraderSubs').querySelectorAll('.category-chip').forEach(btn => {
-    btn.onclick = () => btn.classList.toggle('active');
-  });
+  $('editTraderSubs').innerHTML = subs.map(s => `<button type="button" class="category-chip ${selected.includes(s.id) ? 'active' : ''}" data-sub="${escapeHtml(s.id)}">${escapeHtml(s.name)}</button>`).join('');
+  $('editTraderSubs').querySelectorAll('.category-chip').forEach(btn => { btn.onclick = () => btn.classList.toggle('active'); });
 }
 
 async function handleSaveTraderEdit() {
@@ -2701,17 +2385,9 @@ async function handleSaveTraderEdit() {
   if (!subs.length) { res.style.color = 'red'; res.innerText = '❌ اختار تصنيف فرعي'; return; }
 
   try {
-    await adminUpdateMerchant(id, {
-      name, phone, bankCode, category, subCategories: subs,
-      lat: isNaN(lat) ? null : lat, lng: isNaN(lng) ? null : lng,
-      rate, deliveryAvailable, deliveryPhone, merchantType, whatsapp
-    });
+    await adminUpdateMerchant(id, { name, phone, bankCode, category, subCategories: subs, lat: isNaN(lat) ? null : lat, lng: isNaN(lng) ? null : lng, rate, deliveryAvailable, deliveryPhone, merchantType, whatsapp });
     res.style.color = 'green'; res.innerText = '✅ تم الحفظ';
-    setTimeout(() => {
-      $('editTraderForm').style.display = 'none';
-      res.innerText = '';
-      renderAdminTraders();
-    }, 1500);
+    setTimeout(() => { $('editTraderForm').style.display = 'none'; res.innerText = ''; renderAdminTraders(); }, 1500);
   } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
 }
 
@@ -2731,9 +2407,7 @@ async function handleAddTrader() {
   const deliveryPhone = $('newTraderDeliveryPhone')?.value.trim() || null;
 
   if (!name || !bankCode || !phone) { res.style.color = 'red'; res.innerText = '❌ املأ الحقول'; return; }
-  if (merchantType !== 'warehouse' && (isNaN(lat) || isNaN(lng))) {
-    res.style.color = 'red'; res.innerText = '❌ إحداثيات'; return;
-  }
+  if (merchantType !== 'warehouse' && (isNaN(lat) || isNaN(lng))) { res.style.color = 'red'; res.innerText = '❌ إحداثيات'; return; }
   if (isNaN(rate) || rate < 1 || rate > 50) { res.style.color = 'red'; res.innerText = '❌ نسبة غير صحيحة'; return; }
   if (deliveryAvailable && !deliveryPhone) { res.style.color = 'red'; res.innerText = '❌ اكتب رقم التوصيل'; return; }
 
@@ -2742,12 +2416,7 @@ async function handleAddTrader() {
   if (!subs.length) { res.style.color = 'red'; res.innerText = '❌ اختار تصنيف فرعي'; return; }
 
   try {
-    await addTrader({
-      bankCode, name, phone, category, subCategories: subs,
-      icon: CATEGORY_ICONS[category] || '🏪',
-      lat: isNaN(lat) ? null : lat, lng: isNaN(lng) ? null : lng,
-      rate, deliveryAvailable, deliveryPhone, merchantType, whatsapp
-    });
+    await addTrader({ bankCode, name, phone, category, subCategories: subs, icon: CATEGORY_ICONS[category] || '🏪', lat: isNaN(lat) ? null : lat, lng: isNaN(lng) ? null : lng, rate, deliveryAvailable, deliveryPhone, merchantType, whatsapp });
     res.style.color = 'green'; res.innerText = `✅ تم إضافة ${name}`;
     setTimeout(() => { $('addTraderForm').style.display = 'none'; res.innerText = ''; renderAdminTraders(); }, 1500);
   } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
@@ -2794,9 +2463,7 @@ async function initAccountMapUI() {
           <div style="font-size:14px;color:#10b981;font-weight:700;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
         </div>`;
       }).join('');
-    } else {
-      $('myWalletsCard').style.display = 'none';
-    }
+    } else { $('myWalletsCard').style.display = 'none'; }
   } catch (e) { console.error(e); }
 
   const stored = JSON.parse(localStorage.getItem('pamigo_user_loc') || 'null');
@@ -2810,7 +2477,6 @@ async function initAccountMapUI() {
     $('pickerTitle').innerText = '📍 حدد موقعك';
     if (stored) $('accLocation').innerText = `${stored.lat.toFixed(4)}, ${stored.lng.toFixed(4)}`;
   }
-
   initAccountMap('pickerMap', lat, lng);
 }
 
@@ -2899,7 +2565,6 @@ function showMessage(text, type = 'error') {
 function showAuthScreen() {
   $('authScreen').style.display = 'block';
   $('mainScreen').style.display = 'none';
-  
   const loader = document.getElementById('appLoadingScreen');
   if (loader) loader.remove();
 }
@@ -2915,9 +2580,7 @@ async function showMainScreen(profile) {
   if (profile.role === 'merchant') {
     getMyMerchant().then(m => {
       currentMerchant = m;
-      if (currentMerchant) {
-        $('merchantName').innerText = currentMerchant.name;
-      }
+      if (currentMerchant) { $('merchantName').innerText = currentMerchant.name; }
     });
     $('merchantBanner').style.display = 'block';
   } else {
@@ -2930,9 +2593,7 @@ async function showMainScreen(profile) {
   refreshData(); 
   if (userLat === null) updateLocation();
 
-  if (profile.role === 'merchant') {
-    setTimeout(updateOfferReqBadge, 1000);
-  }
+  if (profile.role === 'merchant') setTimeout(updateOfferReqBadge, 1000);
 
   if (profile.role === 'customer') {
     setTimeout(async () => {
@@ -2979,37 +2640,21 @@ async function handleLogin(e) {
   try {
     const email = await findEmailByPhone(phone);
     if (!email) throw new Error('الموبايل مش مسجل');
-
     await signInWithEmail({ email, password });
 
     const profile = await getProfile();
     if (!profile) throw new Error('الحساب مش موجود');
-
-    if (profile.role !== role) {
-      await signOut();
-      throw new Error('الدور مش متطابق - حسابك ' + getRoleName(profile.role));
-    }
+    if (profile.role !== role) { await signOut(); throw new Error('الدور مش متطابق - حسابك ' + getRoleName(profile.role)); }
 
     if (role === 'merchant') {
       const m = await getMyMerchant();
-      if (!m || (m.bank_code || '').toUpperCase() !== bankCode.toUpperCase()) {
-        await signOut();
-        throw new Error('البنكود مش بتاع حسابك');
-      }
+      if (!m || (m.bank_code || '').toUpperCase() !== bankCode.toUpperCase()) { await signOut(); throw new Error('البنكود مش بتاع حسابك'); }
     }
-
     if (role === 'admin') {
-      const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
-        p_code: (adminCode || '').trim()
-      });
-      if (checkErr || !check.ok) {
-        await signOut();
-        throw new Error('بنكود الأدمن غير صحيح');
-      }
+      const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', { p_code: (adminCode || '').trim() });
+      if (checkErr || !check.ok) { await signOut(); throw new Error('بنكود الأدمن غير صحيح'); }
     }
-
     await showMainScreen(profile);
-
   } catch (err) {
     expectedLogin = null;
     showMessage('❌ ' + translateError(err.message));
@@ -3037,32 +2682,20 @@ async function handleSignup(e) {
   btn.disabled = true; btn.innerText = '⏳ جاري التسجيل...';
 
   try {
-    if (role === 'merchant') {
-      await signUpMerchant({ phone, email, password, name, bankCode });
-    } else if (role === 'admin') {
-      await signUpAdmin({ phone, email, password, name, adminCode });
-    } else {
-      await signUpCustomer({ phone, email, password, name });
-    }
+    if (role === 'merchant') await signUpMerchant({ phone, email, password, name, bankCode });
+    else if (role === 'admin') await signUpAdmin({ phone, email, password, name, adminCode });
+    else await signUpCustomer({ phone, email, password, name });
+    
     showMessage('✅ تم إنشاء الحساب', 'success');
     await signInWithEmail({ email, password });
-  } catch (err) {
-    showMessage('❌ ' + translateError(err.message));
-  } finally {
-    btn.disabled = false; btn.innerText = '📝 إنشاء الحساب';
-  }
+  } catch (err) { showMessage('❌ ' + translateError(err.message)); }
+  finally { btn.disabled = false; btn.innerText = '📝 إنشاء الحساب'; }
 }
 
 async function handleLogout() {
   if (!confirm('متأكد؟')) return;
   expectedLogin = null;
-  
-  try {
-    await signOut();
-  } catch (e) {
-    console.error('Logout error:', e);
-  }
-  
+  try { await signOut(); } catch (e) { console.error('Logout error:', e); }
   $('mainScreen').style.display = 'none';
   showAuthScreen();
 }
@@ -3082,8 +2715,7 @@ function translateError(msg) {
 }
 
 function showAuthTab(tab) {
-  document.querySelectorAll('.auth-tab').forEach(t =>
-    t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   $('loginForm').style.display = tab === 'login' ? 'block' : 'none';
   $('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
   $('authMessage').innerText = ''; $('authMessage').className = 'auth-message';
@@ -3102,7 +2734,86 @@ function updateLoginVisibility() {
 }
 
 // ============================================================
-// ✅ BIND
+// ✅ Google Login & Complete Profile
+// ============================================================
+window.handleGoogleLogin = async function() {
+  const btn = $('googleLoginBtn');
+  if (btn) { btn.disabled = true; btn.innerText = '⏳ جاري التحويل...'; }
+  try { await signInWithGoogle(); }
+  catch (e) { toast('❌ ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.innerText = '🔵 الدخول بجوجل'; } }
+};
+
+window.handleGoogleCallback = async function() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return false;
+  const profile = await getProfile();
+  if (!profile || !profile.phone) {
+    pendingGoogleUser = session.user;
+    openCompleteProfileModal(session.user);
+    return true;
+  }
+  await showMainScreen(profile);
+  return true;
+};
+
+function openCompleteProfileModal(user) {
+  $('completeProfileEmail').innerText = user.email || '';
+  $('completeProfilePhone').value = '';
+  $('completeProfileName').value = user.user_metadata?.name || '';
+  $('completeProfileRole').value = 'customer';
+  $('completeProfileBankCodeGroup').style.display = 'none';
+  $('completeProfileAdminCodeGroup').style.display = 'none';
+  $('completeProfileResult').innerText = '';
+  const modal = $('completeProfileModal');
+  modal.style.display = 'flex';
+  modal.classList.add('active');
+}
+
+window.closeCompleteProfileModal = function(e) {
+  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
+  const modal = $('completeProfileModal');
+  if (!modal) return;
+  modal.classList.remove('active');
+  modal.style.display = 'none';
+  supabase.auth.signOut();
+};
+
+window.onCompleteProfileRoleChange = function(value) {
+  $('completeProfileBankCodeGroup').style.display = value === 'merchant' ? 'block' : 'none';
+  $('completeProfileAdminCodeGroup').style.display = value === 'admin' ? 'block' : 'none';
+};
+
+async function handleCompleteProfile() {
+  const phone = $('completeProfilePhone').value.trim();
+  const name = $('completeProfileName').value.trim();
+  const role = $('completeProfileRole').value;
+  const bankCode = getRealValue('completeProfileBankCode');
+  const adminCode = getRealValue('completeProfileAdminCode');
+  const res = $('completeProfileResult');
+
+  if (!phone || !name) { res.style.color = '#ef4444'; res.innerText = '❌ املأ الاسم والموبايل'; return; }
+  if (role === 'merchant' && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم البنكود'; return; }
+  if (role === 'admin' && !adminCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم بنكود الأدمن'; return; }
+
+  const btn = $('completeProfileBtn');
+  btn.disabled = true; btn.innerText = '⏳ جاري الحفظ...';
+
+  try {
+    await completeGoogleProfile({ phone, name, role, bankCode, adminCode });
+    res.style.color = '#10b981'; res.innerText = '✅ تم حفظ البيانات';
+    setTimeout(async () => {
+      window.closeCompleteProfileModal();
+      const profile = await getProfile();
+      if (profile) await showMainScreen(profile);
+    }, 1000);
+  } catch (e) {
+    res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
+    btn.disabled = false; btn.innerText = '✅ حفظ البيانات';
+  }
+}
+
+// ============================================================
+// ✅ BIND EVENTS
 // ============================================================
 function bindEvents() {
   $('loginForm').addEventListener('submit', handleLogin);
@@ -3123,9 +2834,7 @@ function bindEvents() {
     star.addEventListener('click', function () {
       const val = parseInt(this.dataset.value);
       selectedRating = val;
-      document.querySelectorAll('#starContainer .star').forEach(s =>
-        s.classList.toggle('active', parseInt(s.dataset.value) <= val)
-      );
+      document.querySelectorAll('#starContainer .star').forEach(s => s.classList.toggle('active', parseInt(s.dataset.value) <= val));
     });
   });
 
@@ -3153,15 +2862,11 @@ function bindEvents() {
     $('editTraderForm').style.display = 'none';
     renderNewTraderSubs();
     const dc = $('newTraderDelivery');
-    if (dc) { dc.checked = false; dc.onchange = () => {
-      $('newTraderDeliveryWrap').style.display = dc.checked ? 'block' : 'none';
-    }; }
+    if (dc) { dc.checked = false; dc.onchange = () => { $('newTraderDeliveryWrap').style.display = dc.checked ? 'block' : 'none'; }; }
     $('newTraderDeliveryWrap').style.display = 'none';
     $('newTraderDeliveryPhone').value = '';
   });
-  $('hideAddTraderBtn').addEventListener('click', () => {
-    $('addTraderForm').style.display = 'none';
-  });
+  $('hideAddTraderBtn').addEventListener('click', () => { $('addTraderForm').style.display = 'none'; });
   $('newTraderCategory').addEventListener('change', renderNewTraderSubs);
   $('addTraderConfirmBtn').addEventListener('click', handleAddTrader);
 
@@ -3169,18 +2874,13 @@ function bindEvents() {
   if (editCat) editCat.addEventListener('change', () => renderEditTraderSubs());
 
   const editDel = $('editTraderDelivery');
-  if (editDel) editDel.addEventListener('change', (e) => {
-    $('editTraderDeliveryWrap').style.display = e.target.checked ? 'block' : 'none';
-  });
+  if (editDel) editDel.addEventListener('change', (e) => { $('editTraderDeliveryWrap').style.display = e.target.checked ? 'block' : 'none'; });
 
   const saveBtn = $('saveTraderBtn');
   if (saveBtn) saveBtn.addEventListener('click', handleSaveTraderEdit);
 
   const cancelBtn = $('cancelEditTraderBtn');
-  if (cancelBtn) cancelBtn.addEventListener('click', () => {
-    $('editTraderForm').style.display = 'none';
-    $('editTraderResult').innerText = '';
-  });
+  if (cancelBtn) cancelBtn.addEventListener('click', () => { $('editTraderForm').style.display = 'none'; $('editTraderResult').innerText = ''; });
 
   const getLocBtn = $('newTraderGetLocation');
   if (getLocBtn) getLocBtn.addEventListener('click', handleGetLocation);
@@ -3204,15 +2904,8 @@ function bindEvents() {
   });
   $('sendResetBtn').addEventListener('click', handleSendReset);
 
-  $('openChangePassBtn').addEventListener('click', () => {
-    $('changePassForm').style.display = 'block';
-    $('emailForm').style.display = 'none';
-  });
-  $('openEmailBtn').addEventListener('click', () => {
-    $('emailForm').style.display = 'block';
-    $('changePassForm').style.display = 'none';
-    $('myEmail').value = currentProfile?.email || '';
-  });
+  $('openChangePassBtn').addEventListener('click', () => { $('changePassForm').style.display = 'block'; $('emailForm').style.display = 'none'; });
+  $('openEmailBtn').addEventListener('click', () => { $('emailForm').style.display = 'block'; $('changePassForm').style.display = 'none'; $('myEmail').value = currentProfile?.email || ''; });
 
   $('saveNewPassBtn').addEventListener('click', handleChangePassword);
   $('saveEmailBtn').addEventListener('click', handleSaveEmail);
@@ -3229,10 +2922,7 @@ function bindEvents() {
 
   $('searchInput').addEventListener('input', (e) => {
     clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => {
-      searchQuery = e.target.value.trim();
-      renderMerchantsList();
-    }, 300);
+    searchDebounceTimer = setTimeout(() => { searchQuery = e.target.value.trim(); renderMerchantsList(); }, 300);
   });
 
   $('homeRadiusSlider').addEventListener('input', (e) => {
@@ -3261,23 +2951,13 @@ function bindEvents() {
 
   document.querySelectorAll('#homeCategories .category-chip').forEach(chip => {
     chip.addEventListener('click', () => {
-      toggleCategoryGeneric({
-        cat: chip.dataset.cat, chip,
-        categories: homeCategories, subs: homeSubCategories,
-        containerId: 'homeCategories',
-        onUpdate: () => { renderHomeSubCategories(); renderMerchantsList(); }
-      });
+      toggleCategoryGeneric({ cat: chip.dataset.cat, chip, categories: homeCategories, subs: homeSubCategories, containerId: 'homeCategories', onUpdate: () => { renderHomeSubCategories(); renderMerchantsList(); } });
     });
   });
 
   document.querySelectorAll('#offersCategories .category-chip').forEach(chip => {
     chip.addEventListener('click', () => {
-      toggleCategoryGeneric({
-        cat: chip.dataset.cat, chip,
-        categories: offersCategories, subs: offersSubCategories,
-        containerId: 'offersCategories',
-        onUpdate: () => { renderOffersSubCategories(); renderOffersGrid(); }
-      });
+      toggleCategoryGeneric({ cat: chip.dataset.cat, chip, categories: offersCategories, subs: offersSubCategories, containerId: 'offersCategories', onUpdate: () => { renderOffersSubCategories(); renderOffersGrid(); } });
     });
   });
 
@@ -3298,12 +2978,9 @@ function bindEvents() {
       const reader = new FileReader();
       reader.onload = (ev) => {
         uploadedEditOfferImage = ev.target.result;
-        const f = document.getElementById('editOfferFileName');
-        if (f) f.innerText = '📎 ' + file.name;
-        const p = document.getElementById('editOfferImagePreview');
-        if (p) { p.src = ev.target.result; p.style.display = 'block'; }
-        const curWrap = document.getElementById('editOfferCurrentImageWrap');
-        if (curWrap) curWrap.style.display = 'none';
+        const f = document.getElementById('editOfferFileName'); if (f) f.innerText = '📎 ' + file.name;
+        const p = document.getElementById('editOfferImagePreview'); if (p) { p.src = ev.target.result; p.style.display = 'block'; }
+        const curWrap = document.getElementById('editOfferCurrentImageWrap'); if (curWrap) curWrap.style.display = 'none';
       };
       reader.readAsDataURL(file);
     });
@@ -3325,11 +3002,8 @@ function bindEvents() {
 // ============================================================
 // ✅ INIT & WINDOW EXPORTS
 // ============================================================
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', runInit);
-} else {
-  runInit();
-}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', runInit);
+else runInit();
 
 async function runInit() {
   if (!document.getElementById('appLoadingScreen')) {
@@ -3352,10 +3026,7 @@ async function runInit() {
   window.__setLang = setLang;
   window.addEventListener('langChanged', () => {
     if (currentProfile) {
-      document.getElementById('userRole').innerText =
-        currentLang === 'ar'
-          ? ({ customer: '👤 عميل', merchant: '🏪 تاجر', admin: '👑 أدمن' })[currentProfile.role]
-          : ({ customer: '👤 Customer', merchant: '🏪 Merchant', admin: '👑 Admin' })[currentProfile.role];
+      document.getElementById('userRole').innerText = currentLang === 'ar' ? ({ customer: '👤 عميل', merchant: '🏪 تاجر', admin: '👑 أدمن' })[currentProfile.role] : ({ customer: '👤 Customer', merchant: '🏪 Merchant', admin: '👑 Admin' })[currentProfile.role];
     }
     applyI18nToHTML();
   });
@@ -3368,24 +3039,16 @@ async function runInit() {
 
   supabase.auth.onAuthStateChange(async (event, session) => {
     console.log('Auth event:', event);
-    if (event !== 'SIGNED_IN' && event !== 'SIGNED_OUT') {
-      return;
-    }
+    if (event !== 'SIGNED_IN' && event !== 'SIGNED_OUT') return;
     if (event === 'SIGNED_IN' && session) {
       const isGoogle = session.user.app_metadata?.provider === 'google';
       if (isGoogle) {
         const done = await handleGoogleCallback();
-        if (!done) {
-          const profile = await getProfile();
-          if (profile) await showMainScreen(profile);
-        }
+        if (!done) { const profile = await getProfile(); if (profile) await showMainScreen(profile); }
       } else {
-        const profile = await getProfile();
-        if (profile) await showMainScreen(profile);
+        const profile = await getProfile(); if (profile) await showMainScreen(profile);
       }
-    } else if (event === 'SIGNED_OUT') {
-      showAuthScreen();
-    }
+    } else if (event === 'SIGNED_OUT') { showAuthScreen(); }
   });
 
   try {
@@ -3394,29 +3057,19 @@ async function runInit() {
       const isGoogle = initialSession.user.app_metadata?.provider === 'google';
       if (isGoogle) {
         const done = await handleGoogleCallback();
-        if (!done) {
-          const profile = await getProfile();
-          if (profile) await showMainScreen(profile);
-        }
+        if (!done) { const profile = await getProfile(); if (profile) await showMainScreen(profile); }
       } else {
-        const profile = await getProfile();
-        if (profile) await showMainScreen(profile);
+        const profile = await getProfile(); if (profile) await showMainScreen(profile);
       }
-    } else {
-      showAuthScreen();
-    }
-  } catch (e) {
-    console.log('getSession error:', e);
-    showAuthScreen();
-  } finally {
-    const loader = document.getElementById('appLoadingScreen');
-    if (loader) loader.remove();
-  }
+    } else { showAuthScreen(); }
+  } catch (e) { console.log('getSession error:', e); showAuthScreen(); }
+  finally { const loader = document.getElementById('appLoadingScreen'); if (loader) loader.remove(); }
 }
 
+// Window Exports
 window.switchTab = switchTab;
 window.openMerchant = openMerchant;
-window.closeMerchantModal = closeMerchantModal;
+window.closeMerchantModal = closeMerchantModal; // ✅ السطر المهم
 window.renderOffersGrid = renderOffersGrid;
 window.renderMerchantsList = renderMerchantsList;
 window.renderRequestsTab = renderRequestsTab;
@@ -3484,28 +3137,11 @@ window.openMerchantMap = function(lat, lng, merchantId) {
 window.openImageLightbox = function(imageUrl) {
   const old = document.getElementById('pamigoLightbox');
   if (old) old.remove();
-
   const lightbox = document.createElement('div');
   lightbox.id = 'pamigoLightbox';
-  lightbox.style.cssText = `
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.92); z-index: 999999;
-    display: flex; align-items: center; justify-content: center;
-    cursor: zoom-out; padding: 20px; box-sizing: border-box;
-  `;
-
-  lightbox.innerHTML = `
-    <img src="${escapeHtml(imageUrl)}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 0 30px rgba(0,0,0,0.5)">
-    <button onclick="document.getElementById('pamigoLightbox').remove()"
-            style="position:absolute;top:20px;left:20px;background:#fff;color:#000;border:none;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;font-weight:bold;line-height:1">
-      ✕
-    </button>
-  `;
-
-  lightbox.onclick = function(e) {
-    if (e.target === lightbox) lightbox.remove();
-  };
-
+  lightbox.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 999999; display: flex; align-items: center; justify-content: center; cursor: zoom-out; padding: 20px; box-sizing: border-box;`;
+  lightbox.innerHTML = `<img src="${escapeHtml(imageUrl)}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;box-shadow:0 0 30px rgba(0,0,0,0.5)"><button onclick="document.getElementById('pamigoLightbox').remove()" style="position:absolute;top:20px;left:20px;background:#fff;color:#000;border:none;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;font-weight:bold;line-height:1">✕</button>`;
+  lightbox.onclick = function(e) { if (e.target === lightbox) lightbox.remove(); };
   document.body.appendChild(lightbox);
 };
 
@@ -3517,14 +3153,7 @@ window.onOfferTypeChange = function(value) {
   const percentWrap = document.getElementById('offerPercentWrap');
   const customWrap = document.getElementById('offerCustomWrap');
   if (!percentWrap || !customWrap) return;
-  if (value === 'percent') {
-    percentWrap.style.display = 'block';
-    customWrap.style.display = 'none';
-  } else if (value === 'custom') {
-    percentWrap.style.display = 'none';
-    customWrap.style.display = 'block';
-  } else {
-    percentWrap.style.display = 'none';
-    customWrap.style.display = 'none';
-  }
+  if (value === 'percent') { percentWrap.style.display = 'block'; customWrap.style.display = 'none'; }
+  else if (value === 'custom') { percentWrap.style.display = 'none'; customWrap.style.display = 'block'; }
+  else { percentWrap.style.display = 'none'; customWrap.style.display = 'none'; }
 };
