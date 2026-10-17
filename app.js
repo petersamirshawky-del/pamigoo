@@ -3164,6 +3164,16 @@ window.openMerchantMap = function(lat, lng, merchantId) {
   window.open('https://www.google.com/maps?q=' + lat + ',' + lng, '_blank');
 };
 
+window.openOfferFull = window.openOfferFull; // للتأكيد
+window.closeOfferFull = function(e) {
+  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
+  const modal = document.getElementById('offerFullModal');
+  if (!modal) return;
+  modal.classList.remove('active');
+  modal.style.display = 'none';
+  document.body.style.overflow = '';
+};
+
 window.openImageLightbox = function(imageUrl) {
   const old = document.getElementById('pamigoLightbox');
   if (old) old.remove();
