@@ -2944,6 +2944,9 @@ function showAuthScreen() {
 
   $('authScreen').style.display = 'none';
   $('mainScreen').style.display = 'none';
+
+  const loader = document.getElementById('appLoadingScreen');
+  if (loader) loader.remove();
 }
 
 async function showMainScreen(profile) {
@@ -3092,7 +3095,15 @@ async function handleSignup(e) {
 async function handleLogout() {
   if (!confirm('متأكد؟')) return;
   expectedLogin = null;
-  await signOut();
+  
+  try {
+    await signOut();
+  } catch (e) {
+    console.error('Logout error:', e);
+  }
+  
+  $('mainScreen').style.display = 'none';
+  showAuthScreen();
 }
 
 function translateError(msg) {
