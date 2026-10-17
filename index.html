@@ -4,23 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=yes,viewport-fit=cover">
   <meta name="theme-color" content="#1a2a6c">
-  <meta name="description" content="PAMIGO - منصة العروض والكاش باك">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="PAMIGO">
-  <meta name="mobile-web-app-capable" content="yes">
   <title>PAMIGO</title>
 
   <link rel="manifest" href="site.webmanifest">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
@@ -28,11 +18,14 @@
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/layout.css">
 
-  <!-- ✅ ستايل كروت نون والفلاتر الأفقية -->
+  <!-- ✅ التعديل الجديد لشكل الفلاتر والكروت -->
   <style>
+    .scroll-row { display: flex; overflow-x: auto; gap: 8px; padding: 5px 0; margin-bottom: 10px; scrollbar-width: none; -ms-overflow-style: none; }
+    .scroll-row::-webkit-scrollbar { display: none; }
+    .scroll-row .category-chip { width: auto !important; min-width: max-content !important; padding: 6px 14px !important; font-size: 13px !important; flex-shrink: 0 !important; border-radius: 20px !important; }
+    
     .noon-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 10px; margin-bottom: 20px; }
     @media (min-width: 768px) { .noon-grid { grid-template-columns: repeat(3, 1fr); } }
-    @media (min-width: 1024px) { .noon-grid { grid-template-columns: repeat(4, 1fr); } }
     
     .noon-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06); position: relative; cursor: pointer; transition: transform 0.2s; display: flex; flex-direction: column; }
     .noon-card:hover { transform: translateY(-3px); box-shadow: 0 6px 15px rgba(0,0,0,0.12); }
@@ -42,14 +35,6 @@
     .noon-discount-circle { position: absolute; top: 10px; right: 10px; background: #ef4444; color: #fff; width: 45px; height: 45px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; box-shadow: 0 2px 6px rgba(239,68,68,0.4); transform: rotate(-10deg); border: 2px solid #fff; z-index: 2; }
     .noon-merchant { font-size: 11px; color: #6b7280; display: flex; align-items: center; gap: 5px; margin-top: auto; margin-bottom: 8px; }
     .noon-cashback { background: #d1fae5; color: #065f46; font-size: 11px; padding: 4px 8px; border-radius: 6px; display: inline-block; font-weight: 700; align-self: flex-start; }
-    
-    /* ستايل الفلاتر الأفقية */
-    .scroll-row { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 8px; scrollbar-width: none; -ms-overflow-style: none; }
-    .scroll-row::-webkit-scrollbar { display: none; }
-    .scroll-row .category-chip { white-space: nowrap; flex-shrink: 0; }
-
-    /* ✅ إخفاء فلتر المسافة لو مش محتاجينه في تاب العروض */
-    #tab-offers .radius-control { padding-bottom: 0; }
   </style>
 </head>
 <body>
@@ -73,13 +58,8 @@
         <button class="auth-tab" data-tab="signup" data-i18n="auth.signupTab">📝 حساب جديد</button>
       </div>
 
-      <button id="googleLoginBtn" style="width:100%;padding:14px;background:#fff;color:#374151;border:2px solid #e5e7eb;border-radius:30px;font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px;transition:all 0.2s">
-        <svg width="20" height="20" viewBox="0 0 48 48" style="flex-shrink:0">
-          <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
-          <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
-          <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
-          <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
-        </svg>
+      <button id="googleLoginBtn" style="width:100%;padding:14px;background:#fff;color:#374151;border:2px solid #e5e7eb;border-radius:30px;font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px">
+        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
         <span>الدخول بحساب Google</span>
       </button>
 
@@ -169,18 +149,16 @@
       <button class="tab-btn" data-tab="offers" data-role="customer" data-i18n="tab.offers">🎁 العروض</button>
       <button class="tab-btn" data-tab="invoice" data-role="all" data-i18n="tab.invoice" style="position:relative">
         🧾 الفاتورة
-        <span id="invoiceBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;border-radius:10px;padding:0 6px;line-height:20px;text-align:center;box-shadow:0 2px 6px rgba(239,68,68,0.4)">0</span>
+        <span id="invoiceBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;border-radius:10px;padding:0 6px;line-height:20px;text-align:center;">0</span>
       </button>
-      
       <button class="tab-btn" data-tab="special_requests" data-role="all" style="position:relative">
         📝 طلبات خاصة
-        <span id="mainReqBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;border-radius:10px;padding:0 6px;line-height:20px;text-align:center;box-shadow:0 2px 6px rgba(239,68,68,0.4)">0</span>
+        <span id="mainReqBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;border-radius:10px;padding:0 6px;line-height:20px;text-align:center;">0</span>
       </button>
       <button class="tab-btn" data-tab="offer_requests" data-role="all" style="position:relative">
         🎁 طلبات عروض
-        <span id="offerReqBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;border-radius:10px;padding:0 6px;line-height:20px;text-align:center;box-shadow:0 2px 6px rgba(239,68,68,0.4)">0</span>
+        <span id="offerReqBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;border-radius:10px;padding:0 6px;line-height:20px;text-align:center;">0</span>
       </button>
-
       <button class="tab-btn" data-tab="dashboard" data-role="merchant" style="display:none" data-i18n="tab.dashboard">📊 لوحتي</button>
       <button class="tab-btn" data-tab="reports" data-role="merchant" style="display:none" data-i18n="tab.reports">📈 تقاريري</button>
       <button class="tab-btn" data-tab="analytics" data-role="merchant" style="display:none" data-i18n="tab.analytics">📉 تحليلاتي</button>
@@ -188,9 +166,8 @@
       <button class="tab-btn" data-tab="account" data-role="all" data-i18n="tab.account">👤 حسابي</button>
     </div>
 
-    <!-- ✅ تاب الرئيسية (منظم) -->
     <div class="tab-content active" id="tab-home">
-      <div class="categories scroll-row" id="viewModeOptions" style="margin-bottom:15px">
+      <div class="categories scroll-row" id="viewModeOptions">
         <button class="category-chip active" data-mode="all">🔄 الكل</button>
         <button class="category-chip" data-mode="shop">🏪 محلات</button>
         <button class="category-chip" data-mode="online">📦 أونلاين</button>
@@ -247,7 +224,6 @@
       <div id="merchantsList"><div class="no-requests">⏳ جاري التحميل...</div></div>
     </div>
 
-    <!-- ✅ تاب العروض (شكل نون) -->
     <div class="tab-content" id="tab-offers">
       <div class="radius-control" style="padding-bottom: 0;">
         <div>
@@ -278,10 +254,9 @@
         </div>
       </div>
       <div class="section-title"><h3>🎁 كل العروض</h3></div>
-      <!-- ✅ هنا الشكل الجديد -->
       <div class="noon-grid" id="offersGrid"></div>
     </div>
-        <div class="tab-content" id="tab-invoice">
+            <div class="tab-content" id="tab-invoice">
       <div class="card" id="customerPendingInvoicesCard" style="display:none;border-right:4px solid #f59e0b">
         <h4 style="margin-bottom:10px">⏳ فواتير في انتظار تأكيدك</h4>
         <p style="font-size:13px;color:#6b7280;margin-bottom:12px">أكد استلامك للبضاعة عشان الكاش باك يتحسب</p>
