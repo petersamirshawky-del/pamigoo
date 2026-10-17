@@ -1279,19 +1279,28 @@ async function renderRequestsTab() {
 }
 
 window.switchRequestsSubtab = function(type) {
+  console.log("تم الضغط على:", type);
 
-  document.querySelectorAll('.req-subtab').forEach(b =>
-    b.classList.toggle('active', b.dataset.req === type));
+  document.querySelectorAll('.req-subtab').forEach(b => {
+    if (b.dataset.req === type) {
+      b.classList.add('active');
+    } else {
+      b.classList.remove('active');
+    }
+  });
 
   const specialSection = $('specialRequestsSection');
   const offerSection = $('offerRequestsSection');
 
-  if (!specialSection || !offerSection) return;
+  if (!specialSection || !offerSection) {
+    console.error("مش لاقي الأقسام في الـ HTML");
+    return;
+  }
 
   if (type === 'special') {
     specialSection.style.display = 'block';
     offerSection.style.display = 'none';
-  } else {
+  } else if (type === 'offer') {
     specialSection.style.display = 'none';
     offerSection.style.display = 'block';
   }
