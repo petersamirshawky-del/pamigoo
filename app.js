@@ -1,5 +1,5 @@
 // ============================================================
-// PAMIGO - Main Entry (v2.1 - Final)
+// PAMIGO - Main Entry (v2.2 - Final with split request tabs)
 // ============================================================
 const { supabase } = await import('./supabase.js');
 const { toast, showLoader, hideLoader } = await import('./ui.js');
@@ -123,8 +123,8 @@ async function loadMerchants() {
   try {
     const [merchantsResult, offersResult, ratingsResult] = await Promise.all([
       supabase.from('merchants').select('*').eq('frozen', false),
-      supabase.from('offers').select('*').limit(500), // ✅ Limit للأداء
-      supabase.from('ratings').select('*').limit(1000) // ✅ Limit للأداء
+      supabase.from('offers').select('*').limit(500),
+      supabase.from('ratings').select('*').limit(1000)
     ]);
 
     if (merchantsResult.error) {
@@ -774,7 +774,8 @@ async function handleSendOfferRequest() {
       window.closeRequestOfferModal();
       btn.disabled = false;
       btn.innerText = '📩 إرسال الطلب';
-      if (currentProfile.role === 'customer') renderRequestsTab();
+      // ✅ بعد إرسال طلب عرض، نحدّث تاب طلبات العروض
+      if (currentProfile.role === 'customer') renderRequestsTab('offer');
     }, 1500);
 
   } catch (e) {
@@ -894,16 +895,17 @@ function updateTabsVisibility() {
 }
 
 function switchTab(name) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('#mainTabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab-content').forEach(c => {
     const isTarget = c.id === 'tab-' + name;
     c.classList.toggle('active', isTarget);
     c.style.display = isTarget ? 'block' : 'none';
   });
-  
+
   if (name === 'offers') renderOffersGrid();
   if (name === 'invoice') renderInvoiceTab();
-  if (name === 'requests') renderRequestsTab();
+  if (name === 'special_requests') renderRequestsTab('special');
+  if (name === 'offer_requests') renderRequestsTab('offer');
   if (name === 'dashboard' && currentMerchant) renderDashboard();
   if (name === 'reports' && currentMerchant) renderReports('all');
   if (name === 'analytics' && currentMerchant) renderAnalyticsTab();
@@ -1204,7 +1206,7 @@ async function handleSubmitRating() {
 }
 
 // ============================================================
-// ✅ REQUESTS
+// ✅ REQUESTS (SPLIT INTO special / offer)
 // ============================================================
 function handleReqImage(e) {
   const file = e.target.files[0];
@@ -1233,15 +1235,17 @@ async function handleSendRequest() {
     $('reqProduct').value = ''; $('reqDetails').value = '';
     $('reqFileName').innerText = 'لم يتم اختيار ملف';
     $('reqImagePreview').style.display = 'none'; uploadedReqImage = null;
-    setTimeout(() => renderRequestsTab(), 1000);
+    setTimeout(() => renderRequestsTab('special'), 1000);
   } catch (e) { res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message; }
 }
 
-async function renderRequestsTab() {
+/**
+ * ✅ النسخة الجديدة من renderRequestsTab — بتاخد نوع الطلب
+ * type: 'special' | 'offer'
+ */
+async function renderRequestsTab(type) {
   if (!currentProfile) return;
-
-  const subtabs = $('requestsSubtabs');
-  if (subtabs) subtabs.style.display = 'flex';
+  if (type !== 'special' && type !== 'offer') type = 'special';
 
   if (currentProfile.role === 'merchant' && currentMerchant) {
     $('requestFormCard').style.display = 'none';
@@ -1251,8 +1255,11 @@ async function renderRequestsTab() {
     $('merchantRequestsWrapper').style.display = 'block';
     $('offerRequestsWrapper').style.display = 'block';
 
-    try { await renderMerchantRequestsList(); } catch (e) { console.error(e); }
-    try { await renderMerchantOfferRequestsList(); } catch (e) { console.error(e); }
+    if (type === 'special') {
+      try { await renderMerchantRequestsList(); } catch (e) { console.error(e); }
+    } else {
+      try { await renderMerchantOfferRequestsList(); } catch (e) { console.error(e); }
+    }
   } else if (currentProfile.role === 'customer') {
     $('requestFormCard').style.display = 'block';
     $('reqStatsWrapper').style.display = 'block';
@@ -1260,46 +1267,22 @@ async function renderRequestsTab() {
     $('offerRequestsWrapper').style.display = 'none';
     $('myOfferRequestsWrapper').style.display = 'block';
 
-    try { await renderMyRequests(); } catch (e) { console.error(e); }
-    try { await renderMyOfferRequests(); } catch (e) { console.error(e); }
+    if (type === 'special') {
+      try { await renderMyRequests(); } catch (e) { console.error(e); }
+    } else {
+      try { await renderMyOfferRequests(); } catch (e) { console.error(e); }
+    }
   } else {
     $('requestFormCard').style.display = 'none';
     $('reqStatsWrapper').style.display = 'none';
     $('merchantRequestsWrapper').style.display = 'none';
     $('offerRequestsWrapper').style.display = 'none';
     $('myOfferRequestsWrapper').style.display = 'none';
-    if (subtabs) subtabs.style.display = 'none';
     $('myRequestsList').innerHTML = '<div class="no-requests">مش مسجل كعميل أو تاجر</div>';
   }
 
   setTimeout(updateOfferReqBadge, 300);
 }
-
-window.switchRequestsSubtab = function(type) {
-  // 1. تغيير شكل الزراير (عشان يبان مين اللي متعلم عليه)
-  document.querySelectorAll('.req-subtab').forEach(b => {
-    if (b.dataset.req === type) {
-      b.classList.add('active');
-    } else {
-      b.classList.remove('active');
-    }
-  });
-
-  // 2. جلب الأقسام
-  const specialSection = document.getElementById('specialRequestsSection');
-  const offerSection = document.getElementById('offerRequestsSection');
-
-  if (!specialSection || !offerSection) return;
-
-  // 3. الإظهار والإخفاء
-  if (type === 'special') {
-    specialSection.style.display = 'block';
-    offerSection.style.display = 'none';
-  } else if (type === 'offer') {
-    specialSection.style.display = 'none';
-    offerSection.style.display = 'block';
-  }
-};
 
 async function renderMyRequests() {
   myRequestsCache = await getMyRequests();
@@ -1617,19 +1600,19 @@ function getStatusBadge(status) {
 
 async function acceptOfferClick(reqId, respId) {
   if (!confirm('متأكد من قبول العرض؟')) return;
-  try { await acceptOffer({ requestId: reqId, responseId: respId }); toast('✅ تم قبول العرض', 'success'); renderRequestsTab(); }
+  try { await acceptOffer({ requestId: reqId, responseId: respId }); toast('✅ تم قبول العرض', 'success'); renderRequestsTab('special'); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
 async function cancelReqClick(reqId) {
   if (!confirm('متأكد من الإلغاء؟')) return;
-  try { await cancelRequest(reqId); renderRequestsTab(); }
+  try { await cancelRequest(reqId); renderRequestsTab('special'); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
 async function deleteReqClick(reqId) {
   if (!confirm('متأكد من الحذف؟')) return;
-  try { await deleteRequest(reqId); renderRequestsTab(); }
+  try { await deleteRequest(reqId); renderRequestsTab('special'); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
@@ -1642,7 +1625,7 @@ async function askImageClick(respId) {
   try {
     await askMerchantForImage({ responseId: respId, message: msg, existingMessages: resp.customer_messages || [] });
     toast('✅ تم إرسال الرسالة', 'success');
-    renderRequestsTab();
+    renderRequestsTab('special');
   } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
@@ -1657,7 +1640,7 @@ async function replyToReq(reqId) {
   try {
     await replyToRequest({ requestId: reqId, merchantId: currentMerchant.id, price: p, message, imageBase64 });
     toast('✅ تم إرسال ردك', 'success');
-    renderRequestsTab();
+    renderRequestsTab('special');
   } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
@@ -1668,7 +1651,7 @@ async function sendExtraImage(responseId) {
   try {
     await merchantSendExtraImage({ responseId, imageBase64, message });
     toast('✅ تم إرسال الصورة', 'success');
-    renderRequestsTab();
+    renderRequestsTab('special');
   } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
@@ -1689,12 +1672,12 @@ function pickImage() {
 
 async function hideReq(reqId) {
   if (!confirm('مسح الطلب من عندك؟')) return;
-  try { await hideRequestForMerchant(reqId, currentMerchant.id); renderRequestsTab(); }
+  try { await hideRequestForMerchant(reqId, currentMerchant.id); renderRequestsTab('special'); }
   catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
 // ============================================================
-// ✅ Badge Update
+// ✅ Badge Update (split: mainReqBadge = special only, offerReqBadge = offers only)
 // ============================================================
 async function updateOfferReqBadge() {
   const mainBadge = $('mainReqBadge');
@@ -1716,11 +1699,9 @@ async function updateOfferReqBadge() {
       return !myReply;
     }).length;
 
-    const total = pendingOffers + pendingSpecial;
-
     if (mainBadge) {
-      if (total > 0) {
-        mainBadge.innerText = total > 9 ? '9+' : total;
+      if (pendingSpecial > 0) {
+        mainBadge.innerText = pendingSpecial > 9 ? '9+' : pendingSpecial;
         mainBadge.style.display = 'block';
       } else {
         mainBadge.style.display = 'none';
@@ -3240,7 +3221,7 @@ function bindEvents() {
     tab.addEventListener('click', () => showAuthTab(tab.dataset.tab));
   });
 
-  document.querySelectorAll('.tab-btn').forEach(btn => {
+  document.querySelectorAll('#mainTabs .tab-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
@@ -3334,10 +3315,6 @@ function bindEvents() {
   const sendOfferReqBtn = $('sendOfferRequestBtn');
   if (sendOfferReqBtn) sendOfferReqBtn.addEventListener('click', handleSendOfferRequest);
 
-  document.querySelectorAll('.req-subtab').forEach(btn => {
-    btn.addEventListener('click', () => switchRequestsSubtab(btn.dataset.req));
-  });
-
   const googleBtn = $('googleLoginBtn');
   if (googleBtn) googleBtn.addEventListener('click', handleGoogleLogin);
 
@@ -3355,7 +3332,6 @@ if (document.readyState === 'loading') {
 }
 
 async function runInit() {
-  // 1. إظهار شاشة التحميل أول ما الصفحة تفتح
   if (!document.getElementById('appLoadingScreen')) {
     const loader = document.createElement('div');
     loader.id = 'appLoadingScreen';
@@ -3364,11 +3340,9 @@ async function runInit() {
     document.body.appendChild(loader);
   }
 
-  // 2. إخفاء الشاشات لحد ما نعرف المستخدم مسجل ولا لأ
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('mainScreen').style.display = 'none';
 
-  // 3. تجهيز الأحداث والترجمة
   bindEvents();
   showAuthTab('login');
   updateBankCodeVisibility();
@@ -3435,7 +3409,6 @@ async function runInit() {
     console.log('getSession error:', e);
     showAuthScreen();
   } finally {
-    // 6. مسح شاشة التحميل في النهاية (سواء دخل أو لأ)
     const loader = document.getElementById('appLoadingScreen');
     if (loader) loader.remove();
   }
