@@ -27,6 +27,30 @@
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/layout.css">
+
+  <!-- ✅ ستايل كروت نون والفلاتر الأفقية -->
+  <style>
+    .noon-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 10px; margin-bottom: 20px; }
+    @media (min-width: 768px) { .noon-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (min-width: 1024px) { .noon-grid { grid-template-columns: repeat(4, 1fr); } }
+    
+    .noon-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06); position: relative; cursor: pointer; transition: transform 0.2s; display: flex; flex-direction: column; }
+    .noon-card:hover { transform: translateY(-3px); box-shadow: 0 6px 15px rgba(0,0,0,0.12); }
+    .noon-card img { width: 100%; height: 160px; object-fit: contain; padding: 10px; background: #fff; border-bottom: 1px solid #f9fafb; }
+    .noon-body { padding: 12px; flex: 1; display: flex; flex-direction: column; }
+    .noon-title { font-size: 13px; font-weight: 700; color: #374151; margin: 0 0 8px 0; line-height: 1.4; height: 36px; overflow: hidden; }
+    .noon-discount-circle { position: absolute; top: 10px; right: 10px; background: #ef4444; color: #fff; width: 45px; height: 45px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; box-shadow: 0 2px 6px rgba(239,68,68,0.4); transform: rotate(-10deg); border: 2px solid #fff; z-index: 2; }
+    .noon-merchant { font-size: 11px; color: #6b7280; display: flex; align-items: center; gap: 5px; margin-top: auto; margin-bottom: 8px; }
+    .noon-cashback { background: #d1fae5; color: #065f46; font-size: 11px; padding: 4px 8px; border-radius: 6px; display: inline-block; font-weight: 700; align-self: flex-start; }
+    
+    /* ستايل الفلاتر الأفقية */
+    .scroll-row { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 8px; scrollbar-width: none; -ms-overflow-style: none; }
+    .scroll-row::-webkit-scrollbar { display: none; }
+    .scroll-row .category-chip { white-space: nowrap; flex-shrink: 0; }
+
+    /* ✅ إخفاء فلتر المسافة لو مش محتاجينه في تاب العروض */
+    #tab-offers .radius-control { padding-bottom: 0; }
+  </style>
 </head>
 <body>
 
@@ -66,36 +90,30 @@
 
       <form id="loginForm">
         <h4 style="text-align:center;margin-bottom:15px;color:var(--primary)" data-i18n="login.title">تسجيل الدخول</h4>
-
         <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px" data-i18n="login.role">👤 حسابي:</label>
         <select id="loginRole">
           <option value="customer" data-i18n="login.roleCustomer">👤 عميل</option>
           <option value="merchant" data-i18n="login.roleMerchant">🏪 تاجر</option>
           <option value="admin" data-i18n="login.roleAdmin">👑 أدمن</option>
         </select>
-
         <input type="tel" id="loginPhone" placeholder="📱 رقم الموبايل" autocomplete="tel" data-i18n-placeholder="login.phone">
         <div class="password-wrap">
           <input type="password" id="loginPassword" placeholder="🔑 كلمة المرور" autocomplete="current-password" data-i18n-placeholder="login.password">
           <button type="button" class="eye-btn" onclick="togglePass('loginPassword', this)" tabindex="-1">👁️</button>
         </div>
-
         <div id="loginBankCodeGroup" style="display:none">
           <div class="password-wrap">
             <input type="password" id="loginBankCode" placeholder="🔑 بنكود التاجر" autocomplete="off" style="text-transform:uppercase" data-i18n-placeholder="login.bankCode">
             <button type="button" class="eye-btn" onclick="togglePass('loginBankCode', this)" tabindex="-1">👁️</button>
           </div>
         </div>
-
         <div id="loginAdminCodeGroup" style="display:none">
           <div class="password-wrap">
             <input type="password" id="loginAdminCode" placeholder="🔑 بنكود الأدمن" autocomplete="off" data-i18n-placeholder="login.adminCode">
             <button type="button" class="eye-btn" onclick="togglePass('loginAdminCode', this)" tabindex="-1">👁️</button>
           </div>
         </div>
-
         <button type="submit" id="loginBtn" style="margin-top:10px" data-i18n="login.btn">🚀 دخول</button>
-
         <p style="text-align:center;margin-top:12px;font-size:13px">
           <a href="#" id="forgotPassLink" style="color:var(--primary);text-decoration:underline" data-i18n="login.forgot">نسيت كلمة المرور؟</a>
         </p>
@@ -128,13 +146,11 @@
         </div>
         <button type="submit" id="signupBtn" style="margin-top:10px" data-i18n="signup.btn">📝 إنشاء الحساب</button>
       </form>
-
       <div id="authMessage" class="auth-message"></div>
     </div>
   </div>
 
   <div id="mainScreen" style="display:none">
-
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 18px">
       <div style="display:flex;align-items:center;gap:10px">
         <span id="userRole" class="role-badge">-</span>
@@ -172,18 +188,20 @@
       <button class="tab-btn" data-tab="account" data-role="all" data-i18n="tab.account">👤 حسابي</button>
     </div>
 
+    <!-- ✅ تاب الرئيسية (منظم) -->
     <div class="tab-content active" id="tab-home">
-      <div class="categories" id="viewModeOptions" style="margin-bottom:15px">
+      <div class="categories scroll-row" id="viewModeOptions" style="margin-bottom:15px">
         <button class="category-chip active" data-mode="all">🔄 الكل</button>
         <button class="category-chip" data-mode="shop">🏪 محلات</button>
         <button class="category-chip" data-mode="online">📦 أونلاين</button>
       </div>
-      <div class="radius-control">
+      
+      <div class="radius-control" style="margin-bottom:15px">
         <label>🔍 نطاق البحث: <span id="homeRadiusValue">2</span> كم</label>
         <input type="range" id="homeRadiusSlider" min="0.5" max="10" step="0.5" value="2">
         <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
           <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📊 ترتيب النتائج:</label>
-          <div class="categories" id="homeSortOptions" style="margin-bottom:0">
+          <div class="categories scroll-row" id="homeSortOptions" style="margin-bottom:0">
             <button class="category-chip active" data-sort="nearest"><i class="fas fa-location-dot"></i> الأقرب</button>
             <button class="category-chip" data-sort="cashback"><i class="fas fa-coins"></i> أعلى كاش باك</button>
             <button class="category-chip" data-sort="discount"><i class="fas fa-fire"></i> أعلى خصم</button>
@@ -191,7 +209,7 @@
         </div>
         <div style="margin-top:14px;border-top:1px solid #eee;padding-top:12px">
           <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">🏷️ نوع الخدمة:</label>
-          <div class="categories" id="homeCategories" style="margin-bottom:0">
+          <div class="categories scroll-row" id="homeCategories" style="margin-bottom:0">
             <button class="category-chip active" data-cat="all"><i class="fas fa-th"></i> الكل</button>
             <button class="category-chip" data-cat="fashion"><i class="fas fa-tshirt"></i> ملابس</button>
             <button class="category-chip" data-cat="restaurants"><i class="fas fa-utensils"></i> مطاعم</button>
@@ -208,29 +226,33 @@
             <button class="category-chip" data-cat="cosmetics"><i class="fas fa-spa"></i> مستحضرات تجميل</button>
             <button class="category-chip" data-cat="stationery"><i class="fas fa-book"></i> مكتبات</button>
             <button class="category-chip" data-cat="toys"><i class="fas fa-puzzle-piece"></i> ألعاب أطفال</button>
-            <button class="category-chip" data-cat="home_supplies"><i class="fas fa-home"></i> مستلزمات منزلية</button> <!-- ✅ -->
+            <button class="category-chip" data-cat="home_supplies"><i class="fas fa-home"></i> مستلزمات منزلية</button>
           </div>
         </div>
         <div id="homeSubWrapper" style="margin-top:12px;border-top:1px solid #eee;padding-top:12px;display:none">
           <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📂 تصنيفات فرعية:</label>
-          <div class="categories" id="homeSubCategories" style="margin-bottom:0"></div>
+          <div class="categories scroll-row" id="homeSubCategories" style="margin-bottom:0"></div>
         </div>
       </div>
+      
       <div class="search-bar">
         <i class="fas fa-search"></i>
         <input type="text" id="searchInput" placeholder="ابحث عن عروض أو متاجر...">
       </div>
+      
       <div class="section-title"><h3>🔥 أفضل العروض</h3></div>
-      <div class="deals-scroll" id="dealsScroll"></div>
+      <div class="deals-scroll scroll-row" id="dealsScroll" style="padding-bottom:15px"></div>
+      
       <div class="section-title"><h3>📍 المتاجر القريبة</h3></div>
       <div id="merchantsList"><div class="no-requests">⏳ جاري التحميل...</div></div>
     </div>
 
+    <!-- ✅ تاب العروض (شكل نون) -->
     <div class="tab-content" id="tab-offers">
-      <div class="radius-control">
+      <div class="radius-control" style="padding-bottom: 0;">
         <div>
           <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">🏷️ نوع الخدمة:</label>
-          <div class="categories" id="offersCategories" style="margin-bottom:0">
+          <div class="categories scroll-row" id="offersCategories" style="margin-bottom:0">
             <button class="category-chip active" data-cat="all"><i class="fas fa-th"></i> الكل</button>
             <button class="category-chip" data-cat="fashion"><i class="fas fa-tshirt"></i> ملابس</button>
             <button class="category-chip" data-cat="restaurants"><i class="fas fa-utensils"></i> مطاعم</button>
@@ -247,19 +269,19 @@
             <button class="category-chip" data-cat="cosmetics"><i class="fas fa-spa"></i> مستحضرات تجميل</button>
             <button class="category-chip" data-cat="stationery"><i class="fas fa-book"></i> مكتبات</button>
             <button class="category-chip" data-cat="toys"><i class="fas fa-puzzle-piece"></i> ألعاب أطفال</button>
-            <button class="category-chip" data-cat="home_supplies"><i class="fas fa-home"></i> مستلزمات منزلية</button> <!-- ✅ -->
+            <button class="category-chip" data-cat="home_supplies"><i class="fas fa-home"></i> مستلزمات منزلية</button>
           </div>
         </div>
         <div id="offersSubWrapper" style="margin-top:14px;border-top:1px solid #eee;padding-top:12px;display:none">
           <label style="font-size:14px;font-weight:600;display:block;margin-bottom:8px">📂 تصنيفات فرعية:</label>
-          <div class="categories" id="offersSubCategories" style="margin-bottom:0"></div>
+          <div class="categories scroll-row" id="offersSubCategories" style="margin-bottom:0"></div>
         </div>
       </div>
       <div class="section-title"><h3>🎁 كل العروض</h3></div>
-      <div class="offers-grid" id="offersGrid"></div>
+      <!-- ✅ هنا الشكل الجديد -->
+      <div class="noon-grid" id="offersGrid"></div>
     </div>
-
-    <div class="tab-content" id="tab-invoice">
+        <div class="tab-content" id="tab-invoice">
       <div class="card" id="customerPendingInvoicesCard" style="display:none;border-right:4px solid #f59e0b">
         <h4 style="margin-bottom:10px">⏳ فواتير في انتظار تأكيدك</h4>
         <p style="font-size:13px;color:#6b7280;margin-bottom:12px">أكد استلامك للبضاعة عشان الكاش باك يتحسب</p>
@@ -288,7 +310,6 @@
         <p style="font-size:14px;color:#6b7280;margin-bottom:10px">
           قيّم <strong id="ratedMerchantName">التاجر</strong>
         </p>
-
         <div class="stars" id="starContainer" style="display:flex;gap:8px;margin:12px 0;justify-content:center">
           <span class="star" data-value="1">★</span>
           <span class="star" data-value="2">★</span>
@@ -296,9 +317,7 @@
           <span class="star" data-value="4">★</span>
           <span class="star" data-value="5">★</span>
         </div>
-
         <textarea id="reviewComment" placeholder="اكتب تعليقك (اختياري)..." style="width:100%;padding:12px;margin:8px 0;border:1px solid #ddd;border-radius:10px;min-height:70px;font-family:inherit"></textarea>
-
         <button id="submitRatingBtn" style="background:#f59e0b;margin-top:8px">⭐ إرسال التقييم</button>
         <div id="ratingResult" style="margin-top:8px;font-weight:600;text-align:center"></div>
       </div>
@@ -363,7 +382,7 @@
             <option value="cosmetics">💄 مستحضرات تجميل</option>
             <option value="stationery">📚 مكتبات</option>
             <option value="toys">🧸 ألعاب أطفال</option>
-            <option value="home_supplies">🏠 مستلزمات منزلية</option> <!-- ✅ -->
+            <option value="home_supplies">🏠 مستلزمات منزلية</option>
           </select>
           <input type="text" id="reqProduct" placeholder="اسم المنتج أو الخدمة">
           <textarea id="reqDetails" placeholder="تفاصيل إضافية..."></textarea>
@@ -412,7 +431,6 @@
             <div id="merchantOfferRequestsList"><p style="color:#6b7280;font-size:14px">جاري التحميل...</p></div>
           </div>
         </div>
-
         <div id="myOfferRequestsWrapper" style="display:none">
           <div class="card" style="border-right:4px solid #ff6b35">
             <h4 style="margin-bottom:10px">🎁 طلبات العروض بتاعتي</h4>
@@ -474,7 +492,6 @@
         <input type="text" id="offerTitle" placeholder="اسم العرض (مثل: خصم الصيف)">
         <input type="number" id="offerPrice" placeholder="💰 السعر (اختياري)" min="0" step="0.01">
 
-        <!-- ✅ التصنيف الرئيسي والفرعي للعرض -->
         <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">📂 التصنيف الرئيسي:</label>
         <select id="offerCategory" onchange="window.onOfferCategoryChange(this.value)">
           <option value="">اختار التصنيف</option>
@@ -653,7 +670,7 @@
               <option value="cosmetics">💄 مستحضرات تجميل</option>
               <option value="stationery">📚 مكتبات</option>
               <option value="toys">🧸 ألعاب أطفال</option>
-              <option value="home_supplies">🏠 مستلزمات منزلية</option> <!-- ✅ -->
+              <option value="home_supplies">🏠 مستلزمات منزلية</option>
             </select>
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيفات الفرعية:</label>
             <div id="newTraderSubs" class="categories" style="margin-bottom:0"></div>
@@ -686,18 +703,13 @@
 
           <div id="editTraderForm" style="display:none;background:#f9fafb;padding:15px;border-radius:12px;margin-bottom:15px;border-right:4px solid #1a2a6c">
             <h5 style="margin-bottom:10px;color:var(--primary)">✏️ تعديل بيانات التاجر</h5>
-
             <input type="hidden" id="editTraderId">
-
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">اسم التاجر:</label>
             <input type="text" id="editTraderName">
-
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">البنكود:</label>
             <input type="text" id="editTraderBankCode" style="text-transform:uppercase">
-
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">رقم الموبايل:</label>
             <input type="text" id="editTraderPhone">
-
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيف:</label>
             <select id="editTraderCategory">
               <option value="fashion">👗 ملابس</option>
@@ -715,30 +727,23 @@
               <option value="cosmetics">💄 مستحضرات تجميل</option>
               <option value="stationery">📚 مكتبات</option>
               <option value="toys">🧸 ألعاب أطفال</option>
-              <option value="home_supplies">🏠 مستلزمات منزلية</option> <!-- ✅ -->
+              <option value="home_supplies">🏠 مستلزمات منزلية</option>
             </select>
-
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيفات الفرعية:</label>
             <div id="editTraderSubs" class="categories" style="margin-bottom:0"></div>
-
             <label style="font-size:13px;font-weight:600;display:block;margin-top:10px">🏪 نوع النشاط:</label>
             <select id="editTraderType">
               <option value="shop">🏪 محل (له عنوان وخريطة)</option>
               <option value="warehouse">📦 مخزن (بدون عنوان)</option>
               <option value="both">🔄 الاتنين</option>
             </select>
-
             <input type="tel" id="editTraderWhatsapp" placeholder="💬 رقم الواتساب (اختياري)">
-
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">Latitude:</label>
             <input type="number" id="editTraderLat" step="0.0001">
-
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">Longitude:</label>
             <input type="number" id="editTraderLng" step="0.0001">
-
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">نسبة الكاش باك (1-50):</label>
             <input type="number" id="editTraderRate" min="1" max="50">
-
             <label style="font-size:13px;font-weight:600;display:block;margin-top:10px">
               <input type="checkbox" id="editTraderDelivery" style="width:auto;margin-left:6px">
               🛵 التوصيل متاح
@@ -746,7 +751,6 @@
             <div id="editTraderDeliveryWrap" style="display:none">
               <input type="tel" id="editTraderDeliveryPhone" placeholder="📞 رقم التوصيل (اختياري)">
             </div>
-
             <div style="display:flex;gap:8px;margin-top:10px">
               <button id="saveTraderBtn" style="flex:1;background:#27ae60">💾 حفظ التعديلات</button>
               <button id="cancelEditTraderBtn" style="flex:1;background:#95a5a6">❌ إلغاء</button>
@@ -916,9 +920,7 @@
     <div class="modal-box" onclick="event.stopPropagation()" style="max-width:420px">
       <button class="close-btn" onclick="window.closeRequestOfferModal()">✕</button>
       <h3 style="padding-left:0;margin-bottom:8px">📩 اطلب العرض</h3>
-      <p style="font-size:14px;color:#6b7280;margin-bottom:14px">
-        العرض: <strong id="reqOfferTitle">-</strong>
-      </p>
+      <p style="font-size:14px;color:#6b7280;margin-bottom:14px">العرض: <strong id="reqOfferTitle">-</strong></p>
 
       <input type="hidden" id="reqOfferId">
       <input type="hidden" id="reqOfferMerchantId">
@@ -934,9 +936,7 @@
   <div class="modal-overlay" id="completeProfileModal" style="display:none" onclick="window.closeCompleteProfileModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()" style="max-width:420px">
       <h3 style="padding-left:0;margin-bottom:8px">📝 إكمال البيانات</h3>
-      <p style="font-size:13px;color:#6b7280;margin-bottom:14px">
-        الإيميل: <strong id="completeProfileEmail">-</strong>
-      </p>
+      <p style="font-size:13px;color:#6b7280;margin-bottom:14px">الإيميل: <strong id="completeProfileEmail">-</strong></p>
 
       <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">👤 الاسم:</label>
       <input type="text" id="completeProfileName" placeholder="اسمك">
@@ -1007,7 +1007,6 @@
       <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">💰 السعر (اختياري):</label>
       <input type="number" id="editOfferPrice" placeholder="السعر" min="0" step="0.01">
 
-      <!-- ✅ التصنيف الرئيسي والفرعي في فورم التعديل -->
       <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">📂 التصنيف الرئيسي:</label>
       <select id="editOfferCategory" onchange="window.onEditOfferCategoryChange(this.value)">
         <option value="">اختار التصنيف</option>
