@@ -2946,18 +2946,23 @@ async function showMainScreen(profile) {
   $('userRole').className = 'role-badge role-' + profile.role;
   $('userName').innerText = profile.name || 'مستخدم';
 
-  if (profile.role === 'merchant') {
-    currentMerchant = await getMyMerchant();
-    $('merchantBanner').style.display = 'block';
-    $('merchantName').innerText = currentMerchant ? currentMerchant.name : 'غير مرتبط';
-  } else {
-    currentMerchant = null;
-    $('merchantBanner').style.display = 'none';
-  }
+if (profile.role === 'merchant') {
+  getMyMerchant().then(m => {
+    currentMerchant = m;
+    if (currentMerchant) {
+      $('merchantName').innerText = currentMerchant.name;
+    }
+  });
+  $('merchantBanner').style.display = 'block';
+} else {
+  currentMerchant = null;
+  $('merchantBanner').style.display = 'none';
+}
 
-  updateTabsVisibility();
-  await refreshData();
-  if (userLat === null) updateLocation();
+updateTabsVisibility();
+switchTab('home');
+refreshData();
+if (userLat === null) updateLocation();
 
   if (profile.role === 'merchant') {
     setTimeout(updateOfferReqBadge, 1000);
