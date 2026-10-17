@@ -902,16 +902,28 @@ function switchTab(name) {
     c.classList.toggle('active', isTarget);
     c.style.display = isTarget ? 'block' : 'none';
   });
+
+  if (name === 'requests') {
+    const sp = document.getElementById('specialRequestsSection');
+    const off = document.getElementById('offerRequestsSection');
+    if (sp) sp.style.display = 'block';
+    if (off) off.style.display = 'none';
+    
+    document.querySelectorAll('.req-subtab').forEach(b => {
+      b.classList.toggle('active', b.dataset.req === 'special');
+    });
+    
+    renderRequestsTab();
+  }
+
   if (name === 'offers') renderOffersGrid();
   if (name === 'invoice') renderInvoiceTab();
-  if (name === 'requests') renderRequestsTab();
   if (name === 'dashboard' && currentMerchant) renderDashboard();
   if (name === 'reports' && currentMerchant) renderReports('all');
   if (name === 'analytics' && currentMerchant) renderAnalyticsTab();
   if (name === 'admin') renderAdminSection('dashboard');
   if (name === 'account') setTimeout(initAccountMapUI, 300);
 }
-
 // ============================================================
 // ✅ INVOICE
 // ============================================================
