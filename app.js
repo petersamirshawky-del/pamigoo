@@ -1,5 +1,5 @@
 // ============================================================
-// PAMIGO - Main Entry (v2.3 - Full Hierarchical Offers)
+// PAMIGO - Main Entry (v2.4 - Full Noon Style & Fixes)
 // ============================================================
 const { supabase } = await import('./supabase.js');
 const { toast, showLoader, hideLoader } = await import('./ui.js');
@@ -245,9 +245,7 @@ function renderMerchantsList() {
       });
     });
 
-    const matchingMerchants = allMerchants.filter(m =>
-      m.name && m.name.toLowerCase().includes(q)
-    );
+    const matchingMerchants = allMerchants.filter(m => m.name && m.name.toLowerCase().includes(q));
 
     if (!matchingOffers.length && !matchingMerchants.length) {
       el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج للبحث "${escapeHtml(searchQuery)}"</div>`;
@@ -356,24 +354,32 @@ function renderMerchantsList() {
 }
 
 // ============================================================
-// ✅ Render: Top Deals & Offers Grid (NEW HIERARCHICAL)
+// ✅ Render: Top Deals & Offers Grid (NOON STYLE)
 // ============================================================
 function renderTopDeals() {
-  const sorted = [...allMerchants].filter(m => (m.offers || []).length > 0).sort((a, b) => (b.cashback_rate || 0) - (a.cashback_rate || 0)).slice(0, 10);
+  const sorted = [...allOffers]
+    .sort((a, b) => (b.discount_value || 0) - (a.discount_value || 0))
+    .slice(0, 10);
+
   const el = $('dealsScroll');
   if (!el) return;
   if (!sorted.length) { el.innerHTML = ''; return; }
 
-  el.innerHTML = sorted.map(m => {
+  el.innerHTML = sorted.map(o => {
+    const m = o.merchants || {};
     const rate = m.cashback_rate || 15;
-    const tier = getTier(rate);
+    const imgSrc = o.image_url ? o.image_url : 'https://ui-avatars.com/api/?name=' + encodeURIComponent(o.title || 'عرض') + '&background=f3f4f6&color=6b7280&size=200';
+    
     return `
-      <div class="deal-card" onclick="window.openMerchant('${escapeJs(m.bank_code)}')">
-        <div class="tier-badge">${tier.icon}</div>
-        <div class="discount">${rate}%</div>
-        <div class="icon" style="overflow:hidden;display:flex;align-items:center;justify-content:center;border-radius:16px">${logoImgHtml(m)}</div>
-        <div class="tag">${escapeHtml(m.name)}</div>
-        <div style="font-size:11px;color:#ff6b35;margin-top:4px">كاش باك ${rate}%</div>
+      <div class="noon-card" style="min-width:160px;width:160px" onclick="window.openOfferFull('${escapeJs(o.id)}','${escapeJs(o.merchant_id || m.id)}')">
+        <div class="noon-discount-circle" style="width:35px;height:35px;font-size:11px">${escapeHtml(o.discount)}</div>
+        <img src="${escapeHtml(imgSrc)}" style="height:120px" alt="${escapeHtml(o.title)}" onerror="this.src='https://ui-avatars.com/api/?name=Offer&background=f3f4f6&color=6b7280'">
+        <div class="noon-body" style="padding:8px">
+          <h4 class="noon-title" style="font-size:12px;height:32px">${escapeHtml(o.title)}</h4>
+          <div class="noon-merchant" style="margin-bottom:4px">
+            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(m.name || '')}</span>
+          </div>
+        </div>
       </div>
     `;
   }).join('');
@@ -393,11 +399,11 @@ function renderOffersGrid() {
 
   if (!list.length) {
     const isMerchant = currentProfile && currentProfile.role === 'merchant';
-    const addOfferBtn = isMerchant ? `<button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer">➕ أضف عرضك</button>` : '';
+    const addOfferBtn = isMerchant ? `<button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer;margin-top:15px">➕ أضف عرضك</button>` : '';
 
-    el.innerHTML = `<div style="text-align:center;padding:30px;color:#6b7280">
+    el.innerHTML = `<div style="text-align:center;padding:40px;color:#6b7280;grid-column:1/-1">
       <div style="font-size:48px;margin-bottom:10px">🎁</div>
-      <p style="margin-bottom:15px">لا توجد عروض حالياً في هذا القسم</p>
+      <p style="margin-bottom:15px;font-weight:600">لا توجد عروض حالياً في هذا القسم</p>
       ${addOfferBtn}
     </div>`;
     return;
@@ -407,22 +413,24 @@ function renderOffersGrid() {
     const m = o.merchants || {};
     const rate = m.cashback_rate || 15;
     const tier = getTier(rate);
-    const logoHtml = m.logo_url ? `<img src="${escapeHtml(m.logo_url)}" style="width:24px;height:24px;border-radius:6px;object-fit:cover;vertical-align:middle">` : `<span style="font-size:16px">${escapeHtml(m.icon || '🏪')}</span>`;
-    const imgHtml = o.image_url ? `<img src="${escapeHtml(o.image_url)}" style="width:100%;height:140px;object-fit:cover;border-radius:10px;margin-bottom:10px" onerror="this.style.display='none'">` : '';
-    const priceHtml = o.price ? `<div style="font-size:16px;color:#10b981;font-weight:800;margin:4px 0">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : '';
+    const imgSrc = o.image_url ? o.image_url : 'https://ui-avatars.com/api/?name=' + encodeURIComponent(o.title || 'عرض') + '&background=f3f4f6&color=6b7280&size=200';
+    const logoHtml = m.logo_url ? `<img src="${escapeHtml(m.logo_url)}" style="width:16px;height:16px;border-radius:4px;object-fit:cover">` : `<span style="font-size:14px">${escapeHtml(m.icon || '🏪')}</span>`;
 
     return `
-<div class="deal-card" onclick="window.openOfferFull('${escapeJs(o.id)}','${escapeJs(o.merchant_id)}')" ...>
-        <div style="position:relative">
-          ${imgHtml}
-          <div style="position:absolute;top:8px;left:8px;background:#1a2a6c;color:#fff;padding:4px 10px;border-radius:20px;font-weight:700;font-size:13px">${escapeHtml(o.discount)}</div>
-          <div style="position:absolute;top:8px;right:8px;background:#fff;color:#1a2a6c;padding:4px;border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,0.1);font-size:12px">${tier.icon}</div>
+      <div class="noon-card" onclick="window.openOfferFull('${escapeJs(o.id)}','${escapeJs(o.merchant_id || m.id)}')">
+        <div class="noon-discount-circle">
+          <span>${escapeHtml(o.discount)}</span>
         </div>
-        <h4 style="font-size:15px;font-weight:700;color:var(--primary);margin:0 0 6px 0;line-height:1.4">${escapeHtml(o.title)}</h4>
-        ${priceHtml}
-        <div style="display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:8px;border-top:1px solid #f3f4f6">
-          ${logoHtml}
-          <span style="font-size:12px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(m.name || '')}</span>
+        <img src="${escapeHtml(imgSrc)}" alt="${escapeHtml(o.title)}" onerror="this.src='https://ui-avatars.com/api/?name=Offer&background=f3f4f6&color=6b7280'">
+        <div class="noon-body">
+          <h4 class="noon-title">${escapeHtml(o.title)}</h4>
+          ${o.price ? `<div style="font-size:16px;font-weight:800;color:#10b981;margin-bottom:6px">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : ''}
+          <div class="noon-merchant">
+            ${logoHtml}
+            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(m.name || 'متجر')}</span>
+            <span style="margin-right:auto;font-size:12px">${tier.icon}</span>
+          </div>
+          <div class="noon-cashback">كاش باك ${rate}%</div>
         </div>
       </div>
     `;
@@ -613,7 +621,7 @@ function closeModal(e) {
 }
 
 // ============================================================
-// ✅ Offer Full View
+// ✅ Offer Full View (Fixed)
 // ============================================================
 window.openOfferFull = async function(offerId, merchantId) {
   // 1. بنجيب العرض من الكاش (allOffers)
@@ -697,6 +705,15 @@ window.openOfferFull = async function(offerId, merchantId) {
   modal.style.display = 'flex';
   modal.classList.add('active');
   document.body.style.overflow = 'hidden';
+};
+
+window.closeOfferFull = function(e) {
+  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
+  const modal = $('offerFullModal');
+  if (!modal) return;
+  modal.classList.remove('active');
+  modal.style.display = 'none';
+  document.body.style.overflow = '';
 };
 
 // ============================================================
@@ -1660,6 +1677,7 @@ async function handleDeleteLogo() {
     res.innerText = '❌ ' + e.message;
   }
 }
+
 // ============================================================
 // ✅ Dashboard
 // ============================================================
@@ -1866,7 +1884,6 @@ window.openEditOffer = async function(offerId) {
   $('editOfferPrice').value = o.price || '';
   $('editOfferDescription').value = o.description || '';
 
-  // التصنيفات
   if ($('editOfferCategory')) {
     $('editOfferCategory').value = o.category || '';
     window.onEditOfferCategoryChange(o.category || '');
@@ -3099,7 +3116,7 @@ async function runInit() {
 // Window Exports
 window.switchTab = switchTab;
 window.openMerchant = openMerchant;
-window.closeMerchantModal = closeMerchantModal; // ✅ السطر المهم
+window.closeMerchantModal = closeMerchantModal;
 window.renderOffersGrid = renderOffersGrid;
 window.renderMerchantsList = renderMerchantsList;
 window.renderRequestsTab = renderRequestsTab;
@@ -3162,16 +3179,6 @@ window.contactDelivery = function(phone, merchantId) {
 window.openMerchantMap = function(lat, lng, merchantId) {
   trackOfferEvent({ offerId: null, merchantId, eventType: 'maps' });
   window.open('https://www.google.com/maps?q=' + lat + ',' + lng, '_blank');
-};
-
-window.openOfferFull = window.openOfferFull; // للتأكيد
-window.closeOfferFull = function(e) {
-  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
-  const modal = document.getElementById('offerFullModal');
-  if (!modal) return;
-  modal.classList.remove('active');
-  modal.style.display = 'none';
-  document.body.style.overflow = '';
 };
 
 window.openImageLightbox = function(imageUrl) {
