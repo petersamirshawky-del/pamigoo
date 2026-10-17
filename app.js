@@ -2453,6 +2453,12 @@ async function delTrader(id) {
 }
 
 async function renderAdminCustomers() {
+  // ✅ حماية: لو اللي داخل مش أدمن، اظهر رسالة ومتطلبش داتا
+  if (!currentProfile || currentProfile.role !== 'admin') {
+    document.getElementById('adminCustomersList').innerHTML = '<p style="color:red;text-align:center;padding:20px">⛔ غير مصرح لك بالدخول</p>';
+    return;
+  }
+
   adminData.customers = await getAllCustomers();
   const el = $('adminCustomersList');
   const search = ($('adminCustomerSearch')?.value || '').trim().toLowerCase();
