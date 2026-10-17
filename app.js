@@ -117,7 +117,7 @@ async function loadMerchants() {
   try {
     const [merchantsResult, offersResult, ratingsResult] = await Promise.all([
       supabase.from('merchants').select('*').eq('frozen', false),
-      supabase.from('offers').select('*, merchants(name, icon, logo_url, bank_code, merchant_type, lat, lng, delivery_available, delivery_phone, phone, cashback_rate)').limit(1000),
+      supabase.from('offers').select('*, merchants(id, name, icon, logo_url, bank_code, merchant_type, lat, lng, delivery_available, delivery_phone, phone, cashback_rate)').limit(1000),
       supabase.from('ratings').select('*').limit(1000)
     ]);
 
@@ -412,7 +412,7 @@ function renderOffersGrid() {
     const priceHtml = o.price ? `<div style="font-size:16px;color:#10b981;font-weight:800;margin:4px 0">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : '';
 
     return `
-      <div class="deal-card" onclick="window.openOfferFull('${escapeJs(o.id)}','${escapeJs(m.id)}')" style="min-width:auto;text-align:right;display:flex;flex-direction:column;height:100%;padding:12px;border:1px solid #eee;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05)">
+<div class="deal-card" onclick="window.openOfferFull('${escapeJs(o.id)}','${escapeJs(o.merchant_id)}')" ...>
         <div style="position:relative">
           ${imgHtml}
           <div style="position:absolute;top:8px;left:8px;background:#1a2a6c;color:#fff;padding:4px 10px;border-radius:20px;font-weight:700;font-size:13px">${escapeHtml(o.discount)}</div>
@@ -616,59 +616,88 @@ function closeModal(e) {
 // ✅ Offer Full View
 // ============================================================
 window.openOfferFull = async function(offerId, merchantId) {
-  const m = allMerchants.find(x => x.id === merchantId);
-  if (!m) { toast('❌ التاجر غير موجود', 'error'); return; }
-  const o = (m.offers || []).find(x => x.id === offerId);
+  // 1. بنجيب العرض الأول
+  const o = allOffers.find(x => x.id === offerId);
   if (!o) { toast('❌ العرض غير موجود', 'error'); return; }
 
+  // 2. بنجيب التاجر من allMerchants، ولو مش موجود بنجيبه من جوه العرض نفسه
+  let m = allMerchants.find(x => x.id === merchantId);
+  if (!m) m = o.merchants; 
+  if (!m) { toast('❌ التاجر غير موجود', 'error'); return; }
+
   currentOfferFullData = { offer: o, merchant: m };
+
   trackOfferEvent({ offerId: o.id, merchantId: m.id, eventType: 'view' });
 
   let viewsCount = 0;
-  try { const views = await getMerchantOffersViews(m.id); viewsCount = views[o.id] || 0; } catch (e) { console.error(e); }
+  try {
+    const views = await getMerchantOffersViews(m.id);
+    viewsCount = views[o.id] || 0;
+  } catch (e) { console.error(e); }
 
-  const logoHtml = m.logo_url ? `<img src="${escapeHtml(m.logo_url)}" alt="${escapeHtml(m.name)}">` : `<span style="font-size:20px">${escapeHtml(m.icon || '🏪')}</span>`;
+  const logoHtml = m.logo_url
+    ? `<img src="${escapeHtml(m.logo_url)}" alt="${escapeHtml(m.name)}">`
+    : `<span style="font-size:20px">${escapeHtml(m.icon || '🏪')}</span>`;
+
   $('offerFullMerchant').innerHTML = `${logoHtml}<span>${escapeHtml(m.name)}</span>`;
 
-  if (o.image_url) { $('offerFullImage').src = o.image_url; $('offerFullImageWrap').style.display = 'block'; }
-  else { $('offerFullImageWrap').style.display = 'none'; }
+  if (o.image_url) {
+    $('offerFullImage').src = o.image_url;
+    $('offerFullImageWrap').style.display = 'block';
+  } else {
+    $('offerFullImageWrap').style.display = 'none';
+  }
 
   $('offerFullDiscount').innerText = o.discount || '---';
   $('offerFullTitle').innerText = o.title || 'عرض';
 
-  if (o.price) { $('offerFullPrice').innerText = `💰 ${parseFloat(o.price).toFixed(2)} ج`; $('offerFullPrice').style.display = 'block'; }
-  else { $('offerFullPrice').style.display = 'none'; }
+  if (o.price) {
+    $('offerFullPrice').innerText = `💰 ${parseFloat(o.price).toFixed(2)} ج`;
+    $('offerFullPrice').style.display = 'block';
+  } else {
+    $('offerFullPrice').style.display = 'none';
+  }
 
-  if (o.description) { $('offerFullDesc').innerText = o.description; $('offerFullDesc').style.display = 'block'; }
-  else { $('offerFullDesc').style.display = 'none'; }
+  if (o.description) {
+    $('offerFullDesc').innerText = o.description;
+    $('offerFullDesc').style.display = 'block';
+  } else {
+    $('offerFullDesc').style.display = 'none';
+  }
 
-  $('offerFullStats').innerHTML = `<span>👁️ ${viewsCount} مشاهدة</span><span>🏪 ${escapeHtml(m.name)}</span>${m.delivery_available ? '<span>🛵 التوصيل متاح</span>' : ''}`;
+  $('offerFullStats').innerHTML = `
+    <span>👁️ ${viewsCount} مشاهدة</span>
+    <span>🏪 ${escapeHtml(m.name)}</span>
+    ${m.delivery_available ? '<span>🛵 التوصيل متاح</span>' : ''}
+  `;
 
   const safeTitle = escapeJs(o.title || '');
-  const requestBtnHtml = `<button onclick="window.openRequestOfferModal('${escapeJs(o.id)}','${escapeJs(m.id)}','${safeTitle}')" style="width:100%;background:linear-gradient(135deg,#ff6b35,#f7931e);color:#fff;border:none;padding:16px;border-radius:30px;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 12px rgba(255,107,53,0.4)">📩 اطلب العرض ده</button>`;
+  const requestBtnHtml = `
+    <button onclick="window.openRequestOfferModal('${escapeJs(o.id)}','${escapeJs(m.id)}','${safeTitle}')"
+            style="width:100%;background:linear-gradient(135deg,#ff6b35,#f7931e);color:#fff;border:none;padding:16px;border-radius:30px;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 12px rgba(255,107,53,0.4)">
+      📩 اطلب العرض ده
+    </button>
+  `;
 
   let actionsHtml = '';
-  if (m.lat && m.lng && m.merchant_type !== 'warehouse') actionsHtml += `<button onclick="window.openMerchantMap('${escapeJs(m.lat)}','${escapeJs(m.lng)}','${escapeJs(m.id)}')" style="background:#1a2a6c">📍 الموقع على الخريطة</button>`;
+  if (m.lat && m.lng && m.merchant_type !== 'warehouse') {
+    actionsHtml += `<button onclick="window.openMerchantMap('${escapeJs(m.lat)}','${escapeJs(m.lng)}','${escapeJs(m.id)}')" style="background:#1a2a6c">📍 الموقع على الخريطة</button>`;
+  }
   $('offerFullActions').innerHTML = requestBtnHtml + (actionsHtml || '');
 
   const typeLabel = m.merchant_type === 'warehouse' ? '📦 مخزن' : (m.merchant_type === 'both' ? '🔄 محل ومخزن' : '🏪 محل');
-  $('offerFullMerchantInfo').innerHTML = `<div><strong>🏪 ${escapeHtml(m.name)}</strong> ${typeLabel}</div>${m.category ? `<div>📂 التصنيف: ${escapeHtml(m.category)}</div>` : ''}${m.lat && m.lng && m.merchant_type !== 'warehouse' ? `<div>📍 ${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div>` : ''}<div>💰 نسبة الكاش باك: ${m.cashback_rate || 15}%</div>`;
+  $('offerFullMerchantInfo').innerHTML = `
+    <div><strong>🏪 ${escapeHtml(m.name)}</strong> ${typeLabel}</div>
+    ${m.category ? `<div>📂 التصنيف: ${escapeHtml(m.category)}</div>` : ''}
+    ${m.lat && m.lng && m.merchant_type !== 'warehouse' ? `<div>📍 ${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div>` : ''}
+    <div>💰 نسبة الكاش باك: ${m.cashback_rate || 15}%</div>
+  `;
 
   const modal = $('offerFullModal');
   modal.style.display = 'flex';
   modal.classList.add('active');
   document.body.style.overflow = 'hidden';
 };
-
-window.closeOfferFull = function(e) {
-  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
-  const modal = $('offerFullModal');
-  if (!modal) return;
-  modal.classList.remove('active');
-  modal.style.display = 'none';
-  document.body.style.overflow = '';
-};
-
 // ============================================================
 // ✅ Request Offer Modal
 // ============================================================
