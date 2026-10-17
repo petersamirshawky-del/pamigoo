@@ -3379,8 +3379,6 @@ async function runInit() {
   applyPeekEffect('loginAdminCode');
   applyPeekEffect('invBankCode');
 
-  showAuthScreen();
-
   supabase.auth.onAuthStateChange(async (event, session) => {
     console.log('Auth event:', event);
     if (event !== 'SIGNED_IN' && event !== 'SIGNED_OUT') {
