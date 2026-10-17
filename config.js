@@ -24,7 +24,8 @@ export const CATEGORY_ICONS = {
   pharmacies: '💊',
   cosmetics: '💄',
   stationery: '📚',
-  toys: '🧸'
+  toys: '🧸',
+  home_supplies: '🏠' // ✅ الجديد
 };
 
 // أسماء التصنيفات بالعربي
@@ -43,7 +44,8 @@ export const CATEGORY_NAMES = {
   pharmacies: 'صيدليات',
   cosmetics: 'مستحضرات تجميل',
   stationery: 'مكتبات',
-  toys: 'ألعاب أطفال'
+  toys: 'ألعاب أطفال',
+  home_supplies: 'مستلزمات منزلية' // ✅ الجديد
 };
 
 // التصنيفات الفرعية
@@ -150,5 +152,15 @@ export const SUB_CATEGORIES = {
     { id: 'babies', name: 'ألعاب رضع' },
     { id: 'outdoor', name: 'ألعاب خارجية' },
     { id: 'puzzles', name: 'ألعاب ذكاء' }
+  ],
+  // ✅ التصنيف الجديد
+  home_supplies: [
+    { id: 'tissues', name: 'مناديل ورقية' },
+    { id: 'diapers', name: 'بامبرز وحفاضات' },
+    { id: 'detergents', name: 'منظفات' },
+    { id: 'garbage_bags', name: 'أكياس قمامة' },
+    { id: 'soap', name: 'صابون' },
+    { id: 'foil', name: 'ورق مطبخ وفويل' },
+    { id: 'cleaning_tools', name: 'أدوات نظافة' }
   ]
 };
