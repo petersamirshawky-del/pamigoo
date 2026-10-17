@@ -66,7 +66,7 @@ export async function getAllCustomers() {
 
   const { data: wallets } = await supabase
     .from('wallets')
-    .select('customer_phone, balance, earned, spent');
+    .select('customer_id, balance, earned, spent');
 
   const invByPhone = {};
   (invoices || []).forEach(i => {
@@ -74,15 +74,15 @@ export async function getAllCustomers() {
     invByPhone[i.customer_phone].push(i);
   });
 
-  const walletsByPhone = {};
+  const walletsByUserId = {};
   (wallets || []).forEach(w => {
-    if (!walletsByPhone[w.customer_phone]) walletsByPhone[w.customer_phone] = [];
-    walletsByPhone[w.customer_phone].push(w);
+    if (!walletsByUserId[w.customer_id]) walletsByUserId[w.customer_id] = [];
+    walletsByUserId[w.customer_id].push(w);
   });
 
   return profiles.map(p => {
-    const invs = invByPhone[p.phone] || [];
-    const ws = walletsByPhone[p.phone] || [];
+    const invs = invByPhone[p.phone] || []; // الفواتير لسه بتتربط بالموبايل
+    const ws = walletsByUserId[p.id] || []; // ✅ المحافظ بقت بتتربط بالـ ID
     const balance = ws.reduce((s, w) => s + parseFloat(w.balance || 0), 0);
     const earned = ws.reduce((s, w) => s + parseFloat(w.earned || 0), 0);
     const spent = ws.reduce((s, w) => s + parseFloat(w.spent || 0), 0);
