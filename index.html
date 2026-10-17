@@ -148,7 +148,6 @@
       <span id="merchantName" style="color:#065f46;font-weight:600">-</span>
     </div>
 
-    <!-- ✅ التابات الرئيسية الجديدة -->
     <div class="tabs" id="mainTabs" style="display:flex !important; flex-wrap:wrap; gap:8px; background:#fff; padding:6px; border-radius:30px; box-shadow:0 2px 8px rgba(0,0,0,.04); margin:20px 0">
       <button class="tab-btn active" data-tab="home" data-role="customer" data-i18n="tab.home">🏠 الرئيسية</button>
       <button class="tab-btn" data-tab="offers" data-role="customer" data-i18n="tab.offers">🎁 العروض</button>
@@ -156,8 +155,7 @@
         🧾 الفاتورة
         <span id="invoiceBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;border-radius:10px;padding:0 6px;line-height:20px;text-align:center;box-shadow:0 2px 6px rgba(239,68,68,0.4)">0</span>
       </button>
-
-      <!-- ✅ الأزرار الجديدة اللي فوق -->
+      
       <button class="tab-btn" data-tab="special_requests" data-role="all" style="position:relative">
         📝 طلبات خاصة
         <span id="mainReqBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;border-radius:10px;padding:0 6px;line-height:20px;text-align:center;box-shadow:0 2px 6px rgba(239,68,68,0.4)">0</span>
@@ -210,6 +208,7 @@
             <button class="category-chip" data-cat="cosmetics"><i class="fas fa-spa"></i> مستحضرات تجميل</button>
             <button class="category-chip" data-cat="stationery"><i class="fas fa-book"></i> مكتبات</button>
             <button class="category-chip" data-cat="toys"><i class="fas fa-puzzle-piece"></i> ألعاب أطفال</button>
+            <button class="category-chip" data-cat="home_supplies"><i class="fas fa-home"></i> مستلزمات منزلية</button> <!-- ✅ -->
           </div>
         </div>
         <div id="homeSubWrapper" style="margin-top:12px;border-top:1px solid #eee;padding-top:12px;display:none">
@@ -248,6 +247,7 @@
             <button class="category-chip" data-cat="cosmetics"><i class="fas fa-spa"></i> مستحضرات تجميل</button>
             <button class="category-chip" data-cat="stationery"><i class="fas fa-book"></i> مكتبات</button>
             <button class="category-chip" data-cat="toys"><i class="fas fa-puzzle-piece"></i> ألعاب أطفال</button>
+            <button class="category-chip" data-cat="home_supplies"><i class="fas fa-home"></i> مستلزمات منزلية</button> <!-- ✅ -->
           </div>
         </div>
         <div id="offersSubWrapper" style="margin-top:14px;border-top:1px solid #eee;padding-top:12px;display:none">
@@ -260,7 +260,6 @@
     </div>
 
     <div class="tab-content" id="tab-invoice">
-
       <div class="card" id="customerPendingInvoicesCard" style="display:none;border-right:4px solid #f59e0b">
         <h4 style="margin-bottom:10px">⏳ فواتير في انتظار تأكيدك</h4>
         <p style="font-size:13px;color:#6b7280;margin-bottom:12px">أكد استلامك للبضاعة عشان الكاش باك يتحسب</p>
@@ -344,7 +343,6 @@
       </div>
     </div>
 
-    <!-- ✅ تاب طلبات خاصة -->
     <div class="tab-content" id="tab-special_requests">
       <div id="specialRequestsSection">
         <div class="card" id="requestFormCard" style="display:none">
@@ -365,6 +363,7 @@
             <option value="cosmetics">💄 مستحضرات تجميل</option>
             <option value="stationery">📚 مكتبات</option>
             <option value="toys">🧸 ألعاب أطفال</option>
+            <option value="home_supplies">🏠 مستلزمات منزلية</option> <!-- ✅ -->
           </select>
           <input type="text" id="reqProduct" placeholder="اسم المنتج أو الخدمة">
           <textarea id="reqDetails" placeholder="تفاصيل إضافية..."></textarea>
@@ -404,7 +403,6 @@
       </div>
     </div>
 
-    <!-- ✅ تاب طلبات عروض -->
     <div class="tab-content" id="tab-offer_requests">
       <div id="offerRequestsSection">
         <div id="offerRequestsWrapper" style="display:none">
@@ -475,6 +473,35 @@
         <h5 style="margin-bottom:10px">➕ إضافة عرض جديد</h5>
         <input type="text" id="offerTitle" placeholder="اسم العرض (مثل: خصم الصيف)">
         <input type="number" id="offerPrice" placeholder="💰 السعر (اختياري)" min="0" step="0.01">
+
+        <!-- ✅ التصنيف الرئيسي والفرعي للعرض -->
+        <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">📂 التصنيف الرئيسي:</label>
+        <select id="offerCategory" onchange="window.onOfferCategoryChange(this.value)">
+          <option value="">اختار التصنيف</option>
+          <option value="fashion">👗 ملابس</option>
+          <option value="restaurants">🍕 مطاعم</option>
+          <option value="bigfood">🍔 وجبات</option>
+          <option value="electronics">📱 إلكترونيات</option>
+          <option value="car_parts">🛞 قطع غيار</option>
+          <option value="car_accessories">🪞 كماليات</option>
+          <option value="car_repair">🔧 صيانة</option>
+          <option value="clinics">🩺 عيادات</option>
+          <option value="labs">🧪 معامل</option>
+          <option value="radiology">📡 أشعة</option>
+          <option value="hospitals">🏨 مستشفيات</option>
+          <option value="pharmacies">💊 صيدليات</option>
+          <option value="cosmetics">💄 مستحضرات تجميل</option>
+          <option value="stationery">📚 مكتبات</option>
+          <option value="toys">🧸 ألعاب أطفال</option>
+          <option value="home_supplies">🏠 مستلزمات منزلية</option>
+        </select>
+
+        <div id="offerSubCategoryWrap" style="display:none;margin-top:8px">
+          <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">📁 التصنيف الفرعي:</label>
+          <select id="offerSubCategory">
+            <option value="">اختار التصنيف الفرعي</option>
+          </select>
+        </div>
 
         <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">🏷️ نوع الخصم:</label>
         <select id="offerType" onchange="window.onOfferTypeChange(this.value)">
@@ -626,6 +653,7 @@
               <option value="cosmetics">💄 مستحضرات تجميل</option>
               <option value="stationery">📚 مكتبات</option>
               <option value="toys">🧸 ألعاب أطفال</option>
+              <option value="home_supplies">🏠 مستلزمات منزلية</option> <!-- ✅ -->
             </select>
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيفات الفرعية:</label>
             <div id="newTraderSubs" class="categories" style="margin-bottom:0"></div>
@@ -687,6 +715,7 @@
               <option value="cosmetics">💄 مستحضرات تجميل</option>
               <option value="stationery">📚 مكتبات</option>
               <option value="toys">🧸 ألعاب أطفال</option>
+              <option value="home_supplies">🏠 مستلزمات منزلية</option> <!-- ✅ -->
             </select>
 
             <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">التصنيفات الفرعية:</label>
@@ -977,6 +1006,35 @@
 
       <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">💰 السعر (اختياري):</label>
       <input type="number" id="editOfferPrice" placeholder="السعر" min="0" step="0.01">
+
+      <!-- ✅ التصنيف الرئيسي والفرعي في فورم التعديل -->
+      <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">📂 التصنيف الرئيسي:</label>
+      <select id="editOfferCategory" onchange="window.onEditOfferCategoryChange(this.value)">
+        <option value="">اختار التصنيف</option>
+        <option value="fashion">👗 ملابس</option>
+        <option value="restaurants">🍕 مطاعم</option>
+        <option value="bigfood">🍔 وجبات</option>
+        <option value="electronics">📱 إلكترونيات</option>
+        <option value="car_parts">🛞 قطع غيار</option>
+        <option value="car_accessories">🪞 كماليات</option>
+        <option value="car_repair">🔧 صيانة</option>
+        <option value="clinics">🩺 عيادات</option>
+        <option value="labs">🧪 معامل</option>
+        <option value="radiology">📡 أشعة</option>
+        <option value="hospitals">🏨 مستشفيات</option>
+        <option value="pharmacies">💊 صيدليات</option>
+        <option value="cosmetics">💄 مستحضرات تجميل</option>
+        <option value="stationery">📚 مكتبات</option>
+        <option value="toys">🧸 ألعاب أطفال</option>
+        <option value="home_supplies">🏠 مستلزمات منزلية</option>
+      </select>
+
+      <div id="editOfferSubCategoryWrap" style="display:none;margin-top:8px">
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">📁 التصنيف الفرعي:</label>
+        <select id="editOfferSubCategory">
+          <option value="">اختار التصنيف الفرعي</option>
+        </select>
+      </div>
 
       <label style="font-size:13px;font-weight:600;display:block;margin-top:8px">🏷️ نوع الخصم:</label>
       <select id="editOfferType" onchange="window.onEditOfferTypeChange(this.value)">
