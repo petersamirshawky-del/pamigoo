@@ -1279,16 +1279,14 @@ async function renderRequestsTab() {
 }
 
 window.switchRequestsSubtab = function(type) {
+
   document.querySelectorAll('.req-subtab').forEach(b =>
     b.classList.toggle('active', b.dataset.req === type));
 
   const specialSection = $('specialRequestsSection');
   const offerSection = $('offerRequestsSection');
 
-  if (!specialSection || !offerSection) {
-    console.error('❌ specialRequestsSection or offerRequestsSection NOT FOUND in HTML!');
-    return;
-  }
+  if (!specialSection || !offerSection) return;
 
   if (type === 'special') {
     specialSection.style.display = 'block';
