@@ -616,13 +616,13 @@ function closeModal(e) {
 // ✅ Offer Full View
 // ============================================================
 window.openOfferFull = async function(offerId, merchantId) {
-  // 1. بنجيب العرض الأول
+  // 1. بنجيب العرض من الكاش (allOffers)
   const o = allOffers.find(x => x.id === offerId);
   if (!o) { toast('❌ العرض غير موجود', 'error'); return; }
 
-  // 2. بنجيب التاجر من allMerchants، ولو مش موجود بنجيبه من جوه العرض نفسه
-  let m = allMerchants.find(x => x.id === merchantId);
-  if (!m) m = o.merchants; 
+  // 2. بنجيب التاجر (نجرب allMerchants الأول، لو مش موجود بناخده من جوه العرض نفسه)
+  let m = allMerchants.find(x => x.id === merchantId) || o.merchants;
+  
   if (!m) { toast('❌ التاجر غير موجود', 'error'); return; }
 
   currentOfferFullData = { offer: o, merchant: m };
@@ -673,7 +673,7 @@ window.openOfferFull = async function(offerId, merchantId) {
 
   const safeTitle = escapeJs(o.title || '');
   const requestBtnHtml = `
-    <button onclick="window.openRequestOfferModal('${escapeJs(o.id)}','${escapeJs(m.id)}','${safeTitle}')"
+    <button onclick="window.openRequestOfferModal('${escapeJs(o.id)}','${escapeJs(m.id || merchantId)}','${safeTitle}')"
             style="width:100%;background:linear-gradient(135deg,#ff6b35,#f7931e);color:#fff;border:none;padding:16px;border-radius:30px;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 12px rgba(255,107,53,0.4)">
       📩 اطلب العرض ده
     </button>
@@ -681,7 +681,7 @@ window.openOfferFull = async function(offerId, merchantId) {
 
   let actionsHtml = '';
   if (m.lat && m.lng && m.merchant_type !== 'warehouse') {
-    actionsHtml += `<button onclick="window.openMerchantMap('${escapeJs(m.lat)}','${escapeJs(m.lng)}','${escapeJs(m.id)}')" style="background:#1a2a6c">📍 الموقع على الخريطة</button>`;
+    actionsHtml += `<button onclick="window.openMerchantMap('${escapeJs(m.lat)}','${escapeJs(m.lng)}','${escapeJs(m.id || merchantId)}')" style="background:#1a2a6c">📍 الموقع على الخريطة</button>`;
   }
   $('offerFullActions').innerHTML = requestBtnHtml + (actionsHtml || '');
 
@@ -698,6 +698,7 @@ window.openOfferFull = async function(offerId, merchantId) {
   modal.classList.add('active');
   document.body.style.overflow = 'hidden';
 };
+
 // ============================================================
 // ✅ Request Offer Modal
 // ============================================================
