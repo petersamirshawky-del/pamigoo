@@ -60,47 +60,22 @@ export async function getAllCustomers() {
   if (error) { console.error(error); return []; }
   if (!profiles || !profiles.length) return [];
 
-  const customerPhones = profiles.map(p => p.phone).filter(Boolean);
-  if (!customerPhones.length) {
-    return profiles.map(p => ({ ...p, shops: 0, balance: 0, earned: 0, spent: 0 }));
-  }
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('customer_phone, amount, cashback, used_cashback, status');
 
-  const chunkArray = (arr, size) => {
-    const chunked = [];
-    for (let i = 0; i < arr.length; i += size) {
-      chunked.push(arr.slice(i, i + size));
-    }
-    return chunked;
-  };
-
-  const phoneChunks = chunkArray(customerPhones, 50); // كل مجموعة فيها 50 رقم
-  let allInvoices = [];
-  let allWallets = [];
-
-  for (const chunk of phoneChunks) {
-    const { data: invs } = await supabase
-      .from('invoices')
-      .select('customer_phone, amount, cashback, used_cashback, status')
-      .in('customer_phone', chunk);
-      
-    if (invs) allInvoices.push(...invs);
-
-    const { data: wals } = await supabase
-      .from('wallets')
-      .select('customer_phone, balance, earned, spent')
-      .in('customer_phone', chunk);
-      
-    if (wals) allWallets.push(...wals);
-  }
+  const { data: wallets } = await supabase
+    .from('wallets')
+    .select('customer_phone, balance, earned, spent');
 
   const invByPhone = {};
-  allInvoices.forEach(i => {
+  (invoices || []).forEach(i => {
     if (!invByPhone[i.customer_phone]) invByPhone[i.customer_phone] = [];
     invByPhone[i.customer_phone].push(i);
   });
 
   const walletsByPhone = {};
-  allWallets.forEach(w => {
+  (wallets || []).forEach(w => {
     if (!walletsByPhone[w.customer_phone]) walletsByPhone[w.customer_phone] = [];
     walletsByPhone[w.customer_phone].push(w);
   });
