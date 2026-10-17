@@ -2934,17 +2934,9 @@ function showMessage(text, type = 'error') {
 }
 
 function showAuthScreen() {
-  if (!$('appLoadingScreen')) {
-    const loader = document.createElement('div');
-    loader.id = 'appLoadingScreen';
-    loader.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:15px;';
-    loader.innerHTML = '<div style="width:40px;height:40px;border:4px solid #f3f3f3;border-top:4px solid #1a2a6c;border-radius:50%;animation:spin 1s linear infinite"></div><p style="color:#6b7280;font-weight:bold;font-family:Cairo,sans-serif">جاري التحميل...</p><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>';
-    document.body.appendChild(loader);
-  }
-
-  $('authScreen').style.display = 'none';
+  $('authScreen').style.display = 'block';
   $('mainScreen').style.display = 'none';
-
+  
   const loader = document.getElementById('appLoadingScreen');
   if (loader) loader.remove();
 }
@@ -3375,6 +3367,17 @@ if (document.readyState === 'loading') {
 }
 
 async function runInit() {
+  if (!document.getElementById('appLoadingScreen')) {
+    const loader = document.createElement('div');
+    loader.id = 'appLoadingScreen';
+    loader.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:15px;';
+    loader.innerHTML = '<div style="width:40px;height:40px;border:4px solid #f3f3f3;border-top:4px solid #1a2a6c;border-radius:50%;animation:spin 1s linear infinite"></div><p style="color:#6b7280;font-weight:bold;font-family:Cairo,sans-serif">جاري التحميل...</p><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>';
+    document.body.appendChild(loader);
+  }
+
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('mainScreen').style.display = 'none';
+
   bindEvents();
   showAuthTab('login');
   updateBankCodeVisibility();
@@ -3435,11 +3438,15 @@ async function runInit() {
         if (profile) await showMainScreen(profile);
       }
     } else {
+      // لو مفيش حد مسجل، نعرض صفحة الدخول
       showAuthScreen();
     }
   } catch (e) {
     console.log('getSession error:', e);
     showAuthScreen();
+  } finally {
+    const loader = document.getElementById('appLoadingScreen');
+    if (loader) loader.remove();
   }
 }
 
