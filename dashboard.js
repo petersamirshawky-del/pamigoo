@@ -53,8 +53,8 @@ export async function getMerchantOffers(merchantId) {
   return data || [];
 }
 
-// ✅ إضافة عرض جديد
-export async function addOffer({ merchantId, title, discount, discountValue, description, imageBase64, price }) {
+// ✅ إضافة عرض جديد (بياخد التصنيف الرئيسي والفرعي)
+export async function addOffer({ merchantId, title, discount, discountValue, description, imageBase64, price, category, subCategory }) {
   const { error } = await supabase
     .from('offers').insert({
       merchant_id: merchantId,
@@ -63,19 +63,23 @@ export async function addOffer({ merchantId, title, discount, discountValue, des
       discount_value: discountValue || 0,
       description: description || '',
       image_url: imageBase64 || null,
-      price: price || null
+      price: price || null,
+      category: category || null,           // ✅ جديد
+      sub_category: subCategory || null     // ✅ جديد
     });
   if (error) throw error;
 }
 
-// ✅ تعديل عرض موجود
-export async function updateOffer({ offerId, title, discount, discountValue, description, imageBase64, price, keepImage }) {
+// ✅ تعديل عرض موجود (بياخد التصنيف الرئيسي والفرعي)
+export async function updateOffer({ offerId, title, discount, discountValue, description, imageBase64, price, keepImage, category, subCategory }) {
   const updateData = {
     title,
     discount,
     discount_value: discountValue || 0,
     description: description || '',
-    price: price || null
+    price: price || null,
+    category: category || null,           // ✅ جديد
+    sub_category: subCategory || null     // ✅ جديد
   };
 
   if (imageBase64) {
