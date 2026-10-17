@@ -1,1122 +1,28 @@
-// ============================================================
-// PAMIGO - Main Entry (v2.0 - Modified)
-// ============================================================
-const { supabase } = await import('./supabase.js');
-const { toast, showLoader, hideLoader } = await import('./ui.js');
-const { initI18n, setLang, currentLang, applyI18nToHTML } = await import('./i18n.js');
-const { SUB_CATEGORIES, CATEGORY_ICONS } = await import('./config.js');
-
-const {
-  signUpCustomer, signUpMerchant, signUpAdmin, signOut,
-  findEmailByPhone, signInWithEmail,
-  getProfile, getMyMerchant, onAuthChange,
-  applyPeekEffect, getRealValue,
-  changeMyPassword, adminChangePassword,
-  sendPasswordReset, updateMyEmail,
-  signInWithGoogle, completeGoogleProfile
-} = await import('./auth.js');
-
-const {
-  createInvoice, createInvoiceByBankCode,
-  getMerchantInvoices, getMyInvoices,
-  getMyPendingInvoices, confirmInvoice, rejectInvoice,
-  getMyWallets, redeemCashback, getMerchantCustomerWallets,
-  getMerchantCashbackSummary, checkCustomerPhone
-} = await import('./invoices.js');
-
-const {
-  sendRequest, getMyRequests, getMerchantRequests,
-  replyToRequest, acceptOffer, cancelRequest, deleteRequest,
-  hideRequestForMerchant, askMerchantForImage, merchantSendExtraImage,
-  requestSpecificOffer, getMyOfferRequests, getMerchantOfferRequests,
-  replyToOfferRequest, cancelOfferRequest, deleteOfferRequest
-} = await import('./requests.js');
-
-const {
-  getMerchantStats, getMerchantOffers, addOffer, deleteOffer,
-  updateCashbackRate, getMerchantCustomers, getMerchantWallets,
-  getMerchantInvoicesList, editInvoice, processReturn,
-  getReportData, getAnalytics,
-  uploadMerchantLogo, deleteMerchantLogo,
-  uploadProductImage, deleteProductImage,
-  trackOfferEvent, getOfferEventsStats,
-  getMerchantTopOffers, getMerchantOffersViews,
-  updateOffer
-} = await import('./dashboard.js');
-
-const {
-  getAdminStats, getAllMerchants, getAllCustomers, getAllInvoices,
-  addTrader, freezeMerchant, updateMerchantRate, deleteMerchant,
-  adjustCustomerBalance, resetCustomerBalance, deleteCustomer,
-  editInvoiceAdmin, returnInvoiceAdmin, deleteInvoice,
-  sendNotification, getNotifications,
-  adminUpdateMerchant, adminUpdateCustomer, adminGetAllRequests,
-  getOfferEventsStats: getAdminOfferEventsStats,
-  getMerchantFullReport
-} = await import('./admin.js');
-
-const {
-  getUserWalletsBreakdown, initAccountMap, getMarkerPosition,
-  setMarkerPosition, searchAddress, updateMyMerchantLocation
-} = await import('./account.js');
-
-const { rateMerchant, getMerchantRatings } = await import('./ratings.js');
-
-const $ = (id) => document.getElementById(id);
-
-// ============================================================
-// ✅ XSS Protection
-// ============================================================
-function escapeHtml(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-// ✅ NEW: JavaScript String Escape
-function escapeJs(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r');
-}
-
-// ============================================================
-// State
-// ============================================================
-let currentProfile = null;
-let currentMerchant = null;
-let allMerchants = [];
-let userLat = null, userLng = null;
-let searchQuery = '';
-let homeRadius = 2, homeCategories = ['all'], homeSubCategories = [], homeSort = 'nearest';
-let offersCategories = ['all'], offersSubCategories = [];
-let currentModalMerchant = null;
-let uploadedReqImage = null;
-let currentReqFilter = 'all';
-let currentOfferReqFilter = 'all';
-let myRequestsCache = [];
-let myOfferRequestsCache = [];
-let myPendingInvoicesCache = [];
-let adminData = { merchants: [], customers: [], invoices: [] };
-let expectedLogin = null;
-let uploadedOfferImage = null;
-let uploadedEditOfferImage = null;
-let selectedRating = 0;
-let lastRatedMerchantId = null;
-let lastRatedMerchantName = '';
-let viewMode = 'all';
-let currentOfferFullData = null;
-let pendingGoogleUser = null;
-let searchDebounceTimer = null;
-
-// ============================================================
-// ✅ Load merchants
-// ============================================================
-async function loadMerchants() {
-  try {
-    const [merchantsResult, offersResult, ratingsResult] = await Promise.all([
-      supabase.from('merchants').select('*').eq('frozen', false),
-      supabase.from('offers').select('*'),
-      supabase.from('ratings').select('*')
-    ]);
-
-    if (merchantsResult.error) {
-      console.error('Merchants error:', merchantsResult.error);
-      return [];
-    }
-
-    const merchantsData = merchantsResult.data || [];
-    if (!merchantsData.length) return [];
-
-    const allOffers = offersResult.data || [];
-    const allRatings = ratingsResult.data || [];
-
-    const offersByMerchant = {};
-    allOffers.forEach(o => {
-      if (!offersByMerchant[o.merchant_id]) offersByMerchant[o.merchant_id] = [];
-      offersByMerchant[o.merchant_id].push(o);
-    });
-
-    const ratingsByMerchant = {};
-    allRatings.forEach(r => {
-      if (!ratingsByMerchant[r.merchant_id]) ratingsByMerchant[r.merchant_id] = [];
-      ratingsByMerchant[r.merchant_id].push(r);
-    });
-
-    return merchantsData.map(m => ({
-      ...m,
-      offers: offersByMerchant[m.id] || [],
-      ratings: ratingsByMerchant[m.id] || []
-    }));
-  } catch (err) {
-    console.error('loadMerchants error:', err);
-    return [];
-  }
-}
-
-// ============================================================
-// Helpers
-// ============================================================
-function calcDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function getTier(rate) {
-  if (rate >= 40) return { name: 'VIP', icon: '💎', cls: 'tier-vip' };
-  if (rate >= 25) return { name: 'بريميوم', icon: '🥇', cls: 'tier-gold' };
-  if (rate >= 10) return { name: 'مميز', icon: '🥈', cls: 'tier-silver' };
-  return { name: 'عادي', icon: '🥉', cls: 'tier-bronze' };
-}
-
-function getMaxDiscount(m) {
-  if (!m.offers || !m.offers.length) return 0;
-  return Math.max(...m.offers.map(o => parseInt(o.discount_value) || 0));
-}
-
-function getAvgRating(m) {
-  if (!m.ratings || !m.ratings.length) return null;
-  return (m.ratings.reduce((s, r) => s + r.stars, 0) / m.ratings.length).toFixed(1);
-}
-
-function getRoleName(role) {
-  return { customer: '👤 عميل', merchant: '🏪 تاجر', admin: '👑 أدمن' }[role] || role;
-}
-
-function getUserLocation() {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) return resolve(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
-    );
-  });
-}
-
-async function updateLocation() {
-  $('locationText').innerText = '⏳ جاري تحديد الموقع...';
-  const loc = await getUserLocation();
-  if (loc) {
-    userLat = loc.lat; userLng = loc.lng;
-    $('locationText').innerText = `${userLat.toFixed(4)}, ${userLng.toFixed(4)}`;
-  } else {
-    $('locationText').innerText = '❌ تعذر تحديد الموقع';
-  }
-  renderMerchantsList();
-}
-
-function matchesCatSubs(m, cats, subs) {
-  if (!cats.includes('all') && !cats.includes(m.category)) return false;
-  if (subs.length) {
-    if (!m.sub_categories || !m.sub_categories.length) return false;
-    if (!m.sub_categories.some(s => subs.includes(s))) return false;
-  }
-  return true;
-}
-
-function logoImgHtml(m) {
-  if (m.logo_url) {
-    return `<img src="${escapeHtml(m.logo_url)}" alt="${escapeHtml(m.name)}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit" onerror="this.parentElement.innerHTML='${escapeHtml(m.icon || '🏪')}'">`;
-  }
-  return escapeHtml(m.icon || '🏪');
-}
-
-// ============================================================
-// ✅ Render: merchants list
-// ============================================================
-function renderMerchantsList() {
-  let list = [...allMerchants];
-  const el = $('merchantsList');
-
-  if (searchQuery && searchQuery.trim()) {
-    const q = searchQuery.toLowerCase().trim();
-
-    const matchingOffers = [];
-    allMerchants.forEach(m => {
-      (m.offers || []).forEach(o => {
-        const title = (o.title || '').toLowerCase();
-        const desc = (o.description || '').toLowerCase();
-        if (title.includes(q) || desc.includes(q)) {
-          matchingOffers.push({ offer: o, merchant: m });
-        }
-      });
-    });
-
-    const matchingMerchants = allMerchants.filter(m =>
-      m.name && m.name.toLowerCase().includes(q)
-    );
-
-    if (!matchingOffers.length && !matchingMerchants.length) {
-      el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج للبحث "${escapeHtml(searchQuery)}"</div>`;
-      return;
-    }
-
-    let html = '';
-
-    if (matchingOffers.length) {
-      html += `<div class="section-title"><h3>🎁 عروض مطابقة (${matchingOffers.length})</h3></div>`;
-      html += matchingOffers.map(({ offer, merchant }) => {
-        const imgHtml = offer.image_url
-          ? `<img src="${escapeHtml(offer.image_url)}" style="width:100%;max-width:220px;height:140px;object-fit:cover;border-radius:10px;margin-bottom:8px;display:block" onerror="this.style.display='none'">`
-          : '';
-        const descHtml = offer.description ? `<p style="font-size:13px;color:#4b5563;margin-top:6px">${escapeHtml(offer.description)}</p>` : '';
-        const priceHtml = offer.price ? `<div style="font-size:15px;color:#10b981;font-weight:700;margin-bottom:4px">💰 ${parseFloat(offer.price).toFixed(2)} ج</div>` : '';
-        const logoHtml = merchant.logo_url
-          ? `<img src="${escapeHtml(merchant.logo_url)}" style="width:24px;height:24px;border-radius:6px;object-fit:cover;vertical-align:middle">`
-          : `<span style="font-size:16px">${escapeHtml(merchant.icon || '🏪')}</span>`;
-
-        return `
-          <div onclick="window.openOfferFull('${escapeJs(offer.id)}','${escapeJs(merchant.id)}')"
-               style="background:#f9fafb;padding:16px;border-radius:14px;margin-bottom:14px;border-right:4px solid #ff6b35;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.05)">
-            ${imgHtml}
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-              <div style="flex:1">
-                <h5 style="font-size:16px;margin-bottom:6px;color:var(--primary);font-weight:700">${escapeHtml(offer.title)}</h5>
-                ${priceHtml}
-                ${descHtml}
-                <div style="font-size:12px;color:#6b7280;margin-top:6px">${logoHtml} ${escapeHtml(merchant.name)}</div>
-              </div>
-              <div style="background:#1a2a6c;color:#fff;padding:8px 16px;border-radius:30px;font-weight:700;font-size:15px;white-space:nowrap">${escapeHtml(offer.discount)}</div>
-            </div>
-          </div>`;
-      }).join('');
-    }
-
-    if (matchingMerchants.length) {
-      html += `<div class="section-title" style="margin-top:20px"><h3>🏪 متاجر مطابقة (${matchingMerchants.length})</h3></div>`;
-      html += matchingMerchants.map(m => {
-        const rate = m.cashback_rate || 15;
-        const tier = getTier(rate);
-        return `
-          <div class="store-item" onclick="window.openMerchant('${escapeJs(m.bank_code)}')">
-            <div class="icon" style="overflow:hidden">${logoImgHtml(m)}</div>
-            <div class="info">
-              <h4>${escapeHtml(m.name)} <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></h4>
-              <div class="desc">${(m.offers || []).length} عرض • كاش باك ${rate}%</div>
-            </div>
-            <div class="badge">${rate}%</div>
-          </div>`;
-      }).join('');
-    }
-
-    el.innerHTML = html;
-    return;
-  }
-
-  list = list.filter(m => matchesCatSubs(m, homeCategories, homeSubCategories));
-
-  if (viewMode === 'shop') {
-    list = list.filter(m => m.merchant_type !== 'warehouse');
-  } else if (viewMode === 'online') {
-    list = list.filter(m => m.merchant_type !== 'shop');
-    const radiusControl = document.querySelector('.radius-control');
-    if (radiusControl) radiusControl.style.display = 'none';
-  } else {
-    const radiusControl = document.querySelector('.radius-control');
-    if (radiusControl) radiusControl.style.display = 'block';
-  }
-
-  const radius = parseFloat(homeRadius) || 2;
-  if (viewMode !== 'online' && userLat !== null && userLng !== null) {
-    list = list.map(m => ({
-      ...m,
-      _dist: (m.lat && m.lng) ? calcDistance(userLat, userLng, m.lat, m.lng) : null
-    })).filter(m => m._dist === null || m._dist <= radius);
-  }
-
-  if (homeSort === 'nearest' && userLat !== null) {
-    list.sort((a, b) => (a._dist || 0) - (b._dist || 0));
-  } else if (homeSort === 'cashback') {
-    list.sort((a, b) => (b.cashback_rate || 0) - (a.cashback_rate || 0));
-  } else if (homeSort === 'discount') {
-    list.sort((a, b) => getMaxDiscount(b) - getMaxDiscount(a));
-  }
-
-  if (!list.length) {
-    el.innerHTML = `<div class="no-requests">😅 لا توجد نتائج في نطاق ${escapeHtml(String(radius))} كم</div>`;
-    return;
-  }
-
-  el.innerHTML = list.map(m => {
-    const rate = m.cashback_rate || 15;
-    const tier = getTier(rate);
-    const maxDisc = getMaxDiscount(m);
-    const rating = getAvgRating(m);
-    const isWarehouse = m.merchant_type === 'warehouse';
-    const dist = (!isWarehouse && m._dist) ? m._dist.toFixed(2) + ' كم' : (isWarehouse ? '📦 مخزن' : '');
-    let subNames = '';
-    if (m.sub_categories && m.sub_categories.length) {
-      const l = SUB_CATEGORIES[m.category] || [];
-      subNames = m.sub_categories.map(id => (l.find(x => x.id === id) || {}).name || id).join(', ');
-    }
-
-    return `
-      <div class="store-item" onclick="window.openMerchant('${escapeJs(m.bank_code)}')">
-        <div class="icon" style="overflow:hidden">${logoImgHtml(m)}</div>
-        <div class="info">
-          <h4>${escapeHtml(m.name)} <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span></h4>
-          <div class="desc">${dist ? dist + ' • ' : ''}${(m.offers || []).length} عرض • كاش باك ${rate}%${maxDisc ? ' • خصم لحد ' + maxDisc + '%' : ''}</div>
-          ${subNames ? `<div style="font-size:11px;color:#8b5cf6;margin-top:2px">${escapeHtml(subNames)}</div>` : ''}
-          ${m.delivery_available ? '<div style="font-size:11px;color:#10b981;margin-top:2px">🛵 التوصيل متاح</div>' : ''}
-          <div style="font-size:12px;color:#f59e0b;margin-top:2px">${rating ? '⭐'.repeat(Math.floor(rating)) + ' ' + rating : '⭐ لا تقييمات'}</div>
-        </div>
-        <div class="badge">${rate}%</div>
-      </div>
-    `;
-  }).join('');
-}
-
-// ============================================================
-// ✅ Render: Top Deals
-// ============================================================
-function renderTopDeals() {
-  const sorted = [...allMerchants].filter(m => (m.offers || []).length > 0)
-    .sort((a, b) => (b.cashback_rate || 0) - (a.cashback_rate || 0)).slice(0, 10);
-
-  const el = $('dealsScroll');
-  if (!el) return;
-  if (!sorted.length) { el.innerHTML = ''; return; }
-
-  el.innerHTML = sorted.map(m => {
-    const rate = m.cashback_rate || 15;
-    const tier = getTier(rate);
-    return `
-      <div class="deal-card" onclick="window.openMerchant('${escapeJs(m.bank_code)}')">
-        <div class="tier-badge">${tier.icon}</div>
-        <div class="discount">${rate}%</div>
-        <div class="icon" style="overflow:hidden;display:flex;align-items:center;justify-content:center;border-radius:16px">${logoImgHtml(m)}</div>
-        <div class="tag">${escapeHtml(m.name)}</div>
-        <div style="font-size:11px;color:#ff6b35;margin-top:4px">كاش باك ${rate}%</div>
-      </div>
-    `;
-  }).join('');
-}
-
-// ============================================================
-// ✅ Render: Offers Grid
-// ============================================================
-function renderOffersGrid() {
-  let list = [...allMerchants].filter(m => (m.offers || []).length > 0)
-    .filter(m => matchesCatSubs(m, offersCategories, offersSubCategories));
-
-  const el = $('offersGrid');
-  if (!el) return;
-  if (!list.length) {
-    const isMerchant = currentProfile && currentProfile.role === 'merchant';
-    const addOfferBtn = isMerchant
-      ? `<button onclick="window.switchTab('dashboard')" style="background:#ff6b35;color:#fff;border:none;padding:12px 24px;border-radius:30px;font-weight:600;cursor:pointer">➕ أضف عرضك</button>`
-      : '';
-
-    el.innerHTML = `<div style="text-align:center;padding:30px;color:#6b7280">
-      <div style="font-size:48px;margin-bottom:10px">🎁</div>
-      <p style="margin-bottom:15px">لا توجد عروض حالياً</p>
-      ${addOfferBtn}
-    </div>`;
-    return;
-  }
-
-  el.innerHTML = list.map(m => {
-    const rate = m.cashback_rate || 15;
-    const tier = getTier(rate);
-    const maxDisc = getMaxDiscount(m);
-    return `
-      <div class="deal-card" onclick="window.openMerchant('${escapeJs(m.bank_code)}')" style="min-width:auto;text-align:center">
-        <div class="tier-badge">${tier.icon}</div>
-        <div style="width:70px;height:70px;margin:0 auto;border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-soft);font-size:48px">
-          ${logoImgHtml(m)}
-        </div>
-        <div class="discount" style="font-size:20px">${maxDisc > 0 ? maxDisc + '%' : '---'}</div>
-        <div style="font-size:13px;font-weight:600">${escapeHtml(m.name)}</div>
-        <div style="font-size:11px;color:#ff6b35;margin-top:4px">كاش باك ${rate}%</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:2px">${(m.offers || []).length} عرض</div>
-      </div>
-    `;
-  }).join('');
-}
-
-// ============================================================
-// ✅ Categories
-// ============================================================
-function renderSubCategoriesGeneric({ categories, subs, wrapperEl, containerEl, onToggle }) {
-  if (!wrapperEl || !containerEl) return;
-  const singleCat = categories.length === 1 && categories[0] !== 'all' ? categories[0] : null;
-  if (!singleCat || !SUB_CATEGORIES[singleCat]) { wrapperEl.style.display = 'none'; return; }
-  wrapperEl.style.display = 'block';
-  const list = SUB_CATEGORIES[singleCat];
-  containerEl.innerHTML = list.map(sub => `
-    <button class="category-chip ${subs.includes(sub.id) ? 'active' : ''}" data-sub="${escapeHtml(sub.id)}">${escapeHtml(sub.name)}</button>
-  `).join('');
-  containerEl.querySelectorAll('.category-chip').forEach(btn => {
-    btn.addEventListener('click', () => onToggle(btn.dataset.sub, btn));
-  });
-}
-
-function toggleCategoryGeneric({ cat, chip, categories, subs, containerId, onUpdate }) {
-  if (cat === 'all') {
-    categories.length = 0; categories.push('all');
-    subs.length = 0;
-    document.querySelectorAll(`#${containerId} .category-chip`).forEach(c => {
-      c.classList.toggle('active', c.dataset.cat === 'all');
-    });
-  } else {
-    const ai = categories.indexOf('all');
-    if (ai > -1) categories.splice(ai, 1);
-    document.querySelector(`#${containerId} .category-chip[data-cat="all"]`)?.classList.remove('active');
-    const idx = categories.indexOf(cat);
-    if (idx > -1) { categories.splice(idx, 1); chip.classList.remove('active'); }
-    else { categories.push(cat); chip.classList.add('active'); }
-    if (categories.length === 0) {
-      categories.push('all');
-      document.querySelector(`#${containerId} .category-chip[data-cat="all"]`)?.classList.add('active');
-    }
-  }
-  onUpdate();
-}
-
-function renderHomeSubCategories() {
-  renderSubCategoriesGeneric({
-    categories: homeCategories, subs: homeSubCategories,
-    wrapperEl: $('homeSubWrapper'), containerEl: $('homeSubCategories'),
-    onToggle: (id, btn) => {
-      const i = homeSubCategories.indexOf(id);
-      if (i > -1) { homeSubCategories.splice(i, 1); btn.classList.remove('active'); }
-      else { homeSubCategories.push(id); btn.classList.add('active'); }
-      renderMerchantsList();
-    }
-  });
-}
-
-function renderOffersSubCategories() {
-  renderSubCategoriesGeneric({
-    categories: offersCategories, subs: offersSubCategories,
-    wrapperEl: $('offersSubWrapper'), containerEl: $('offersSubCategories'),
-    onToggle: (id, btn) => {
-      const i = offersSubCategories.indexOf(id);
-      if (i > -1) { offersSubCategories.splice(i, 1); btn.classList.remove('active'); }
-      else { offersSubCategories.push(id); btn.classList.add('active'); }
-      renderOffersGrid();
-    }
-  });
-}
-
-// ============================================================
-// ✅ Open Merchant Modal
-// ============================================================
-async function openMerchant(bankCode) {
-  const m = allMerchants.find(x => x.bank_code === bankCode);
-  if (!m) return;
-  currentModalMerchant = m;
-
-  trackOfferEvent({ offerId: null, merchantId: m.id, eventType: 'click' });
-
-  const rate = m.cashback_rate || 15;
-  const tier = getTier(rate);
-  const isWarehouse = m.merchant_type === 'warehouse';
-  const logoHtml = m.logo_url
-    ? `<img src="${escapeHtml(m.logo_url)}" style="width:70px;height:70px;object-fit:cover;border-radius:16px;margin:0 auto 10px;display:block">`
-    : `<div style="font-size:60px;text-align:center">${escapeHtml(m.icon || '🏪')}</div>`;
-
-  $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${escapeHtml(m.name)}</div>`;
-  $('modalMerchantInfo').innerHTML = `${escapeHtml(m.icon || '🏪')} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}${isWarehouse ? ' • 📦 مخزن' : ''}`;
-
-  const offerViews = await getMerchantOffersViews(m.id).catch(() => ({}));
-
-  const sortedOffers = [...(m.offers || [])].sort((a, b) =>
-    (offerViews[b.id] || 0) - (offerViews[a.id] || 0)
-  );
-  const topOfferId = sortedOffers.length > 0 && (offerViews[sortedOffers[0].id] || 0) > 0
-    ? sortedOffers[0].id
-    : null;
-
-  $('modalOffersList').innerHTML = (sortedOffers || []).length
-    ? sortedOffers.map((o, i) => {
-        const imgHtml = o.image_url
-          ? `<img src="${escapeHtml(o.image_url)}"
-                 onclick="event.stopPropagation(); window.openImageLightbox('${escapeJs(o.image_url)}')"
-                 style="width:100%;max-width:220px;height:140px;object-fit:cover;border-radius:10px;margin-bottom:8px;cursor:zoom-in;display:block">`
-          : '';
-        const descHtml = o.description ? `<p style="font-size:13px;color:#4b5563;margin-top:6px">${escapeHtml(o.description)}</p>` : '';
-        const priceHtml = o.price ? `<div style="font-size:15px;color:#10b981;font-weight:700;margin-bottom:4px">💰 ${parseFloat(o.price).toFixed(2)} ج</div>` : '';
-        const viewsCount = offerViews[o.id] || 0;
-        const viewsHtml = viewsCount > 0 ? `<span style="font-size:11px;color:#f59e0b;margin-right:8px">👁️ ${viewsCount} مشاهدة</span>` : '';
-        const hotBadge = o.id === topOfferId
-          ? `<div style="background:#ff6b35;color:#fff;font-size:11px;padding:3px 10px;border-radius:20px;font-weight:700;display:inline-block;margin-bottom:6px">🔥 الأكثر مشاهدة</div>`
-          : '';
-
-        return `
-          <div onclick="window.openOfferFull('${escapeJs(o.id)}','${escapeJs(m.id)}')"
-               style="background:#f9fafb;padding:16px;border-radius:14px;margin-bottom:14px;border-right:4px solid #ff6b35;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 6px rgba(0,0,0,0.05)"
-               onmouseover="this.style.background='#f0f4ff'"
-               onmouseout="this.style.background='#f9fafb'">
-            ${hotBadge}
-            ${imgHtml}
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-              <div style="flex:1">
-                <h5 style="font-size:16px;margin-bottom:6px;color:var(--primary);font-weight:700">${escapeHtml(o.title)}</h5>
-                ${priceHtml}
-                ${descHtml}
-                <p style="font-size:11px;color:#9ca3af;margin-top:6px">عرض ${i + 1} من ${m.offers.length} • ${viewsHtml}</p>
-              </div>
-              <div style="background:#1a2a6c;color:#fff;padding:8px 16px;border-radius:30px;font-weight:700;font-size:15px;white-space:nowrap">${escapeHtml(o.discount)}</div>
-            </div>
-          </div>`;
-      }).join('')
-    : '<p style="text-align:center;color:#6b7280;padding:20px">لا توجد عروض حالياً</p>';
-
-  const modal = $('merchantModal');
-  modal.classList.add('active');
-  modal.style.display = 'flex';
-
-  const oldActions = modal.querySelector('.modal-actions-bar');
-  if (oldActions) oldActions.remove();
-
-  const actionsBar = document.createElement('div');
-  actionsBar.className = 'modal-actions-bar';
-  actionsBar.style.cssText = 'margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #eee;padding-top:14px';
-
-  if (m.lat && m.lng && m.merchant_type !== 'warehouse') {
-    actionsBar.innerHTML = `
-      <button onclick="window.openMerchantMap('${escapeJs(m.lat)}','${escapeJs(m.lng)}','${escapeJs(m.id)}')" style="flex:1;background:#1a2a6c;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">📍 الموقع على الخريطة</button>
-      ${m.delivery_available ? `<button onclick="window.contactDelivery('${escapeJs(m.delivery_phone || m.phone)}','${escapeJs(m.id)}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>` : ''}
-    `;
-  } else if (m.delivery_available) {
-    actionsBar.innerHTML = `
-      <button onclick="window.contactDelivery('${escapeJs(m.delivery_phone || m.phone)}','${escapeJs(m.id)}')" style="flex:1;background:#ff6b35;color:#fff;border:none;padding:12px;border-radius:30px;font-weight:600;cursor:pointer">🛵 اتصل للتوصيل</button>
-    `;
-  }
-
-  if (actionsBar.innerHTML.trim()) {
-    modal.querySelector('.modal-box').appendChild(actionsBar);
-  }
-
-  $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">جاري التحميل...</p>';
-  getMerchantRatings(m.id).then(ratings => {
-    if (!ratings.length) {
-      $('modalRatingsContent').innerHTML = '<p style="color:#9ca3af;font-size:13px;text-align:center">لا توجد تقييمات بعد</p>';
+window.switchRequestsSubtab = function(type) {
+  // 1. تغيير شكل الزراير
+  document.querySelectorAll('.req-subtab').forEach(b => {
+    if (b.dataset.req === type) {
+      b.classList.add('active');
     } else {
-      $('modalRatingsContent').innerHTML = ratings.slice(0, 10).map(r => {
-        const name = r.profiles?.name || 'عميل';
-        return `<div class="rating-item">
-          <div class="name">👤 ${escapeHtml(name)}</div>
-          <div class="stars-row">${'⭐'.repeat(r.stars)}</div>
-          ${r.comment ? `<div class="comment">${escapeHtml(r.comment)}</div>` : ''}
-          <div class="date">${new Date(r.created_at).toLocaleDateString('ar-EG')}</div>
-        </div>`;
-      }).join('');
+      b.classList.remove('active');
     }
-  }).catch(() => {
-    $('modalRatingsContent').innerHTML = '<p style="color:#ef4444;font-size:12px">تعذر تحميل التقييمات</p>';
-  });
-}
-
-function closeMerchantModal() {
-  const modal = $('merchantModal');
-  modal.classList.remove('active');
-  modal.style.display = 'none';
-  currentModalMerchant = null;
-}
-
-function closeModal(e) {
-  if (e.target.classList.contains('modal-overlay')) closeMerchantModal();
-}
-
-// ============================================================
-// ✅ Offer Full View
-// ============================================================
-window.openOfferFull = async function(offerId, merchantId) {
-  const m = allMerchants.find(x => x.id === merchantId);
-  if (!m) { toast('❌ التاجر غير موجود', 'error'); return; }
-
-  const o = (m.offers || []).find(x => x.id === offerId);
-  if (!o) { toast('❌ العرض غير موجود', 'error'); return; }
-
-  currentOfferFullData = { offer: o, merchant: m };
-
-  trackOfferEvent({ offerId: o.id, merchantId: m.id, eventType: 'view' });
-
-  let viewsCount = 0;
-  try {
-    const views = await getMerchantOffersViews(m.id);
-    viewsCount = views[o.id] || 0;
-  } catch (e) { console.error(e); }
-
-  const logoHtml = m.logo_url
-    ? `<img src="${escapeHtml(m.logo_url)}" alt="${escapeHtml(m.name)}">`
-    : `<span style="font-size:20px">${escapeHtml(m.icon || '🏪')}</span>`;
-
-  $('offerFullMerchant').innerHTML = `${logoHtml}<span>${escapeHtml(m.name)}</span>`;
-
-  if (o.image_url) {
-    $('offerFullImage').src = o.image_url;
-    $('offerFullImageWrap').style.display = 'block';
-  } else {
-    $('offerFullImageWrap').style.display = 'none';
-  }
-
-  $('offerFullDiscount').innerText = o.discount || '---';
-  $('offerFullTitle').innerText = o.title || 'عرض';
-
-  if (o.price) {
-    $('offerFullPrice').innerText = `💰 ${parseFloat(o.price).toFixed(2)} ج`;
-    $('offerFullPrice').style.display = 'block';
-  } else {
-    $('offerFullPrice').style.display = 'none';
-  }
-
-  if (o.description) {
-    $('offerFullDesc').innerText = o.description;
-    $('offerFullDesc').style.display = 'block';
-  } else {
-    $('offerFullDesc').style.display = 'none';
-  }
-
-  $('offerFullStats').innerHTML = `
-    <span>👁️ ${viewsCount} مشاهدة</span>
-    <span>🏪 ${escapeHtml(m.name)}</span>
-    ${m.delivery_available ? '<span>🛵 التوصيل متاح</span>' : ''}
-  `;
-
-  const safeTitle = escapeJs(o.title || '');
-  const requestBtnHtml = `
-    <button onclick="window.openRequestOfferModal('${escapeJs(o.id)}','${escapeJs(m.id)}','${safeTitle}')"
-            style="width:100%;background:linear-gradient(135deg,#ff6b35,#f7931e);color:#fff;border:none;padding:16px;border-radius:30px;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 12px rgba(255,107,53,0.4)">
-      📩 اطلب العرض ده
-    </button>
-  `;
-
-  let actionsHtml = '';
-  if (m.lat && m.lng && m.merchant_type !== 'warehouse') {
-    actionsHtml += `<button onclick="window.openMerchantMap('${escapeJs(m.lat)}','${escapeJs(m.lng)}','${escapeJs(m.id)}')" style="background:#1a2a6c">📍 الموقع على الخريطة</button>`;
-  }
-  $('offerFullActions').innerHTML = requestBtnHtml + (actionsHtml || '');
-
-  const typeLabel = m.merchant_type === 'warehouse' ? '📦 مخزن' : (m.merchant_type === 'both' ? '🔄 محل ومخزن' : '🏪 محل');
-  $('offerFullMerchantInfo').innerHTML = `
-    <div><strong>🏪 ${escapeHtml(m.name)}</strong> ${typeLabel}</div>
-    ${m.category ? `<div>📂 التصنيف: ${escapeHtml(m.category)}</div>` : ''}
-    ${m.lat && m.lng && m.merchant_type !== 'warehouse' ? `<div>📍 ${m.lat.toFixed(4)}, ${m.lng.toFixed(4)}</div>` : ''}
-    <div>💰 نسبة الكاش باك: ${m.cashback_rate || 15}%</div>
-  `;
-
-  const modal = $('offerFullModal');
-  modal.style.display = 'flex';
-  modal.classList.add('active');
-  document.body.style.overflow = 'hidden';
-};
-
-window.closeOfferFull = function(e) {
-  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
-  const modal = $('offerFullModal');
-  if (!modal) return;
-  modal.classList.remove('active');
-  modal.style.display = 'none';
-  document.body.style.overflow = '';
-};
-
-// ============================================================
-// ✅ Request Offer Modal
-// ============================================================
-window.openRequestOfferModal = function(offerId, merchantId, offerTitle) {
-  $('reqOfferId').value = offerId;
-  $('reqOfferMerchantId').value = merchantId;
-  $('reqOfferTitle').innerText = offerTitle;
-  $('reqOfferNote').value = '';
-  $('reqOfferResult').innerText = '';
-
-  const modal = $('requestOfferModal');
-  modal.style.display = 'flex';
-  modal.classList.add('active');
-};
-
-window.closeRequestOfferModal = function(e) {
-  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
-  const modal = $('requestOfferModal');
-  if (!modal) return;
-  modal.classList.remove('active');
-  modal.style.display = 'none';
-};
-
-async function handleSendOfferRequest() {
-  const offerId = $('reqOfferId').value;
-  const merchantId = $('reqOfferMerchantId').value;
-  const offerTitle = $('reqOfferTitle').innerText;
-  const note = $('reqOfferNote').value.trim();
-  const res = $('reqOfferResult');
-
-  if (!currentProfile || currentProfile.role !== 'customer') {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ لازم تسجل دخول كعميل';
-    return;
-  }
-
-  const btn = $('sendOfferRequestBtn');
-  btn.disabled = true;
-  btn.innerText = '⏳ جاري الإرسال...';
-
-  try {
-    await requestSpecificOffer({ offerId, merchantId, offerTitle, note });
-    res.style.color = '#10b981';
-    res.innerText = '✅ تم إرسال طلبك للتاجر';
-
-    setTimeout(() => {
-      window.closeRequestOfferModal();
-      btn.disabled = false;
-      btn.innerText = '📩 إرسال الطلب';
-      if (currentProfile.role === 'customer') renderRequestsTab();
-    }, 1500);
-
-  } catch (e) {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ ' + e.message;
-    btn.disabled = false;
-    btn.innerText = '📩 إرسال الطلب';
-  }
-}
-
-// ============================================================
-// ✅ Google Login
-// ============================================================
-window.handleGoogleLogin = async function() {
-  const btn = $('googleLoginBtn');
-  if (btn) { btn.disabled = true; btn.innerText = '⏳ جاري التحويل...'; }
-
-  try {
-    await signInWithGoogle();
-  } catch (e) {
-    toast('❌ ' + e.message, 'error');
-    if (btn) { btn.disabled = false; btn.innerText = '🔵 الدخول بجوجل'; }
-  }
-};
-
-window.handleGoogleCallback = async function() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return false;
-
-  const profile = await getProfile();
-  if (!profile || !profile.phone) {
-    pendingGoogleUser = session.user;
-    openCompleteProfileModal(session.user);
-    return true;
-  }
-
-  await showMainScreen(profile);
-  return true;
-};
-
-function openCompleteProfileModal(user) {
-  $('completeProfileEmail').innerText = user.email || '';
-  $('completeProfilePhone').value = '';
-  $('completeProfileName').value = user.user_metadata?.name || '';
-  $('completeProfileRole').value = 'customer';
-  $('completeProfileBankCodeGroup').style.display = 'none';
-  $('completeProfileAdminCodeGroup').style.display = 'none';
-  $('completeProfileResult').innerText = '';
-
-  const modal = $('completeProfileModal');
-  modal.style.display = 'flex';
-  modal.classList.add('active');
-}
-
-window.closeCompleteProfileModal = function(e) {
-  if (e && e.target && !e.target.classList.contains('modal-overlay')) return;
-  const modal = $('completeProfileModal');
-  if (!modal) return;
-  modal.classList.remove('active');
-  modal.style.display = 'none';
-  supabase.auth.signOut();
-};
-
-window.onCompleteProfileRoleChange = function(value) {
-  $('completeProfileBankCodeGroup').style.display = value === 'merchant' ? 'block' : 'none';
-  $('completeProfileAdminCodeGroup').style.display = value === 'admin' ? 'block' : 'none';
-};
-
-async function handleCompleteProfile() {
-  const phone = $('completeProfilePhone').value.trim();
-  const name = $('completeProfileName').value.trim();
-  const role = $('completeProfileRole').value;
-  const bankCode = getRealValue('completeProfileBankCode');
-  const adminCode = getRealValue('completeProfileAdminCode');
-  const res = $('completeProfileResult');
-
-  if (!phone || !name) { res.style.color = '#ef4444'; res.innerText = '❌ املأ الاسم والموبايل'; return; }
-  if (role === 'merchant' && !bankCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم البنكود'; return; }
-  if (role === 'admin' && !adminCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم بنكود الأدمن'; return; }
-
-  const btn = $('completeProfileBtn');
-  btn.disabled = true;
-  btn.innerText = '⏳ جاري الحفظ...';
-
-  try {
-    await completeGoogleProfile({ phone, name, role, bankCode, adminCode });
-    res.style.color = '#10b981';
-    res.innerText = '✅ تم حفظ البيانات';
-
-    setTimeout(async () => {
-      window.closeCompleteProfileModal();
-      const profile = await getProfile();
-      if (profile) await showMainScreen(profile);
-    }, 1000);
-
-  } catch (e) {
-    res.style.color = '#ef4444';
-    res.innerText = '❌ ' + e.message;
-    btn.disabled = false;
-    btn.innerText = '✅ حفظ البيانات';
-  }
-}
-
-// ============================================================
-// ✅ Tabs
-// ============================================================
-function updateTabsVisibility() {
-  if (!currentProfile) return;
-  const role = currentProfile.role;
-  document.querySelectorAll('#mainTabs .tab-btn').forEach(btn => {
-    const r = btn.dataset.role;
-    if (r === 'all') btn.style.display = 'block';
-    else if (r === 'customer') btn.style.display = role === 'customer' ? 'block' : 'none';
-    else if (r === 'merchant') btn.style.display = role === 'merchant' ? 'block' : 'none';
-    else if (r === 'admin') btn.style.display = role === 'admin' ? 'block' : 'none';
-  });
-}
-
-function switchTab(name) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-  document.querySelectorAll('.tab-content').forEach(c => {
-    const isTarget = c.id === 'tab-' + name;
-    c.classList.toggle('active', isTarget);
-    c.style.display = isTarget ? 'block' : 'none';
   });
 
-  if (name === 'requests') {
-    const sp = document.getElementById('specialRequestsSection');
-    const off = document.getElementById('offerRequestsSection');
-    if (sp) sp.style.display = 'block';
-    if (off) off.style.display = 'none';
-    
-    document.querySelectorAll('.req-subtab').forEach(b => {
-      b.classList.toggle('active', b.dataset.req === 'special');
-    });
-    
-    renderRequestsTab();
-  }
+  // 2. جلب الأقسام
+  const specialSection = $('specialRequestsSection');
+  const offerSection = $('offerRequestsSection');
 
-  if (name === 'offers') renderOffersGrid();
-  if (name === 'invoice') renderInvoiceTab();
-  if (name === 'dashboard' && currentMerchant) renderDashboard();
-  if (name === 'reports' && currentMerchant) renderReports('all');
-  if (name === 'analytics' && currentMerchant) renderAnalyticsTab();
-  if (name === 'admin') renderAdminSection('dashboard');
-  if (name === 'account') setTimeout(initAccountMapUI, 300);
-}
-// ============================================================
-// ✅ INVOICE
-// ============================================================
-async function renderInvoiceTab() {
-  if (!currentProfile) return;
-  if (currentProfile.role === 'merchant' && currentMerchant) {
-    $('invBankCodeGroup').style.display = 'none';
-    await renderMerchantInvoiceExtras();
-  } else {
-    $('invBankCodeGroup').style.display = 'block';
-    $('merchantCashbackCard').style.display = 'none';
-    $('merchantWalletsCard').style.display = 'none';
-    $('merchantInvoicesCard').style.display = 'none';
-  }
+  if (!specialSection || !offerSection) return;
 
-  if (currentProfile.role === 'customer') {
-    await renderMyPendingInvoices();
-  }
-
-  await renderMyWalletAndInvoices();
-}
-
-async function renderMyPendingInvoices() {
-  const el = $('customerPendingInvoicesList');
-  const card = $('customerPendingInvoicesCard');
-  if (!el || !card) return;
-
-  try {
-    myPendingInvoicesCache = await getMyPendingInvoices(currentProfile.phone);
-
-    if (!myPendingInvoicesCache.length) {
-      card.style.display = 'none';
-      return;
-    }
-
-    card.style.display = 'block';
-    el.innerHTML = myPendingInvoicesCache.map(inv => {
-      const m = inv.merchants || {};
-      return `<div style="background:#fffbeb;padding:12px;border-radius:12px;margin-bottom:8px;border-right:4px solid #f59e0b">
-        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <strong style="color:#92400e">📄 #${escapeHtml(inv.number)}</strong>
-          <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span>
-        </div>
-        <div style="font-size:13px;color:#6b7280;margin-top:4px">🏪 ${escapeHtml(m.icon || '🏪')} ${escapeHtml(m.name || '')}</div>
-        <div style="font-size:13px;color:#10b981;font-weight:700;margin-top:4px">💰 كاش باك متوقع: ${parseFloat(inv.cashback || 0).toFixed(2)} ج</div>
-        <div style="font-size:12px;color:#9ca3af;margin-top:2px">🕒 ${new Date(inv.created_at).toLocaleString('ar-EG')}</div>
-        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-          <button class="admin-btn success" onclick="window.confirmInvoiceClick('${escapeJs(inv.id)}')">✅ استلمت البضاعة</button>
-          <button class="admin-btn danger" onclick="window.rejectInvoiceClick('${escapeJs(inv.id)}')">❌ مش استلمت</button>
-        </div>
-      </div>`;
-    }).join('');
-
-    updateInvoiceBadge();
-
-  } catch (e) {
-    console.error('Pending invoices error:', e);
-    card.style.display = 'none';
-  }
-}
-
-window.confirmInvoiceClick = async function(invoiceId) {
-  if (!confirm('متأكد إنك استلمت البضاعة؟')) return;
-  try {
-    await confirmInvoice(invoiceId);
-    toast('✅ تم تأكيد الفاتورة - الكاش باك اتضاف', 'success');
-    await renderInvoiceTab();
-  } catch (e) {
-    toast('❌ ' + e.message, 'error');
+  // 3. الإظهار والإخفاء بالجبر (عشان مفيش CSS يلخبطنا)
+  if (type === 'special') {
+    specialSection.style.setProperty('display', 'block', 'important');
+    offerSection.style.setProperty('display', 'none', 'important');
+  } else if (type === 'offer') {
+    specialSection.style.setProperty('display', 'none', 'important');
+    offerSection.style.setProperty('display', 'block', 'important');
   }
 };
-
-window.rejectInvoiceClick = async function(invoiceId) {
-  const reason = prompt('اكتب سبب الرفض (اختياري):');
-  if (reason === null) return;
-  try {
-    await rejectInvoice(invoiceId, reason);
-    toast('❌ تم رفض الفاتورة', 'success');
-    await renderInvoiceTab();
-  } catch (e) {
-    toast('❌ ' + e.message, 'error');
-  }
-};
-
-function updateInvoiceBadge() {
-  const badge = $('invoiceBadge');
-  if (!badge) return;
-  if (myPendingInvoicesCache.length > 0) {
-    badge.innerText = myPendingInvoicesCache.length > 9 ? '9+' : myPendingInvoicesCache.length;
-    badge.style.display = 'block';
-  } else {
-    badge.style.display = 'none';
-  }
-}
-
-async function renderMerchantInvoiceExtras() {
-  $('merchantCashbackCard').style.display = 'block';
-  $('merchantWalletsCard').style.display = 'block';
-  $('merchantInvoicesCard').style.display = 'block';
-
-  try {
-    const s = await getMerchantCashbackSummary(currentMerchant.id);
-    $('merCbGiven').innerText = s.cashbackGiven.toFixed(2) + ' ج';
-    $('merCbSpent').innerText = s.cashbackSpent.toFixed(2) + ' ج';
-    $('merCbRemaining').innerText = s.cashbackRemaining.toFixed(2) + ' ج';
-    $('merNetSales').innerText = s.netSales.toFixed(2) + ' ج';
-  } catch (e) { console.error(e); }
-
-  try {
-    const wallets = await getMerchantCustomerWallets(currentMerchant.id);
-    const el = $('merchantWalletsList');
-    if (!wallets.length) el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا يوجد أرصدة</p>';
-    else el.innerHTML = wallets.map(w => `
-      <div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
-        <div style="font-weight:600">${escapeHtml(w.profiles?.name || 'عميل')} (${escapeHtml(w.profiles?.phone || '?')})</div>
-        <div style="font-size:13px;color:#10b981;font-weight:600;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
-      </div>`).join('');
-  } catch (e) { console.error(e); }
-
-  try {
-    const invoices = await getMerchantInvoices(currentMerchant.id);
-    const el = $('merchantInvoicesList');
-    if (!invoices.length) el.innerHTML = '<p style="color:#6b7280;font-size:14px">لا توجد فواتير</p>';
-    else el.innerHTML = invoices.map(inv => {
-      const statusBadge = inv.confirmation_status === 'confirmed'
-        ? '<span style="background:#d1fae5;color:#065f46;font-size:11px;padding:2px 8px;border-radius:20px">✅ مؤكد</span>'
-        : inv.confirmation_status === 'rejected'
-          ? '<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:2px 8px;border-radius:20px">❌ مرفوض</span>'
-          : inv.confirmation_status === 'expired'
-            ? '<span style="background:#f3f4f6;color:#6b7280;font-size:11px;padding:2px 8px;border-radius:20px">⏰ ملغي</span>'
-            : '<span style="background:#fef3c7;color:#92400e;font-size:11px;padding:2px 8px;border-radius:20px">⏳ في الانتظار</span>';
-      return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
-        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <strong>📄 #${escapeHtml(inv.number)}</strong>
-          <span style="color:#ff6b35;font-weight:700">${parseFloat(inv.amount).toFixed(2)} ج</span>
-        </div>
-        <div style="color:#6b7280;margin-top:2px">📱 ${escapeHtml(inv.customer_phone || '')} • 💵 ${parseFloat(inv.cashback).toFixed(2)} ج ${statusBadge}</div>
-      </div>`;
-    }).join('');
-  } catch (e) { console.error(e); }
-}
-
-async function renderMyWalletAndInvoices() {
-  try {
-    const wallets = await getMyWallets(currentProfile.id);
-    const total = wallets.reduce((s, w) => s + parseFloat(w.balance || 0), 0);
-    const shops = wallets.filter(w => parseFloat(w.balance) > 0).length;
-
-    if (total > 0 || wallets.length > 0) {
-      $('customerBalanceBanner').style.display = 'block';
-      $('customerWalletsCard').style.display = 'block';
-      $('customerRedeemCard').style.display = 'block';
-      $('totalBalanceValue').innerText = total.toFixed(2) + ' ج';
-      $('balanceShopsCount').innerText = shops;
-
-      const active = wallets.filter(w => parseFloat(w.balance) > 0 || parseFloat(w.earned) > 0);
-      const el = $('customerWalletsList');
-      el.innerHTML = active.length ? active.map(w => {
-        const m = w.merchants || {};
-        return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #10b981">
-          <div style="font-weight:600">${escapeHtml(m.icon || '🏪')} ${escapeHtml(m.name || '')}</div>
-          <div style="font-size:14px;color:#10b981;font-weight:700;margin-top:4px">💰 ${parseFloat(w.balance).toFixed(2)} ج</div>
-        </div>`;
-      }).join('') : '<p style="color:#6b7280;font-size:14px">لا توجد أرصدة</p>';
-
-      const sel = $('redeemMerchant');
-      sel.innerHTML = '<option value="">اختار المتجر</option>' +
-        active.filter(w => parseFloat(w.balance) > 0).map(w => {
-          const m = w.merchants || {};
-          return `<option value="${escapeHtml(w.merchant_id)}">${escapeHtml(m.icon || '')} ${escapeHtml(m.name || '')} - ${parseFloat(w.balance).toFixed(2)} ج</option>`;
-        }).join('');
-    } else {
-      $('customerBalanceBanner').style.display = 'none';
-      $('customerWalletsCard').style.display = 'none';
-      $('customerRedeemCard').style.display = 'none';
-    }
-  } catch (e) { console.error(e); }
-
-  try {
-    const invoices = await getMyInvoices(currentProfile.phone);
-    if (invoices.length) {
-      $('customerInvoicesCard').style.display = 'block';
-      $('customerInvoicesList').innerHTML = invoices.map(inv => {
-        const m = inv.merchants || {};
-        return `<div style="background:#f9fafb;padding:10px 14px;border-radius:10px;margin-bottom:6px;border-right:4px solid #1a2a6c;font-size:13px">
-          <div><strong>📄 #${escapeHtml(inv.number)}</strong> • ${escapeHtml(m.icon || '')} ${escapeHtml(m.name || '')}</div>
-          <div style="color:#6b7280;margin-top:2px">💰 ${parseFloat(inv.amount).toFixed(2)} ج • كاش باك ${parseFloat(inv.cashback).toFixed(2)} ج</div>
-        </div>`;
-      }).join('');
-    } else $('customerInvoicesCard').style.display = 'none';
-  } catch (e) { console.error(e); }
-}
-
 async function handleSubmitInvoice() {
   const num = $('invNumber').value.trim();
   const phone = $('invCustomerPhone').value.trim();
@@ -1126,7 +32,6 @@ async function handleSubmitInvoice() {
   const res = $('invoiceResult');
 
   if (!num || !phone || !amount || amount <= 0) { res.style.color = '#ef4444'; res.innerText = '❌ املأ البيانات'; return; }
-
   if (usedCashback > amount) { res.style.color = '#ef4444'; res.innerText = '❌ رصيد الكاش باك أكبر من مبلغ الفاتورة'; return; }
 
   try {
@@ -1137,7 +42,6 @@ async function handleSubmitInvoice() {
       return;
     }
   } catch (err) {
-    console.error('Check phone error:', err);
     res.style.color = '#ef4444';
     res.innerText = '❌ فشل التحقق من الرقم';
     return;
@@ -1287,12 +191,14 @@ async function renderRequestsTab() {
     $('myRequestsList').innerHTML = '<div class="no-requests">مش مسجل كعميل أو تاجر</div>';
   }
 
+  // ✅ التعديل: نجبر الصفحة تفتح على "طلبات خاصة" أول ما ندخل
+  window.switchRequestsSubtab('special');
+
   setTimeout(updateOfferReqBadge, 300);
 }
 
 window.switchRequestsSubtab = function(type) {
-  console.log("تم الضغط على:", type);
-
+  // تغيير شكل الزراير
   document.querySelectorAll('.req-subtab').forEach(b => {
     if (b.dataset.req === type) {
       b.classList.add('active');
@@ -1301,37 +207,23 @@ window.switchRequestsSubtab = function(type) {
     }
   });
 
-  const specialSection = $('specialRequestsSection');
-  const offerSection = $('offerRequestsSection');
+  // جلب الأقسام باستخدام الـ ID المباشر
+  const specialSection = document.getElementById('specialRequestsSection');
+  const offerSection = document.getElementById('offerRequestsSection');
 
   if (!specialSection || !offerSection) {
-    console.error("مش لاقي الأقسام في الـ HTML");
+    console.error('❌ Sections not found in HTML');
     return;
   }
 
+  // الإظهار والإخفاء باستخدام الطريقة الأضمن
   if (type === 'special') {
-    specialSection.style.display = 'block';
-    offerSection.style.display = 'none';
+    specialSection.style.setProperty('display', 'block', 'important');
+    offerSection.style.setProperty('display', 'none', 'important');
   } else if (type === 'offer') {
-    specialSection.style.display = 'none';
-    offerSection.style.display = 'block';
+    specialSection.style.setProperty('display', 'none', 'important');
+    offerSection.style.setProperty('display', 'block', 'important');
   }
-
-  setTimeout(() => {
-    if (currentProfile && currentProfile.role === 'merchant' && currentMerchant) {
-      if (type === 'special') {
-        renderMerchantRequestsList().catch(e => console.error('Err requests:', e));
-      } else {
-        renderMerchantOfferRequestsList().catch(e => console.error('Err offers:', e));
-      }
-    } else if (currentProfile && currentProfile.role === 'customer') {
-      if (type === 'special') {
-        renderMyRequests().catch(e => console.error('Err my req:', e));
-      } else {
-        renderMyOfferRequests().catch(e => console.error('Err my offers:', e));
-      }
-    }
-  }, 100);
 };
 
 async function renderMyRequests() {
@@ -2151,7 +1043,6 @@ window.openEditOffer = async function(offerId) {
   $('editOfferCustom').value = custom;
   window.onEditOfferTypeChange(type);
 
-  // ✅ تنظيف حقل الصورة
   uploadedEditOfferImage = null;
   const editImgInput = document.getElementById('editOfferImage');
   if (editImgInput) editImgInput.value = '';
@@ -2291,7 +1182,7 @@ function handleOfferImage(e) {
 }
 
 // ============================================================
-// ✅ Reports
+// ✅ Reports & Analytics
 // ============================================================
 async function renderReports(period) {
   if (!currentMerchant) return;
@@ -2327,9 +1218,6 @@ function exportReportPDF() {
   html2pdf().set(opt).from(element).save();
 }
 
-// ============================================================
-// ✅ Analytics
-// ============================================================
 async function renderAnalyticsTab() {
   if (!currentMerchant) return;
   try {
@@ -2472,12 +1360,6 @@ async function delTrader(id) {
 }
 
 async function renderAdminCustomers() {
-  // ✅ حماية: لو اللي داخل مش أدمن، اظهر رسالة ومتطلبش داتا
-  if (!currentProfile || currentProfile.role !== 'admin') {
-    document.getElementById('adminCustomersList').innerHTML = '<p style="color:red;text-align:center;padding:20px">⛔ غير مصرح لك بالدخول</p>';
-    return;
-  }
-
   adminData.customers = await getAllCustomers();
   const el = $('adminCustomersList');
   const search = ($('adminCustomerSearch')?.value || '').trim().toLowerCase();
@@ -2974,23 +1856,23 @@ async function showMainScreen(profile) {
   $('userRole').className = 'role-badge role-' + profile.role;
   $('userName').innerText = profile.name || 'مستخدم';
 
-if (profile.role === 'merchant') {
-  getMyMerchant().then(m => {
-    currentMerchant = m;
-    if (currentMerchant) {
-      $('merchantName').innerText = currentMerchant.name;
-    }
-  });
-  $('merchantBanner').style.display = 'block';
-} else {
-  currentMerchant = null;
-  $('merchantBanner').style.display = 'none';
-}
+  if (profile.role === 'merchant') {
+    getMyMerchant().then(m => {
+      currentMerchant = m;
+      if (currentMerchant) {
+        $('merchantName').innerText = currentMerchant.name;
+      }
+    });
+    $('merchantBanner').style.display = 'block';
+  } else {
+    currentMerchant = null;
+    $('merchantBanner').style.display = 'none';
+  }
 
-updateTabsVisibility();
-switchTab('home');
-refreshData();
-if (userLat === null) updateLocation();
+  updateTabsVisibility();
+  switchTab('home'); 
+  refreshData(); 
+  if (userLat === null) updateLocation();
 
   if (profile.role === 'merchant') {
     setTimeout(updateOfferReqBadge, 1000);
@@ -3007,13 +1889,19 @@ if (userLat === null) updateLocation();
 }
 
 async function refreshData() {
-  $('merchantsList').innerHTML = '<div class="no-requests">⏳ جاري التحميل...</div>';
-  allMerchants = await loadMerchants();
-  renderTopDeals();
-  renderHomeSubCategories();
-  renderOffersSubCategories();
-  renderMerchantsList();
-  renderOffersGrid();
+  const el = $('merchantsList');
+  if (el) el.innerHTML = '<div class="no-requests">⏳ جاري التحميل...</div>';
+  try {
+    allMerchants = await loadMerchants();
+    renderTopDeals();
+    renderHomeSubCategories();
+    renderOffersSubCategories();
+    renderMerchantsList();
+    renderOffersGrid();
+  } catch (e) {
+    console.error('refreshData error:', e);
+    if (el) el.innerHTML = '<div class="no-requests">❌ فشل تحميل البيانات. حاول تحدّث الصفحة.</div>';
+  }
 }
 
 async function handleLogin(e) {
@@ -3054,10 +1942,10 @@ async function handleLogin(e) {
       }
     }
 
-if (role === 'admin') {
-  const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
-    p_code: (adminCode || '').trim()
-  });
+    if (role === 'admin') {
+      const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
+        p_code: (adminCode || '').trim()
+      });
       if (checkErr || !check.ok) {
         await signOut();
         throw new Error('بنكود الأدمن غير صحيح');
@@ -3383,7 +2271,7 @@ function bindEvents() {
 }
 
 // ============================================================
-// ✅ INIT
+// ✅ INIT & WINDOW EXPORTS
 // ============================================================
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', runInit);
@@ -3392,6 +2280,7 @@ if (document.readyState === 'loading') {
 }
 
 async function runInit() {
+  // 1. إظهار شاشة التحميل أول ما الصفحة تفتح
   if (!document.getElementById('appLoadingScreen')) {
     const loader = document.createElement('div');
     loader.id = 'appLoadingScreen';
@@ -3400,9 +2289,11 @@ async function runInit() {
     document.body.appendChild(loader);
   }
 
+  // 2. إخفاء الشاشات لحد ما نعرف المستخدم مسجل ولا لأ
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('mainScreen').style.display = 'none';
 
+  // 3. تجهيز الأحداث والترجمة
   bindEvents();
   showAuthTab('login');
   updateBankCodeVisibility();
@@ -3463,24 +2354,17 @@ async function runInit() {
         if (profile) await showMainScreen(profile);
       }
     } else {
-      // لو مفيش حد مسجل، نعرض صفحة الدخول
       showAuthScreen();
     }
   } catch (e) {
     console.log('getSession error:', e);
     showAuthScreen();
   } finally {
+    // 6. مسح شاشة التحميل في النهاية (سواء دخل أو لأ)
     const loader = document.getElementById('appLoadingScreen');
     if (loader) loader.remove();
   }
 }
-
-// ============================================================
-// ✅ WINDOW EXPORTS
-// ============================================================
-// ملاحظة: الدوال اللي معرّفة فوق بـ window.xxx = function... 
-// مش محتاجة إعادة تصدير هنا، لأنها أصلاً على window.
-// السطور دي بس للدوال المعرّفة بـ function عادي.
 
 window.switchTab = switchTab;
 window.openMerchant = openMerchant;
@@ -3518,7 +2402,6 @@ window.adminDeleteOnly = adminDeleteOnly;
 window.renderOfferEventsTable = renderOfferEventsTable;
 window.updateOfferReqBadge = updateOfferReqBadge;
 
-// ✅ الدوال اللي بتستخدمها في HTML مباشرة (مش معرّفة بـ window فوق):
 window.togglePass = function(inputId, btn) {
   const input = document.getElementById(inputId);
   if (!input) return;
