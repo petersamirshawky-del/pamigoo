@@ -3416,6 +3416,7 @@ async function runInit() {
 
 window.switchTab = switchTab;
 window.openMerchant = openMerchant;
+window.closeMerchantModal = closeMerchantModal;
 window.renderOffersGrid = renderOffersGrid;
 window.renderMerchantsList = renderMerchantsList;
 window.renderRequestsTab = renderRequestsTab;
