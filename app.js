@@ -1932,8 +1932,18 @@ async function handleSaveOfferEdit() {
     });
 
     res.style.color = 'green'; res.innerText = '✅ تم حفظ التعديلات';
-    setTimeout(() => { window.closeEditOfferModal(); renderDashboard(); refreshData(); }, 1500);
-  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
+
+    window.closeEditOfferModal();
+    await refreshData(); 
+    
+    if (currentMerchant) {
+      await renderDashboard(); 
+    }
+
+  } catch (e) { 
+    res.style.color = 'red'; 
+    res.innerText = '❌ ' + e.message; 
+  }
 }
 
 async function handleSaveRate() {
