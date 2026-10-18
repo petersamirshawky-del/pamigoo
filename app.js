@@ -116,19 +116,17 @@ async function loadMerchants() {
   try {
     const [merchantsResult, offersResult, ratingsResult] = await Promise.all([
       supabase.from('merchants').select('*').eq('frozen', false),
-      supabase.from('offers').select('*, merchants(id, name, icon, logo_url, bank_code, merchant_type, lat, lng, delivery_available, delivery_phone, phone, cashback_rate)').limit(1000),
-      supabase.from('ratings').select('*').limit(1000)
+      supabase.from('offers').select('*').limit(200), // ✅ قللنا العروض عشان السرعة
+      supabase.from('ratings').select('merchant_id, stars') // ✅ سحبنا النجوم بس
     ]);
 
-    if (merchantsResult.error) {
-      console.error('Merchants error:', merchantsResult.error);
-      return [];
-    }
+    if (merchantsResult.error) return [];
 
     const merchantsData = merchantsResult.data || [];
-    allOffers = offersResult.data || [];
+    allOffers = offersResult.data || []; 
     const allRatings = ratingsResult.data || [];
 
+    // ربط العروض بالمتاجر
     const offersByMerchant = {};
     allOffers.forEach(o => {
       if (!offersByMerchant[o.merchant_id]) offersByMerchant[o.merchant_id] = [];
@@ -141,13 +139,18 @@ async function loadMerchants() {
       ratingsByMerchant[r.merchant_id].push(r);
     });
 
+    // ✅ السحر هنا: بنربط بيانات المتجر بالعرض في الذاكرة عشان منتقلش الداتابيز تاني
+    allOffers = allOffers.map(o => {
+      const merchant = merchantsData.find(m => m.id === o.merchant_id);
+      return { ...o, merchants: merchant || {} };
+    });
+
     return merchantsData.map(m => ({
       ...m,
       offers: offersByMerchant[m.id] || [],
       ratings: ratingsByMerchant[m.id] || []
     }));
   } catch (err) {
-    console.error('loadMerchants error:', err);
     return [];
   }
 }
