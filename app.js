@@ -1440,24 +1440,7 @@ async function hideReq(reqId) {
 // ============================================================
 // ✅ Badge Update
 // ============================================================
-async function updateOfferReqBadge() {if (currentProfile && currentProfile.role === 'merchant' && "Notification" in window) {
-  if (Notification.permission === "default") {
-    Notification.requestPermission();
-  }
-}
-if (window.lastPendingCount === undefined) {
-  window.lastPendingCount = pendingOffers + pendingSpecial;
-} else if ((pendingOffers + pendingSpecial) > window.lastPendingCount) {
-  if (Notification.permission === "granted") {
-    new Notification("🔔 PAMIGO - طلبات جديدة!", {
-      body: "عندك طلبات أو عروض جديدة محتاجة ردك يا تاجر!",
-      icon: currentMerchant?.logo_url || "https://ui-avatars.com/api/?name=P&background=ff6b35&color=fff"
-    });
-  }
-  window.lastPendingCount = pendingOffers + pendingSpecial;
-} else {
-  window.lastPendingCount = pendingOffers + pendingSpecial;
-}
+async function updateOfferReqBadge() {
   const mainBadge = $('mainReqBadge');
   const subBadge = $('offerReqBadge');
 
@@ -1465,6 +1448,11 @@ if (window.lastPendingCount === undefined) {
     if (mainBadge) mainBadge.style.display = 'none';
     if (subBadge) subBadge.style.display = 'none';
     return;
+  }
+
+  // ✅ 1. طلب إذن الإشعارات أول مرة
+  if ("Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission();
   }
 
   try {
@@ -1477,6 +1465,23 @@ if (window.lastPendingCount === undefined) {
       return !myReply;
     }).length;
 
+    // ✅ 2. منطق الإشعارات (بعد ما المتغيرات اتعرت)
+    const totalPending = pendingOffers + pendingSpecial;
+    if (window.lastPendingCount === undefined) {
+      window.lastPendingCount = totalPending;
+    } else if (totalPending > window.lastPendingCount) {
+      if (Notification.permission === "granted") {
+        new Notification("🔔 PAMIGO - طلبات جديدة!", {
+          body: "عندك طلبات أو عروض جديدة محتاجة ردك يا تاجر!",
+          icon: currentMerchant?.logo_url || "https://ui-avatars.com/api/?name=P&background=ff6b35&color=fff"
+        });
+      }
+      window.lastPendingCount = totalPending;
+    } else {
+      window.lastPendingCount = totalPending;
+    }
+
+    // ✅ 3. تحديث الشارات (Badges)
     if (mainBadge) {
       if (pendingSpecial > 0) {
         mainBadge.innerText = pendingSpecial > 9 ? '9+' : pendingSpecial;
