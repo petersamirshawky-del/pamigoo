@@ -54,35 +54,43 @@ export async function getMerchantOffers(merchantId) {
 }
 
 // ✅ إضافة عرض جديد (بياخد التصنيف الرئيسي والفرعي)
-export async function addOffer({ merchantId, title, discount, discountValue, description, imageBase64, price, category, subCategory }) {
-  const { error } = await supabase
+// ✅ التعديل: بترجع بيانات العرض (id) عشان نقدر نربط الصورة بعدين
+// ✅ التعديل: imageBase64 لسه مدعوم للتوافق مع الكود القديم، لكن imageUrl هو المفضل
+export async function addOffer({ merchantId, title, discount, discountValue, description, imageBase64, imageUrl, price, category, subCategory }) {
+  const { data, error } = await supabase
     .from('offers').insert({
       merchant_id: merchantId,
       title,
       discount,
       discount_value: discountValue || 0,
       description: description || '',
-      image_url: imageBase64 || null,
+      image_url: imageUrl || imageBase64 || null,  // ✅ يدعم الاثنين
       price: price || null,
-      category: category || null,           // ✅ جديد
-      sub_category: subCategory || null     // ✅ جديد
-    });
+      category: category || null,
+      sub_category: subCategory || null
+    })
+    .select('id')
+    .single();
   if (error) throw error;
+  return data;  // ✅ بترجع { id }
 }
 
 // ✅ تعديل عرض موجود (بياخد التصنيف الرئيسي والفرعي)
-export async function updateOffer({ offerId, title, discount, discountValue, description, imageBase64, price, keepImage, category, subCategory }) {
+export async function updateOffer({ offerId, title, discount, discountValue, description, imageBase64, imageUrl, price, keepImage, category, subCategory }) {
   const updateData = {
     title,
     discount,
     discount_value: discountValue || 0,
     description: description || '',
     price: price || null,
-    category: category || null,           // ✅ جديد
-    sub_category: subCategory || null     // ✅ جديد
+    category: category || null,
+    sub_category: subCategory || null
   };
 
-  if (imageBase64) {
+  // ✅ منطق الصورة الجديد
+  if (imageUrl) {
+    updateData.image_url = imageUrl;
+  } else if (imageBase64) {
     updateData.image_url = imageBase64;
   } else if (!keepImage) {
     updateData.image_url = null;
@@ -334,6 +342,7 @@ export async function deleteMerchantLogo(merchantId) {
 
 // ============================================================
 // Product Image Upload
+// ✅ نفس الدالة القديمة + نسخة جديدة للـ offerId (بتحفظ URL في offers)
 // ============================================================
 export async function uploadProductImage(merchantId, file) {
   if (!file) throw new Error('اختار صورة');
@@ -354,6 +363,38 @@ export async function uploadProductImage(merchantId, file) {
     .getPublicUrl(fileName);
 
   return urlData.publicUrl;
+}
+
+// ✅ دالة جديدة: ترفع صورة عرض وتربطها بـ offer_id في خطوة واحدة
+export async function uploadAndAttachProductImage(offerId, file) {
+  if (!file) throw new Error('اختار صورة');
+  if (!file.type.startsWith('image/')) throw new Error('لازم صورة');
+  if (file.size > 3 * 1024 * 1024) throw new Error('الصورة كبيرة (3MB max)');
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  const fileName = `${offerId}-${Date.now()}.${ext}`;
+
+  const { error: upErr } = await supabase.storage
+    .from('product-images')
+    .upload(fileName, file, { upsert: true, contentType: file.type });
+
+  if (upErr) throw upErr;
+
+  const { data: urlData } = supabase.storage
+    .from('product-images')
+    .getPublicUrl(fileName);
+
+  const imageUrl = urlData.publicUrl;
+
+  // حفظ الـ URL في جدول offers
+  const { error: updErr } = await supabase
+    .from('offers')
+    .update({ image_url: imageUrl })
+    .eq('id', offerId);
+
+  if (updErr) throw updErr;
+
+  return imageUrl;
 }
 
 export async function deleteProductImage(imageUrl) {
