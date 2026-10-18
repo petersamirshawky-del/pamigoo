@@ -154,7 +154,6 @@ async function loadMerchants() {
     return [];
   }
 }
-
 // ============================================================
 // Helpers
 // ============================================================
@@ -740,7 +739,11 @@ function switchTab(name) {
     c.style.display = isTarget ? 'block' : 'none';
   });
   
-  if (name === 'offers') { offersDisplayCount = 20; renderOffersGrid(); renderOffersSubCategories(); }
+  if (name === 'offers') { 
+    offersDisplayCount = 20; 
+    renderOffersGrid(); 
+    renderOffersSubCategories(); 
+  }
   if (name === 'invoice') renderInvoiceTab();
   if (name === 'special_requests') renderRequestsTab('special');
   if (name === 'offer_requests') renderRequestsTab('offer');
@@ -1926,6 +1929,7 @@ async function handleSaveOfferEdit() {
 
   const btn = document.getElementById('saveOfferEditBtn');
   if (btn) { btn.disabled = true; btn.innerText = '⏳ جاري الحفظ...'; }
+  res.style.color = '#6b7280'; res.innerText = 'جاري التحديث...';
 
   try {
     let imageBase64 = null; let keepImage = true;
@@ -1948,18 +1952,18 @@ async function handleSaveOfferEdit() {
       };
     }
 
-    res.style.color = 'green'; res.innerText = '✅ تم حفظ التعديلات';
+    res.style.color = 'green'; res.innerText = '✅ تم الحفظ بنجاح';
     
     setTimeout(() => {
       window.closeEditOfferModal();
       if (currentMerchant) renderDashboard();
       if (window.resetOffersLimit) window.resetOffersLimit();
       renderOffersGrid(); 
-    }, 1000);
+    }, 500);
 
   } catch (e) { 
     res.style.color = 'red'; 
-    res.innerText = '❌ ' + e.message; 
+    res.innerText = '❌ فشل الحفظ: ' + e.message; 
   } finally {
     if (btn) { btn.disabled = false; btn.innerText = '💾 حفظ التعديلات'; }
   }
