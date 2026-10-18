@@ -1,5 +1,5 @@
 // ============================================================
-// PAMIGO - Main Entry (v2.5 - Final with Lazy Loading & Noon Style)
+// PAMIGO - Main Entry (v2.6 - Final Stable)
 // ============================================================
 const { supabase } = await import('./supabase.js');
 const { toast, showLoader, hideLoader } = await import('./ui.js');
@@ -224,7 +224,7 @@ function logoImgHtml(m) {
 }
 
 // ============================================================
-// ✅ Render: merchants list (with Lazy Loading)
+// ✅ Render: merchants list
 // ============================================================
 function renderMerchantsList() {
   let list = [...allMerchants];
@@ -323,7 +323,6 @@ function renderMerchantsList() {
     return;
   }
 
-  // ✅ Lazy Loading للمتاجر
   const displayList = list.slice(0, merchantsDisplayCount);
   const hasMore = list.length > merchantsDisplayCount;
 
@@ -748,6 +747,7 @@ function switchTab(name) {
   if (name === 'admin') renderAdminSection('dashboard');
   if (name === 'account') setTimeout(initAccountMapUI, 300);
 }
+
 // ============================================================
 // ✅ INVOICE
 // ============================================================
@@ -1549,6 +1549,7 @@ window.closeMerchantReport = function(e) {
   modal.classList.remove('active');
   modal.style.display = 'none';
 };
+
 // ============================================================
 // ✅ Merchant Logo
 // ============================================================
@@ -1948,8 +1949,7 @@ async function handleSaveOfferEdit() {
     
     setTimeout(() => {
       window.closeEditOfferModal();
-      if (currentMerchant) renderDashboard(); 
-      
+      if (currentMerchant) renderDashboard();
       if (window.resetOffersLimit) window.resetOffersLimit();
       renderOffersGrid(); 
     }, 1000);
@@ -1959,6 +1959,24 @@ async function handleSaveOfferEdit() {
     res.innerText = '❌ ' + e.message; 
   } finally {
     if (btn) { btn.disabled = false; btn.innerText = '💾 حفظ التعديلات'; }
+  }
+}
+
+// ============================================================
+// ✅ حفظ نسبة الكاش باك
+// ============================================================
+async function handleSaveRate() {
+  const rate = parseInt($('rateSlider').value);
+  const res = $('rateSaveResult');
+  try {
+    await updateCashbackRate(currentMerchant.id, rate);
+    currentMerchant.cashback_rate = rate;
+    res.style.color = 'green'; 
+    res.innerText = '✅ تم الحفظ';
+    setTimeout(() => res.innerText = '', 2000);
+  } catch (e) { 
+    res.style.color = 'red'; 
+    res.innerText = '❌ ' + e.message; 
   }
 }
 
@@ -2607,6 +2625,7 @@ async function refreshData() {
   const el = $('merchantsList');
   if (el) el.innerHTML = '<div class="no-requests">⏳ جاري التحميل...</div>';
   try {
+    await new Promise(resolve => setTimeout(resolve, 300)); 
     allMerchants = await loadMerchants();
     renderTopDeals();
     renderHomeSubCategories();
