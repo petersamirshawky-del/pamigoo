@@ -1,5 +1,5 @@
 // ============================================================
-// PAMIGO - Main Entry (v2.6 - Final Stable)
+// PAMIGO - Main Entry (v2.7 - Final Stable with Image Storage)
 // ============================================================
 const { supabase } = await import('./supabase.js');
 const { toast, showLoader, hideLoader } = await import('./ui.js');
@@ -39,6 +39,7 @@ const {
   getReportData, getAnalytics,
   uploadMerchantLogo, deleteMerchantLogo,
   uploadProductImage, deleteProductImage,
+  uploadAndAttachProductImage,          // ✅ السطر الجديد
   trackOfferEvent, getOfferEventsStats,
   getMerchantTopOffers, getMerchantOffersViews,
   updateOffer
@@ -110,13 +111,13 @@ let offersDisplayCount = 20;
 let merchantsDisplayCount = 20;
 
 // ============================================================
-// ✅ Load merchants & offers
+// ✅ Load merchants & offers (التعديلات 1 + 2)
 // ============================================================
 async function loadMerchants() {
   try {
     const [merchantsResult, offersResult, ratingsResult] = await Promise.all([
       supabase.from('merchants').select('*').eq('frozen', false),
-      supabase.from('offers').select('*').limit(200), // ✅ قللنا العروض عشان السرعة
+      supabase.from('offers').select('*').limit(50),  // ✅ التعديل 2: 200 → 50
       supabase.from('ratings').select('merchant_id, stars') // ✅ سحبنا النجوم بس
     ]);
 
@@ -139,11 +140,12 @@ async function loadMerchants() {
       ratingsByMerchant[r.merchant_id].push(r);
     });
 
-    // ✅ السحر هنا: بنربط بيانات المتجر بالعرض في الذاكرة عشان منتقلش الداتابيز تاني
-    allOffers = allOffers.map(o => {
-      const merchant = merchantsData.find(m => m.id === o.merchant_id);
-      return { ...o, merchants: merchant || {} };
-    });
+    // ✅ التعديل 1: Map بدل find (من O(n²) لـ O(n))
+    const merchantMap = new Map(merchantsData.map(m => [m.id, m]));
+    allOffers = allOffers.map(o => ({
+      ...o,
+      merchants: merchantMap.get(o.merchant_id) || {}
+    }));
 
     return merchantsData.map(m => ({
       ...m,
@@ -151,9 +153,11 @@ async function loadMerchants() {
       ratings: ratingsByMerchant[m.id] || []
     }));
   } catch (err) {
+    console.error('loadMerchants error:', err);
     return [];
   }
 }
+
 // ============================================================
 // Helpers
 // ============================================================
@@ -617,7 +621,7 @@ window.closeMerchantModal = closeMerchantModal;
 function closeModal(e) { if (e && e.target && e.target.classList.contains('modal-overlay')) closeMerchantModal(); }
 
 // ============================================================
-// ✅ Offer Full View (Fixed)
+// ✅ Offer Full View
 // ============================================================
 window.openOfferFull = async function(offerId, merchantId) {
   const o = allOffers.find(x => x.id === offerId);
@@ -1760,7 +1764,7 @@ async function returnInvClick(invId) {
 }
 
 // ============================================================
-// ✅ Offers Add/Edit
+// ✅ Offers Add/Edit (✅ تم التعديل لاستخدام Storage)
 // ============================================================
 async function handleAddOffer() {
   const title = $('offerTitle').value.trim();
@@ -1791,14 +1795,37 @@ async function handleAddOffer() {
     discountText = custom; discountValue = 0;
   }
 
+  const btn = $('addOfferBtn');
+  if (btn) { btn.disabled = true; btn.innerText = '⏳ جاري النشر...'; }
+
   try {
-    await addOffer({
+    // ✅ 1. نضيف العرض أولاً بدون صورة (أسرع + مضمون)
+    const newOffer = await addOffer({
       merchantId: currentMerchant.id,
       title, discount: discountText, discountValue, description,
-      imageBase64: uploadedOfferImage,
+      imageBase64: null,
+      imageUrl: null,
       price, category, subCategory
     });
+
+    // ✅ 2. لو فيه صورة، نرفعها على Storage بعدين نحدّث العرض
+    if (uploadedOfferImage && newOffer?.id) {
+      res.style.color = '#6b7280'; res.innerText = '⏳ جاري رفع الصورة...';
+      try {
+        // تحويل base64 لـ File
+        const blob = await (await fetch(uploadedOfferImage)).blob();
+        const file = new File([blob], 'offer.jpg', { type: blob.type || 'image/jpeg' });
+        // رفع + ربط في خطوة واحدة
+        await uploadAndAttachProductImage(newOffer.id, file);
+      } catch (imgErr) {
+        console.error('Image upload failed:', imgErr);
+        // مش هنكسر العملية — العرض اتحفظ بدون صورة
+      }
+    }
+
     res.style.color = 'green'; res.innerText = '✅ تم نشر العرض';
+    
+    // تنظيف الفورم
     $('offerTitle').value = '';
     if ($('offerPrice')) $('offerPrice').value = '';
     if ($('offerPercent')) $('offerPercent').value = '20';
@@ -1813,8 +1840,14 @@ async function handleAddOffer() {
     uploadedOfferImage = null;
     const p = $('offerImagePreview'); if (p) { p.style.display = 'none'; p.src = ''; }
     const f = $('offerFileName'); if (f) f.innerText = 'لم يتم اختيار ملف';
+    
     setTimeout(() => { res.innerText = ''; renderDashboard(); refreshData(); }, 1000);
-  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
+  } catch (e) { 
+    res.style.color = 'red'; 
+    res.innerText = '❌ ' + e.message; 
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerText = '➕ نشر العرض'; }
+  }
 }
 
 window.openEditOffer = async function(offerId) {
@@ -1932,24 +1965,26 @@ async function handleSaveOfferEdit() {
   res.style.color = '#6b7280'; res.innerText = 'جاري التحديث...';
 
   try {
-    let imageBase64 = null; let keepImage = true;
-
+    let keepImage = true;
     if (uploadedEditOfferImage === 'DELETE') keepImage = false;
-    else if (uploadedEditOfferImage) imageBase64 = uploadedEditOfferImage;
 
+    // ✅ 1. تحديث العرض بدون صورة
     await updateOffer({
       offerId: id, title, discount: discountText, discountValue,
-      description, imageBase64, price, keepImage, category, subCategory
+      description, imageBase64: null, imageUrl: null,
+      price, keepImage, category, subCategory
     });
 
-    const offerIndex = allOffers.findIndex(o => o.id === id);
-    if (offerIndex > -1) {
-      allOffers[offerIndex] = {
-        ...allOffers[offerIndex],
-        title, discount: discountText, discount_value: discountValue,
-        description, price, category, sub_category: subCategory,
-        image_url: imageBase64 ? imageBase64 : (keepImage ? allOffers[offerIndex].image_url : null)
-      };
+    // ✅ 2. لو فيه صورة جديدة، ارفعها على Storage
+    if (uploadedEditOfferImage && uploadedEditOfferImage !== 'DELETE') {
+      res.style.color = '#6b7280'; res.innerText = '⏳ جاري رفع الصورة...';
+      try {
+        const blob = await (await fetch(uploadedEditOfferImage)).blob();
+        const file = new File([blob], 'offer.jpg', { type: blob.type || 'image/jpeg' });
+        await uploadAndAttachProductImage(id, file);
+      } catch (imgErr) {
+        console.error('Image upload failed:', imgErr);
+      }
     }
 
     res.style.color = 'green'; res.innerText = '✅ تم الحفظ بنجاح';
@@ -1968,7 +2003,6 @@ async function handleSaveOfferEdit() {
     if (btn) { btn.disabled = false; btn.innerText = '💾 حفظ التعديلات'; }
   }
 }
-
 // ============================================================
 // ✅ حفظ نسبة الكاش باك
 // ============================================================
