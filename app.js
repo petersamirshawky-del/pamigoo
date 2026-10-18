@@ -1440,7 +1440,24 @@ async function hideReq(reqId) {
 // ============================================================
 // ✅ Badge Update
 // ============================================================
-async function updateOfferReqBadge() {
+async function updateOfferReqBadge() {if (currentProfile && currentProfile.role === 'merchant' && "Notification" in window) {
+  if (Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+}
+if (window.lastPendingCount === undefined) {
+  window.lastPendingCount = pendingOffers + pendingSpecial;
+} else if ((pendingOffers + pendingSpecial) > window.lastPendingCount) {
+  if (Notification.permission === "granted") {
+    new Notification("🔔 PAMIGO - طلبات جديدة!", {
+      body: "عندك طلبات أو عروض جديدة محتاجة ردك يا تاجر!",
+      icon: currentMerchant?.logo_url || "https://ui-avatars.com/api/?name=P&background=ff6b35&color=fff"
+    });
+  }
+  window.lastPendingCount = pendingOffers + pendingSpecial;
+} else {
+  window.lastPendingCount = pendingOffers + pendingSpecial;
+}
   const mainBadge = $('mainReqBadge');
   const subBadge = $('offerReqBadge');
 
@@ -2664,7 +2681,14 @@ async function showMainScreen(profile) {
 
 async function refreshData() {
   const el = $('merchantsList');
-  if (el) el.innerHTML = '<div class="no-requests">⏳ جاري التحميل...</div>';
+if (el) {
+  el.innerHTML = `
+    <div class="skeleton-card"></div>
+    <div class="skeleton-card"></div>
+    <div class="skeleton-card"></div>
+    <div class="skeleton-card"></div>
+  `;
+}
   try {
     await new Promise(resolve => setTimeout(resolve, 300)); 
     allMerchants = await loadMerchants();
