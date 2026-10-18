@@ -1920,6 +1920,9 @@ async function handleSaveOfferEdit() {
     discountText = custom; discountValue = 0;
   }
 
+  const btn = document.getElementById('saveOfferEditBtn');
+  if (btn) { btn.disabled = true; btn.innerText = '⏳ جاري الحفظ...'; }
+
   try {
     let imageBase64 = null; let keepImage = true;
 
@@ -1931,30 +1934,32 @@ async function handleSaveOfferEdit() {
       description, imageBase64, price, keepImage, category, subCategory
     });
 
-    res.style.color = 'green'; res.innerText = '✅ تم حفظ التعديلات';
-
-    window.closeEditOfferModal();
-    await refreshData(); 
-    
-    if (currentMerchant) {
-      await renderDashboard(); 
+    const offerIndex = allOffers.findIndex(o => o.id === id);
+    if (offerIndex > -1) {
+      allOffers[offerIndex] = {
+        ...allOffers[offerIndex],
+        title, discount: discountText, discount_value: discountValue,
+        description, price, category, sub_category: subCategory,
+        image_url: imageBase64 ? imageBase64 : (keepImage ? allOffers[offerIndex].image_url : null)
+      };
     }
+
+    res.style.color = 'green'; res.innerText = '✅ تم حفظ التعديلات';
+    
+    setTimeout(() => {
+      window.closeEditOfferModal();
+      if (currentMerchant) renderDashboard(); 
+      
+      if (window.resetOffersLimit) window.resetOffersLimit();
+      renderOffersGrid(); 
+    }, 1000);
 
   } catch (e) { 
     res.style.color = 'red'; 
     res.innerText = '❌ ' + e.message; 
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerText = '💾 حفظ التعديلات'; }
   }
-}
-
-async function handleSaveRate() {
-  const rate = parseInt($('rateSlider').value);
-  const res = $('rateSaveResult');
-  try {
-    await updateCashbackRate(currentMerchant.id, rate);
-    currentMerchant.cashback_rate = rate;
-    res.style.color = 'green'; res.innerText = '✅ تم الحفظ';
-    setTimeout(() => res.innerText = '', 2000);
-  } catch (e) { res.style.color = 'red'; res.innerText = '❌ ' + e.message; }
 }
 
 function updateRateDisplay() {
