@@ -1,5 +1,5 @@
 // ============================================================
-// PAMIGO - Notifications Module (Final Version)
+// PAMIGO - Notifications Module (Final Fixed Version)
 // ============================================================
 const { supabase } = await import('./supabase.js');
 
@@ -126,20 +126,22 @@ export async function checkCustomerPendingInvoices(phone) {
 }
 
 // ============================================================
-// فحص طلبات التاجر الجديدة (مع الفلترة الصحيحة)
+// فحص طلبات التاجر الجديدة (الفصل بين العروض والطلبات الخاصة)
 // ============================================================
 export async function checkMerchantNewRequests(merchantId, category) {
-  // 1. طلبات العروض (عروض محددة)
+  // 1. طلبات العروض (بنفلتر بـ request_type = 'offer' و merchant_id)
   const offerReqs = await supabase
-    .from("offer_requests")
+    .from("special_requests")
     .select("id")
     .eq("merchant_id", merchantId)
+    .eq("request_type", "offer")
     .is("offer_response", null);
 
-  // 2. الطلبات الخاصة (بنفس لوجيك صفحة الطلبات)
+  // 2. الطلبات الخاصة (بنفلتر بـ request_type = 'special' و category)
   const { data: specialReqsData } = await supabase
     .from("special_requests")
     .select("id, category, request_responses(id, merchant_id)")
+    .eq("request_type", "special")
     .order("created_at", { ascending: false })
     .limit(30);
 
@@ -212,7 +214,7 @@ export function setupRealtimeListeners({ profile, merchant }) {
     .subscribe();
   realtimeChannels.push(notifChannel);
 
-  // 2. للعميل: فواتير جديدة + ردود عروض
+  // 2. للعميل: فواتير جديدة
   if (profile.role === "customer") {
     const invChannel = supabase
       .channel("pamigo-customer-invoices-" + profile.id)
@@ -241,32 +243,47 @@ export function setupRealtimeListeners({ profile, merchant }) {
     realtimeChannels.push(invChannel);
   }
 
-  // 3. للتاجر: طلبات عروض جديدة
+  // 3. للتاجر: طلبات عروض وطلبات خاصة جديدة
   if (profile.role === "merchant" && merchant) {
-    const offerReqChannel = supabase
-      .channel("pamigo-merchant-offer-req-" + merchant.id)
+    const merchantReqChannel = supabase
+      .channel("pamigo-merchant-reqs-" + merchant.id)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
-          table: "offer_requests",
-          filter: `merchant_id=eq.${merchant.id}`
+          table: "special_requests"
         },
         (payload) => {
           const r = payload.new;
-          showBrowserNotification(
-            "🔔 طلب عرض جديد!",
-            `العميل طلب: ${r.product || "عرض"}`,
-            {
-              tag: "merchant-offer-req-" + r.id,
-              onClick: () => window.switchTab && window.switchTab("offer_requests")
-            }
-          );
+          
+          // لو طلب عرض وموجه للتاجر ده
+          if (r.request_type === 'offer' && r.merchant_id === merchant.id) {
+            showBrowserNotification(
+              "🔔 طلب عرض جديد!",
+              `العميل طلب: ${r.product || "عرض"}`,
+              {
+                tag: "merchant-offer-req-" + r.id,
+                onClick: () => window.switchTab && window.switchTab("offer_requests")
+              }
+            );
+          }
+          
+          // لو طلب خاص ومن نفس تصنيف التاجر
+          if (r.request_type === 'special' && r.category === merchant.category) {
+            showBrowserNotification(
+              "📦 طلب خاص جديد!",
+              `العميل محتاج: ${r.product || "منتج"}`,
+              {
+                tag: "merchant-special-req-" + r.id,
+                onClick: () => window.switchTab && window.switchTab("special_requests")
+              }
+            );
+          }
         }
       )
       .subscribe();
-    realtimeChannels.push(offerReqChannel);
+    realtimeChannels.push(merchantReqChannel);
   }
 }
 
