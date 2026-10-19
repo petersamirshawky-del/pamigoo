@@ -1,5 +1,5 @@
 // ============================================================
-// PAMIGO - Notifications Module
+// PAMIGO - Notifications Module (Final Version)
 // ============================================================
 const { supabase } = await import('./supabase.js');
 
@@ -126,9 +126,9 @@ export async function checkCustomerPendingInvoices(phone) {
 }
 
 // ============================================================
-// فحص طلبات التاجر الجديدة
+// فحص طلبات التاجر الجديدة (مع الفلترة الصحيحة)
 // ============================================================
-export async function checkMerchantNewRequests(merchantId) {
+export async function checkMerchantNewRequests(merchantId, category) {
   // 1. طلبات العروض (عروض محددة)
   const offerReqs = await supabase
     .from("offer_requests")
@@ -136,20 +136,23 @@ export async function checkMerchantNewRequests(merchantId) {
     .eq("merchant_id", merchantId)
     .is("offer_response", null);
 
-  // 2. الطلبات الخاصة
-  const specialReqs = await supabase
+  // 2. الطلبات الخاصة (بنفس لوجيك صفحة الطلبات)
+  const { data: specialReqsData } = await supabase
     .from("special_requests")
-    .select("id, request_responses(id, merchant_id)")
+    .select("id, category, request_responses(id, merchant_id)")
     .order("created_at", { ascending: false })
     .limit(30);
 
   const pendingOffers = (offerReqs.data || []).length;
   
   let pendingSpecial = 0;
-  if (specialReqs.data) {
-    pendingSpecial = specialReqs.data.filter(
-      (r) => !r.request_responses || !r.request_responses.some(resp => resp.merchant_id === merchantId)
-    ).length;
+  if (specialReqsData) {
+    pendingSpecial = specialReqsData.filter((r) => {
+      const isMyCategory = r.category === category;
+      const hasNoReply = !r.request_responses || !r.request_responses.some(resp => resp.merchant_id === merchantId);
+      
+      return isMyCategory && hasNoReply;
+    }).length;
   }
 
   const totalPending = pendingOffers + pendingSpecial;
@@ -174,7 +177,101 @@ export async function checkMerchantNewRequests(merchantId) {
 }
 
 // ============================================================
-// تنظيف
+// Realtime Subscriptions (الإشعارات الفورية)
+// ============================================================
+export function setupRealtimeListeners({ profile, merchant }) {
+  // إلغاء أي listeners قديمة
+  realtimeChannels.forEach((ch) => {
+    try { supabase.removeChannel(ch); } catch {}
+  });
+  realtimeChannels = [];
+
+  if (!profile) return;
+
+  // 1. إشعارات الأدمن (الكل)
+  const notifChannel = supabase
+    .channel("pamigo-notifications")
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "notifications" },
+      (payload) => {
+        const n = payload.new;
+        const target = n.target;
+        const role = profile.role;
+        const shouldReceive =
+          target === "all" ||
+          (target === "customers" && role === "customer") ||
+          (target === "merchants" && role === "merchant");
+        if (!shouldReceive) return;
+
+        showBrowserNotification("📢 " + n.title, n.message, {
+          tag: "admin-notif-" + n.id
+        });
+      }
+    )
+    .subscribe();
+  realtimeChannels.push(notifChannel);
+
+  // 2. للعميل: فواتير جديدة + ردود عروض
+  if (profile.role === "customer") {
+    const invChannel = supabase
+      .channel("pamigo-customer-invoices-" + profile.id)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "invoices",
+          filter: `customer_phone=eq.${profile.phone}`
+        },
+        (payload) => {
+          const inv = payload.new;
+          if (inv.confirmation_status !== "pending") return;
+          showBrowserNotification(
+            "🧾 عندك فاتورة جديدة!",
+            `مبلغ ${parseFloat(inv.amount).toFixed(2)} ج — افتح تاب الفواتير للتأكيد`,
+            {
+              tag: "invoice-" + inv.id,
+              onClick: () => window.switchTab && window.switchTab("invoice")
+            }
+          );
+        }
+      )
+      .subscribe();
+    realtimeChannels.push(invChannel);
+  }
+
+  // 3. للتاجر: طلبات عروض جديدة
+  if (profile.role === "merchant" && merchant) {
+    const offerReqChannel = supabase
+      .channel("pamigo-merchant-offer-req-" + merchant.id)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "offer_requests",
+          filter: `merchant_id=eq.${merchant.id}`
+        },
+        (payload) => {
+          const r = payload.new;
+          showBrowserNotification(
+            "🔔 طلب عرض جديد!",
+            `العميل طلب: ${r.product || "عرض"}`,
+            {
+              tag: "merchant-offer-req-" + r.id,
+              onClick: () => window.switchTab && window.switchTab("offer_requests")
+            }
+          );
+        }
+      )
+      .subscribe();
+    realtimeChannels.push(offerReqChannel);
+  }
+}
+
+// ============================================================
+// تنظيف وإعادة تعيين
 // ============================================================
 export function cleanupRealtime() {
   realtimeChannels.forEach((ch) => {
