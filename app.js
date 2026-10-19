@@ -1460,8 +1460,7 @@ async function updateOfferReqBadge() {
   await notifications.requestNotificationPermission();
 
   try {
-    const result = await notifications.checkMerchantNewRequests(currentMerchant.id);
-
+const result = await notifications.checkMerchantNewRequests(currentMerchant.id, currentMerchant.category);
     if (mainBadge) {
       if (result.pendingSpecial > 0) {
         mainBadge.innerText = result.pendingSpecial > 9 ? '9+' : result.pendingSpecial;
