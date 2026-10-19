@@ -1,5 +1,5 @@
 // ============================================================
-// PAMIGO - Special Requests
+// PAMIGO - Special Requests & Offer Requests
 // ============================================================
 import { supabase } from './supabase.js';
 
@@ -32,7 +32,6 @@ export async function getMyRequests() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
-  // ✅ الخطوة 1: نجيب الطلبات الأساسية الأول
   const { data: requests, error: reqError } = await supabase
     .from('special_requests')
     .select('*')
@@ -46,7 +45,6 @@ export async function getMyRequests() {
   }
   if (!requests || !requests.length) return [];
 
-  // ✅ الخطوة 2: نجيب الردود بشكل منفصل
   const requestIds = requests.map(r => r.id);
   const { data: responses, error: respError } = await supabase
     .from('request_responses')
@@ -55,11 +53,9 @@ export async function getMyRequests() {
 
   if (respError) {
     console.error('Error fetching responses:', respError);
-    // لو حصل خطأ في الردود، نرجع الطلبات من غير ردود عشان الصفحة تظهر
     return requests.map(r => ({ ...r, request_responses: [] }));
   }
 
-  // ✅ الخطوة 3: نجيب بيانات التجار اللي ردوا
   const merchantIds = [...new Set((responses || []).map(r => r.merchant_id).filter(Boolean))];
   let merchantsMap = {};
   if (merchantIds.length > 0) {
@@ -70,7 +66,6 @@ export async function getMyRequests() {
     (merchantsData || []).forEach(m => { merchantsMap[m.id] = m; });
   }
 
-  // ✅ الخطوة 4: ندمج الردود مع الطلبات
   const responsesByRequest = {};
   (responses || []).forEach(resp => {
     if (!responsesByRequest[resp.request_id]) responsesByRequest[resp.request_id] = [];
@@ -285,12 +280,23 @@ export async function replyToOfferRequest({ requestId, available, replyText }) {
     responded_at: new Date().toISOString()
   };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('special_requests')
     .update(updateData)
-    .eq('id', requestId);
+    .eq('id', requestId)
+    .select(); // ✅ السطر ده عشان نتأكد إن التحديث حصل
 
-  if (error) throw error;
+  if (error) {
+    console.error("Update error:", error);
+    throw error;
+  }
+  
+  if (!data || data.length === 0) {
+    throw new Error("لم يتم العثور على الطلب أو ليس لديك صلاحية لتعديله");
+  }
+  
+  console.log("تم تحديث الطلب بنجاح:", data[0]);
+  return data[0];
 }
 
 export async function cancelOfferRequest(requestId) {
