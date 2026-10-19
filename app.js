@@ -1496,6 +1496,8 @@ function startNotificationPolling() {
         await updateOfferReqBadge();
       } else if (currentProfile.role === 'customer') {
         await notifications.checkCustomerPendingInvoices(currentProfile.phone);
+        // ✅ السطر الجديد ده عشان يتابع ردود التجار
+        await notifications.checkCustomerOfferReplies(currentProfile.id); 
       }
     } catch (e) {
       console.error('Polling error:', e);
