@@ -1,10 +1,14 @@
 // ============================================================
-// PAMIGO - Main Entry (v2.7 - Final Stable with Image Storage)
+// PAMIGO - Main Entry (v2.8 - Full Notifications Enabled)
 // ============================================================
 const { supabase } = await import('./supabase.js');
 const { toast, showLoader, hideLoader } = await import('./ui.js');
 const { initI18n, setLang, currentLang, applyI18nToHTML } = await import('./i18n.js');
 const { SUB_CATEGORIES, CATEGORY_ICONS, CATEGORY_NAMES } = await import('./config.js');
+const notifications = await import('./notifications.js'); // ✅ التعديل الجديد
+
+// ✅ جعل الـ toast متاح لملف الإشعارات
+window.showPamigoToast = toast;
 
 const {
   signUpCustomer, signUpMerchant, signUpAdmin, signOut,
@@ -39,7 +43,7 @@ const {
   getReportData, getAnalytics,
   uploadMerchantLogo, deleteMerchantLogo,
   uploadProductImage, deleteProductImage,
-  uploadAndAttachProductImage,          // ✅ السطر الجديد
+  uploadAndAttachProductImage,
   trackOfferEvent, getOfferEventsStats,
   getMerchantTopOffers, getMerchantOffersViews,
   updateOffer
@@ -110,15 +114,18 @@ let searchDebounceTimer = null;
 let offersDisplayCount = 20;
 let merchantsDisplayCount = 20;
 
+// ✅ متغيرات الـ Polling للإشعارات
+let notificationPollingTimer = null;
+
 // ============================================================
-// ✅ Load merchants & offers (التعديلات 1 + 2)
+// ✅ Load merchants & offers
 // ============================================================
 async function loadMerchants() {
   try {
     const [merchantsResult, offersResult, ratingsResult] = await Promise.all([
       supabase.from('merchants').select('*').eq('frozen', false),
-      supabase.from('offers').select('*').limit(50),  // ✅ التعديل 2: 200 → 50
-      supabase.from('ratings').select('merchant_id, stars') // ✅ سحبنا النجوم بس
+      supabase.from('offers').select('*').limit(50),
+      supabase.from('ratings').select('merchant_id, stars')
     ]);
 
     if (merchantsResult.error) return [];
@@ -127,7 +134,6 @@ async function loadMerchants() {
     allOffers = offersResult.data || []; 
     const allRatings = ratingsResult.data || [];
 
-    // ربط العروض بالمتاجر
     const offersByMerchant = {};
     allOffers.forEach(o => {
       if (!offersByMerchant[o.merchant_id]) offersByMerchant[o.merchant_id] = [];
@@ -140,7 +146,6 @@ async function loadMerchants() {
       ratingsByMerchant[r.merchant_id].push(r);
     });
 
-    // ✅ التعديل 1: Map بدل find (من O(n²) لـ O(n))
     const merchantMap = new Map(merchantsData.map(m => [m.id, m]));
     allOffers = allOffers.map(o => ({
       ...o,
@@ -369,9 +374,8 @@ window.loadMoreMerchants = function() {
   merchantsDisplayCount += 20;
   renderMerchantsList();
 };
-
 // ============================================================
-// ✅ Render: Top Deals & Offers Grid (NOON STYLE & LAZY)
+// ✅ Render: Top Deals & Offers Grid
 // ============================================================
 function renderTopDeals() {
   const sorted = [...allOffers].sort((a, b) => (b.discount_value || 0) - (a.discount_value || 0)).slice(0, 10);
@@ -755,9 +759,12 @@ function switchTab(name) {
   if (name === 'reports' && currentMerchant) renderReports('all');
   if (name === 'analytics' && currentMerchant) renderAnalyticsTab();
   if (name === 'admin') renderAdminSection('dashboard');
-  if (name === 'account') setTimeout(initAccountMapUI, 300);
+  if (name === 'account') {
+    setTimeout(initAccountMapUI, 300);
+    // ✅ عرض إشعاراتي لو موجودة
+    setTimeout(() => { if (typeof renderMyNotifications === 'function') renderMyNotifications(); }, 400);
+  }
 }
-
 // ============================================================
 // ✅ INVOICE
 // ============================================================
@@ -1438,7 +1445,7 @@ async function hideReq(reqId) {
 }
 
 // ============================================================
-// ✅ Badge Update
+// ✅ Badge Update (✅ محدث مع نظام الإشعارات)
 // ============================================================
 async function updateOfferReqBadge() {
   const mainBadge = $('mainReqBadge');
@@ -1450,48 +1457,21 @@ async function updateOfferReqBadge() {
     return;
   }
 
-  // ✅ 1. طلب إذن الإشعارات أول مرة
-  if ("Notification" in window && Notification.permission === "default") {
-    Notification.requestPermission();
-  }
+  await notifications.requestNotificationPermission();
 
   try {
-    const offerReqs = await getMerchantOfferRequests(currentMerchant.id);
-    const pendingOffers = offerReqs.filter(r => !r.offer_response).length;
+    const result = await notifications.checkMerchantNewRequests(currentMerchant.id);
 
-    const specialReqs = await getMerchantRequests(currentMerchant.id, currentMerchant.category);
-    const pendingSpecial = specialReqs.filter(r => {
-      const myReply = (r.request_responses || []).find(x => x.merchant_id === currentMerchant.id);
-      return !myReply;
-    }).length;
-
-    // ✅ 2. منطق الإشعارات (بعد ما المتغيرات اتعرت)
-    const totalPending = pendingOffers + pendingSpecial;
-    if (window.lastPendingCount === undefined) {
-      window.lastPendingCount = totalPending;
-    } else if (totalPending > window.lastPendingCount) {
-      if (Notification.permission === "granted") {
-        new Notification("🔔 PAMIGO - طلبات جديدة!", {
-          body: "عندك طلبات أو عروض جديدة محتاجة ردك يا تاجر!",
-          icon: currentMerchant?.logo_url || "https://ui-avatars.com/api/?name=P&background=ff6b35&color=fff"
-        });
-      }
-      window.lastPendingCount = totalPending;
-    } else {
-      window.lastPendingCount = totalPending;
-    }
-
-    // ✅ 3. تحديث الشارات (Badges)
     if (mainBadge) {
-      if (pendingSpecial > 0) {
-        mainBadge.innerText = pendingSpecial > 9 ? '9+' : pendingSpecial;
+      if (result.pendingSpecial > 0) {
+        mainBadge.innerText = result.pendingSpecial > 9 ? '9+' : result.pendingSpecial;
         mainBadge.style.display = 'block';
       } else { mainBadge.style.display = 'none'; }
     }
 
     if (subBadge) {
-      if (pendingOffers > 0) {
-        subBadge.innerText = pendingOffers > 9 ? '9+' : pendingOffers;
+      if (result.pendingOffers > 0) {
+        subBadge.innerText = result.pendingOffers > 9 ? '9+' : result.pendingOffers;
         subBadge.style.display = 'block';
       } else { subBadge.style.display = 'none'; }
     }
@@ -1501,6 +1481,36 @@ async function updateOfferReqBadge() {
     if (subBadge) subBadge.style.display = 'none';
   }
 }
+
+// ============================================================
+// ✅ Notification Polling System
+// ============================================================
+function startNotificationPolling() {
+  if (notificationPollingTimer) clearInterval(notificationPollingTimer);
+
+  notificationPollingTimer = setInterval(async () => {
+    if (!currentProfile) return;
+    try {
+      await notifications.checkAdminNotifications();
+
+      if (currentProfile.role === 'merchant' && currentMerchant) {
+        await updateOfferReqBadge();
+      } else if (currentProfile.role === 'customer') {
+        await notifications.checkCustomerPendingInvoices(currentProfile.phone);
+      }
+    } catch (e) {
+      console.error('Polling error:', e);
+    }
+  }, 45000);
+}
+
+function stopNotificationPolling() {
+  if (notificationPollingTimer) {
+    clearInterval(notificationPollingTimer);
+    notificationPollingTimer = null;
+  }
+}
+window.pamigoStopPolling = stopNotificationPolling;
 
 // ============================================================
 // ✅ Merchant Report
@@ -1564,9 +1574,6 @@ window.openMerchantReport = async function(merchantId) {
           <div style="font-size:11px;color:#9a3412">🎁 عدد العروض</div>
           <div style="font-size:18px;font-weight:700;color:#9a3412;margin-top:4px">${r.offersCount}</div>
         </div>
-      </div>
-      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;text-align:center">
-        <p style="font-size:12px;color:#9ca3af">📅 التقرير ده بيعرض الفواتير الحالية بس</p>
       </div>
     `;
   } catch (e) {
@@ -1786,7 +1793,7 @@ async function returnInvClick(invId) {
 }
 
 // ============================================================
-// ✅ Offers Add/Edit (✅ تم التعديل لاستخدام Storage)
+// ✅ Offers Add/Edit
 // ============================================================
 async function handleAddOffer() {
   const title = $('offerTitle').value.trim();
@@ -1821,7 +1828,6 @@ async function handleAddOffer() {
   if (btn) { btn.disabled = true; btn.innerText = '⏳ جاري النشر...'; }
 
   try {
-    // ✅ 1. نضيف العرض أولاً بدون صورة (أسرع + مضمون)
     const newOffer = await addOffer({
       merchantId: currentMerchant.id,
       title, discount: discountText, discountValue, description,
@@ -1830,24 +1836,19 @@ async function handleAddOffer() {
       price, category, subCategory
     });
 
-    // ✅ 2. لو فيه صورة، نرفعها على Storage بعدين نحدّث العرض
     if (uploadedOfferImage && newOffer?.id) {
       res.style.color = '#6b7280'; res.innerText = '⏳ جاري رفع الصورة...';
       try {
-        // تحويل base64 لـ File
         const blob = await (await fetch(uploadedOfferImage)).blob();
         const file = new File([blob], 'offer.jpg', { type: blob.type || 'image/jpeg' });
-        // رفع + ربط في خطوة واحدة
         await uploadAndAttachProductImage(newOffer.id, file);
       } catch (imgErr) {
         console.error('Image upload failed:', imgErr);
-        // مش هنكسر العملية — العرض اتحفظ بدون صورة
       }
     }
 
     res.style.color = 'green'; res.innerText = '✅ تم نشر العرض';
     
-    // تنظيف الفورم
     $('offerTitle').value = '';
     if ($('offerPrice')) $('offerPrice').value = '';
     if ($('offerPercent')) $('offerPercent').value = '20';
@@ -1990,14 +1991,12 @@ async function handleSaveOfferEdit() {
     let keepImage = true;
     if (uploadedEditOfferImage === 'DELETE') keepImage = false;
 
-    // ✅ 1. تحديث العرض بدون صورة
     await updateOffer({
       offerId: id, title, discount: discountText, discountValue,
       description, imageBase64: null, imageUrl: null,
       price, keepImage, category, subCategory
     });
 
-    // ✅ 2. لو فيه صورة جديدة، ارفعها على Storage
     if (uploadedEditOfferImage && uploadedEditOfferImage !== 'DELETE') {
       res.style.color = '#6b7280'; res.innerText = '⏳ جاري رفع الصورة...';
       try {
@@ -2025,9 +2024,7 @@ async function handleSaveOfferEdit() {
     if (btn) { btn.disabled = false; btn.innerText = '💾 حفظ التعديلات'; }
   }
 }
-// ============================================================
-// ✅ حفظ نسبة الكاش باك
-// ============================================================
+
 async function handleSaveRate() {
   const rate = parseInt($('rateSlider').value);
   const res = $('rateSaveResult');
@@ -2632,6 +2629,50 @@ async function handleSendReset() {
 }
 
 // ============================================================
+// ✅ NOTIFICATIONS UI (إشعاراتي)
+// ============================================================
+async function renderMyNotifications() {
+  const card = $('myNotificationsCard');
+  const list = $('myNotificationsList');
+  if (!card || !list) return;
+
+  card.style.display = 'block';
+  list.innerHTML = '<p style="color:#6b7280;text-align:center;padding:20px">⏳ جاري التحميل...</p>';
+
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    const role = currentProfile?.role;
+    const filtered = (data || []).filter(n =>
+      n.target === 'all' ||
+      (n.target === 'customers' && role === 'customer') ||
+      (n.target === 'merchants' && role === 'merchant')
+    );
+
+    if (!filtered.length) {
+      list.innerHTML = '<p style="color:#6b7280;text-align:center;padding:20px">لا توجد إشعارات</p>';
+      return;
+    }
+
+    list.innerHTML = filtered.map(n => `
+      <div style="background:#f9fafb;padding:12px 14px;border-radius:10px;margin-bottom:8px;border-right:4px solid #3b82f6">
+        <div style="font-weight:700;color:#1a2a6c;font-size:14px">📢 ${escapeHtml(n.title)}</div>
+        <div style="color:#4b5563;font-size:13px;margin-top:4px">${escapeHtml(n.message)}</div>
+        <div style="color:#9ca3af;font-size:11px;margin-top:6px">🕒 ${new Date(n.created_at).toLocaleString('ar-EG')}</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    list.innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px">❌ ${e.message}</p>`;
+  }
+}
+window.renderMyNotifications = renderMyNotifications;
+
+// ============================================================
 // ✅ AUTH
 // ============================================================
 function showMessage(text, type = 'error') {
@@ -2660,11 +2701,21 @@ async function showMainScreen(profile) {
     getMyMerchant().then(m => {
       currentMerchant = m;
       if (currentMerchant) { $('merchantName').innerText = currentMerchant.name; }
+      // ✅ تفعيل الإشعارات بعد تحميل بيانات التاجر
+      setTimeout(() => {
+        notifications.requestNotificationPermission();
+        notifications.setupRealtimeListeners && notifications.setupRealtimeListeners({ profile, merchant: currentMerchant });
+      }, 500);
     });
     $('merchantBanner').style.display = 'block';
   } else {
     currentMerchant = null;
     $('merchantBanner').style.display = 'none';
+    // ✅ تفعيل الإشعارات للعميل/الأدمن
+    setTimeout(() => {
+      notifications.requestNotificationPermission();
+      notifications.setupRealtimeListeners && notifications.setupRealtimeListeners({ profile, merchant: null });
+    }, 500);
   }
 
   updateTabsVisibility();
@@ -2672,28 +2723,37 @@ async function showMainScreen(profile) {
   refreshData(); 
   if (userLat === null) updateLocation();
 
-  if (profile.role === 'merchant') setTimeout(updateOfferReqBadge, 1000);
+  // ✅ إعادة تعيين الحالة وبدء نظام الإشعارات
+  notifications.resetLastKnownState();
+
+  if (profile.role === 'merchant') setTimeout(updateOfferReqBadge, 1500);
+
+  setTimeout(() => notifications.checkAdminNotifications(), 2000);
 
   if (profile.role === 'customer') {
     setTimeout(async () => {
       try {
         myPendingInvoicesCache = await getMyPendingInvoices(profile.phone);
         updateInvoiceBadge();
-      } catch (e) {}
-    }, 1000);
+        await notifications.checkCustomerPendingInvoices(profile.phone);
+      } catch (e) { console.error(e); }
+    }, 1500);
   }
+
+  // ✅ بدء الـ Polling
+  startNotificationPolling();
 }
 
 async function refreshData() {
   const el = $('merchantsList');
-if (el) {
-  el.innerHTML = `
-    <div class="skeleton-card"></div>
-    <div class="skeleton-card"></div>
-    <div class="skeleton-card"></div>
-    <div class="skeleton-card"></div>
-  `;
-}
+  if (el) {
+    el.innerHTML = `
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+    `;
+  }
   try {
     await new Promise(resolve => setTimeout(resolve, 300)); 
     allMerchants = await loadMerchants();
@@ -2782,6 +2842,12 @@ async function handleSignup(e) {
 async function handleLogout() {
   if (!confirm('متأكد؟')) return;
   expectedLogin = null;
+  
+  // ✅ إيقاف الإشعارات
+  stopNotificationPolling();
+  notifications.cleanupRealtime();
+  notifications.resetLastKnownState();
+  
   try { await signOut(); } catch (e) { console.error('Logout error:', e); }
   $('mainScreen').style.display = 'none';
   showAuthScreen();
