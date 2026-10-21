@@ -1,5 +1,5 @@
 // ============================================================
-// PAMIGO - Main Entry (v2.9 - Push Notifications Enabled)
+// PAMIGO - Main Entry (v3.0 - Full Fixed)
 // ============================================================
 const { supabase } = await import('./supabase.js');
 const { toast, showLoader, hideLoader } = await import('./ui.js');
@@ -2816,10 +2816,13 @@ async function refreshData() {
 async function handleLogin(e) {
   e.preventDefault();
   const role = $('loginRole').value;
-  const phone = $('loginPhone').value.trim();
+  let phone = $('loginPhone').value.trim();
   const password = $('loginPassword').value;
   const bankCode = $('loginBankCode') ? getRealValue('loginBankCode') : '';
   const adminCode = $('loginAdminCode') ? getRealValue('loginAdminCode') : '';
+
+  // ✅ تنظيف الزائد 20 في تسجيل الدخول
+  phone = phone.replace(/\s+/g, '').replace(/^\+20/, '0').replace(/^\+2/, '0').replace(/^0020/, '0');
 
   if (!phone || !password) return showMessage('❌ املأ البيانات');
   if (role === 'merchant' && !bankCode) return showMessage('❌ لازم بنكود التاجر');
@@ -2857,12 +2860,15 @@ async function handleLogin(e) {
 async function handleSignup(e) {
   e.preventDefault();
   const name = $('signupName').value.trim();
-  const phone = $('signupPhone').value.trim();
+  let phone = $('signupPhone').value.trim();
   const email = $('signupEmail').value.trim().toLowerCase();
   const password = $('signupPassword').value;
   const role = $('signupRole').value;
   const bankCode = getRealValue('signupBankCode');
   const adminCode = getRealValue('signupAdminCode');
+
+  // ✅ تنظيف الزائد 20 في التسجيل
+  phone = phone.replace(/\s+/g, '').replace(/^\+20/, '0').replace(/^\+2/, '0').replace(/^0020/, '0');
 
   if (!name || !phone || !password || !email) return showMessage('❌ املأ الحقول');
   if (!email.includes('@') || email.length < 5) return showMessage('❌ إيميل غير صحيح');
@@ -2943,6 +2949,16 @@ window.handleGoogleLogin = async function() {
 window.handleGoogleCallback = async function() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return false;
+  
+  const userEmail = session.user.email;
+  const { data: existingProfile } = await supabase.from('profiles').select('id').eq('email', userEmail).maybeSingle();
+
+  if (existingProfile && existingProfile.id !== session.user.id) {
+    await supabase.auth.signOut();
+    toast('⚠️ الإيميل ده متسجل قبل كده. يرجى تسجيل الدخول بالإيميل والباسورد بتاعك.', 'warning');
+    return false;
+  }
+
   const profile = await getProfile();
   if (!profile || !profile.phone) {
     pendingGoogleUser = session.user;
@@ -2996,16 +3012,20 @@ async function handleCompleteProfile() {
   btn.disabled = true; btn.innerText = '⏳ جاري الحفظ...';
 
   try {
-    await completeGoogleProfile({ phone, name, role, bankCode, adminCode });
+    const cleanPhone = phone.replace(/\s+/g, '').replace(/^\+20/, '0').replace(/^\+2/, '0').replace(/^0020/, '0');
+    await completeGoogleProfile({ phone: cleanPhone, name, role, bankCode, adminCode });
     res.style.color = '#10b981'; res.innerText = '✅ تم حفظ البيانات';
+    
     setTimeout(async () => {
       window.closeCompleteProfileModal();
       const profile = await getProfile();
       if (profile) await showMainScreen(profile);
     }, 1000);
   } catch (e) {
-    res.style.color = '#ef4444'; res.innerText = '❌ ' + e.message;
-    btn.disabled = false; btn.innerText = '✅ حفظ البيانات';
+    res.style.color = '#ef4444'; 
+    res.innerText = '❌ ' + e.message;
+    btn.disabled = false; 
+    btn.innerText = '✅ حفظ البيانات';
   }
 }
 
