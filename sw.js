@@ -1,5 +1,5 @@
 // ================================
-// PAMIGO - Service Worker v4
+// PAMIGO - Service Worker v5 (With Push Notifications)
 // ================================
 
 const CACHE_VERSION = Date.now().toString();
@@ -25,6 +25,7 @@ const urlsToCache = [
   './invoices.js',
   './ratings.js',
   './requests.js',
+  './notifications.js',
   './supabase.js',
   './ui.js',
   './web-app-manifest-192x192.png',
@@ -88,7 +89,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. HTML / JS / CSS — Network-First (عشان التحديثات توصل فوراً)
+  // 3. HTML / JS / CSS — Network-First
   if (
     event.request.mode === 'navigate' ||
     url.pathname.endsWith('.js') ||
@@ -131,6 +132,52 @@ self.addEventListener('fetch', (event) => {
         .catch(() => {
           return new Response('Not found', { status: 404, statusText: 'Not Found' });
         });
+    })
+  );
+});
+
+// ================================
+// Push Notifications 🚀
+// ================================
+self.addEventListener('push', function(event) {
+  if (event.data) {
+    let data = {};
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data = { title: 'PAMIGO', body: event.data.text() };
+    }
+
+    const options = {
+      body: data.body || 'عندك إشعار جديد!',
+      icon: data.icon || 'https://ui-avatars.com/api/?name=P&background=ff6b35&color=fff&size=128',
+      badge: 'https://ui-avatars.com/api/?name=P&background=ff6b35&color=fff&size=128',
+      vibrate: [200, 100, 200],
+      data: {
+        url: data.url || '/'
+      }
+    };
+    event.waitUntil(
+      self.registration.showNotification(data.title || 'PAMIGO', options)
+    );
+  }
+});
+
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then(windowClients => {
+      // لو الموقع مفتوح في تاب، ركز عليه
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        if (client.url === event.notification.data.url && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // لو مقفول، افتحه
+      if (clients.openWindow) {
+        return clients.openWindow(event.notification.data.url);
+      }
     })
   );
 });
