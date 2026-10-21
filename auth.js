@@ -1,7 +1,17 @@
 // ============================================================
-// PAMIGO - Authentication
+// PAMIGO - Authentication (v2 - Cleaned & Secured)
 // ============================================================
 import { supabase } from './supabase.js';
+
+// ✅ دالة مساعدة لتنظيف أرقام الموبايل (شيل المسافات والزائد 20)
+function cleanPhoneNumber(phone) {
+  if (!phone) return '';
+  return phone.toString().trim()
+    .replace(/\s+/g, '') // شيل المسافات
+    .replace(/^\+20/, '0') // لو بدأ بـ +20 حوله لـ 0
+    .replace(/^\+2/, '0')  // لو بدأ بـ +2 حوله لـ 0
+    .replace(/^0020/, '0'); // لو بدأ بـ 0020 حوله لـ 0
+}
 
 // ============================================================
 // Peek Effect
@@ -65,20 +75,22 @@ export function getRealValue(inputId) {
 // Signup (with real email)
 // ============================================================
 export async function signUpCustomer({ phone, email, password, name }) {
+  const cleanPhone = cleanPhoneNumber(phone); // ✅ تنظيف الرقم
+
   const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
     password,
-    options: { data: { phone, name, role: 'customer' } }
+    options: { data: { phone: cleanPhone, name, role: 'customer' } }
   });
   if (error) throw error;
   return data;
 }
 
-// ✅ التعديل 1: signUpMerchant — نستخدم RPC بدل القراءة المباشرة
 export async function signUpMerchant({ phone, email, password, name, bankCode }) {
   const code = bankCode.trim().toUpperCase();
+  const cleanPhone = cleanPhoneNumber(phone); // ✅ تنظيف الرقم
 
-  // ✅ التحقق من البنكود عن طريق RPC (مش في الفرونت)
+  // ✅ التحقق من البنكود عن طريق RPC
   const { data: check, error: checkErr } = await supabase.rpc('verify_merchant_bank_code', {
     p_bank_code: code
   });
@@ -90,29 +102,23 @@ export async function signUpMerchant({ phone, email, password, name, bankCode })
   const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
     password,
-    options: { data: { phone, name, role: 'merchant', bank_code: code } }
+    options: { data: { phone: cleanPhone, name, role: 'merchant', bank_code: code } }
   });
   if (error) throw error;
 
-  // ✅ نربط المتجر بالمستخدم عن طريق RPC
   const userId = data.user?.id;
   if (userId) {
-    // ✅ ملاحظة: RPC ده هيشتغل بعد ما المستخدم يعمل login
-    // لما الجلسة تبقى active، هيقدر يربط المتجر
     const { data: linkResult, error: linkErr } = await supabase.rpc('link_merchant_to_user', {
       p_bank_code: code
     });
-
-    if (linkErr) {
-      console.error('Link error:', linkErr);
-      // متعملش throw عشان الحساب اتعمل خلاص
-    }
+    if (linkErr) console.error('Link error:', linkErr);
   }
-
   return data;
 }
 
 export async function signUpAdmin({ phone, email, password, name, adminCode }) {
+  const cleanPhone = cleanPhoneNumber(phone); // ✅ تنظيف الرقم
+
   const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
     p_code: (adminCode || '').trim()
   });
@@ -123,7 +129,7 @@ export async function signUpAdmin({ phone, email, password, name, adminCode }) {
   const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
     password,
-    options: { data: { phone, name, role: 'admin' } }
+    options: { data: { phone: cleanPhone, name, role: 'admin' } }
   });
   if (error) throw error;
   return data;
@@ -147,12 +153,24 @@ export async function signInWithGoogle() {
   return data;
 }
 
-// ✅ التعديل 2: completeGoogleProfile — نستخدم RPC للبنكود
+// ✅ تعديل: completeGoogleProfile — نستخدم RPC للبنكود + فحص الدوبليكيت
 export async function completeGoogleProfile({ phone, name, role = 'customer', bankCode = null, adminCode = null }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('مش مسجل دخول');
 
-  // ✅ لو تاجر، لازم نتحقق من البنكود عن طريق RPC
+  const cleanPhone = cleanPhoneNumber(phone); // ✅ تنظيف الرقم
+
+  // ✅ خطوة الأمان: منع تكرار رقم الموبايل لحسابين
+  const { data: existingPhone } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('phone', cleanPhone)
+    .maybeSingle();
+
+  if (existingPhone && existingPhone.id !== user.id) {
+    throw new Error('رقم الموبايل ده متسجل بالفعل بحساب تاني. يرجى استخدام رقم مختلف.');
+  }
+
   if (role === 'merchant') {
     const code = bankCode?.trim().toUpperCase();
     if (!code) throw new Error('لازم البنكود');
@@ -165,7 +183,6 @@ export async function completeGoogleProfile({ phone, name, role = 'customer', ba
     if (!check.ok) throw new Error(check.error || 'البنكود غير موجود');
   }
 
-  // ✅ لو أدمن، نتحقق من كود الأدمن
   if (role === 'admin') {
     const { data: check, error: checkErr } = await supabase.rpc('verify_admin_code', {
       p_code: (adminCode || '').trim()
@@ -175,19 +192,18 @@ export async function completeGoogleProfile({ phone, name, role = 'customer', ba
     }
   }
 
-  // ✅ نحدّث الـ profile
+  // ✅ نحدّث الـ profile بالرقم النظيف
   const { error: profErr } = await supabase
     .from('profiles')
     .upsert({
       id: user.id,
-      phone,
+      phone: cleanPhone,
       name,
       role,
       email: user.email
     });
   if (profErr) throw profErr;
 
-  // ✅ لو تاجر، نربط الحساب بالمتجر عن طريق RPC
   if (role === 'merchant') {
     const code = bankCode.trim().toUpperCase();
     const { data: linkResult, error: linkErr } = await supabase.rpc('link_merchant_to_user', {
@@ -211,7 +227,8 @@ export async function completeGoogleProfile({ phone, name, role = 'customer', ba
 // Signin / Signout
 // ============================================================
 export async function findEmailByPhone(phone) {
-  const { data, error } = await supabase.rpc('get_email_by_phone', { p_phone: phone });
+  const cleanPhone = cleanPhoneNumber(phone); // ✅ تنظيف الرقم قبل البحث
+  const { data, error } = await supabase.rpc('get_email_by_phone', { p_phone: cleanPhone });
   if (error) throw error;
   return data;
 }
@@ -230,7 +247,6 @@ export async function signOut() {
 // ============================================================
 // Get profile
 // ============================================================
-// ✅ التعديل 3: getProfile — نحدد الأعمدة اللي محتاجينها
 export async function getProfile() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
