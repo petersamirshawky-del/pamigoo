@@ -1,5 +1,5 @@
 // ============================================================
-// PAMIGO - Authentication (v4 - Auto Merge & Fixed)
+// PAMIGO - Authentication (v5 - Fixed Bank Code & Merge)
 // ============================================================
 import { supabase } from './supabase.js';
 
@@ -80,7 +80,7 @@ export async function signUpCustomer({ phone, email, password, name }) {
 }
 
 export async function signUpMerchant({ phone, email, password, name, bankCode }) {
-  const code = bankCode.trim().toUpperCase();
+  const code = bankCode.trim();
   const cleanPhone = cleanPhoneNumber(phone);
 
   const { data: check, error: checkErr } = await supabase.rpc('verify_merchant_bank_code', { p_bank_code: code });
@@ -127,46 +127,36 @@ export async function signInWithGoogle() {
   return data;
 }
 
-// ✅ التعديل الأهم: الدمج الأوتوماتيك للحسابات القديمة
 export async function completeGoogleProfile({ phone, name, role = 'customer', bankCode = null, adminCode = null }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('مش مسجل دخول');
 
   const cleanPhone = cleanPhoneNumber(phone);
 
-  // 1. نشوف هل الرقم ده متسجل قبل كده؟
+  // ✅ 1. نشوف هل الرقم ده متسجل قبل كده؟
   const { data: existingProfile } = await supabase
     .from('profiles')
     .select('id, email')
     .eq('phone', cleanPhone)
     .maybeSingle();
 
-  // 2. لو الرقم موجود لحساب تاني، نعمل دمج
+  // ✅ 2. لو الرقم موجود لحساب تاني (الدمج)
   if (existingProfile && existingProfile.id !== user.id) {
-    // لو الحساب القديم ملوش إيميل (زي اللي مسجل برقم بس)
     if (!existingProfile.email) {
       await supabase
         .from('profiles')
-        .update({ email: user.email, id: user.id }) // نحدث الإيميل ونربطه بالحساب الجديد
+        .update({ email: user.email, id: user.id })
         .eq('id', existingProfile.id);
       
-      // مسح الحساب القديم المكرر
       await supabase.from('profiles').delete().eq('id', existingProfile.id);
-      
-      // نكمل حفظ الحساب الجديد
     } else if (existingProfile.email !== user.email) {
-      // لو الحساب القديم ليه إيميل مختلف، يبقى الرقم مستخدم
       throw new Error('رقم الموبايل ده متسجل بالفعل بحساب تاني.');
     }
   }
 
-  // 3. التحقق من البنكود أو الأدمن
+  // ✅ 3. التحقق من البنكود أو الأدمن (بقت أسهل)
   if (role === 'merchant') {
-    const code = bankCode?.trim().toUpperCase();
-    if (!code) throw new Error('لازم البنكود');
-    const { data: check, error: checkErr } = await supabase.rpc('verify_merchant_bank_code', { p_bank_code: code });
-    if (checkErr) throw new Error('فشل التحقق من البنكود');
-    if (!check.ok) throw new Error(check.error || 'البنكود غير موجود');
+    if (!bankCode || bankCode.trim() === '') throw new Error('لازم البنكود');
   }
 
   if (role === 'admin') {
@@ -174,15 +164,15 @@ export async function completeGoogleProfile({ phone, name, role = 'customer', ba
     if (checkErr || !check.ok) throw new Error('بنكود الأدمن غير صحيح');
   }
 
-  // 4. حفظ البروفايل (أو تحديثه)
+  // ✅ 4. حفظ البروفايل
   const { error: profErr } = await supabase.from('profiles').upsert({
     id: user.id, phone: cleanPhone, name, role, email: user.email
   });
   if (profErr) throw profErr;
 
-  // 5. ربط التاجر لو كان تاجر
+  // ✅ 5. ربط التاجر (هنا بيتحقق من البنكود في السيرفر)
   if (role === 'merchant') {
-    const code = bankCode.trim().toUpperCase();
+    const code = bankCode.trim(); // شيلنا toUpperCase
     const { data: linkResult, error: linkErr } = await supabase.rpc('link_merchant_to_user', { p_bank_code: code });
     if (linkErr) throw new Error('تم حفظ البيانات بس ربط المتجر فشل');
     if (!linkResult.ok) throw new Error(linkResult.error || 'فشل ربط المتجر');
