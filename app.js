@@ -1,13 +1,12 @@
 // ============================================================
-// PAMIGO - Main Entry (v2.8 - Full Notifications Enabled)
+// PAMIGO - Main Entry (v2.9 - Push Notifications Enabled)
 // ============================================================
 const { supabase } = await import('./supabase.js');
 const { toast, showLoader, hideLoader } = await import('./ui.js');
 const { initI18n, setLang, currentLang, applyI18nToHTML } = await import('./i18n.js');
 const { SUB_CATEGORIES, CATEGORY_ICONS, CATEGORY_NAMES } = await import('./config.js');
-const notifications = await import('./notifications.js'); // ✅ التعديل الجديد
+const notifications = await import('./notifications.js');
 
-// ✅ جعل الـ toast متاح لملف الإشعارات
 window.showPamigoToast = toast;
 
 const {
@@ -110,11 +109,8 @@ let currentOfferFullData = null;
 let pendingGoogleUser = null;
 let searchDebounceTimer = null;
 
-// ✅ متغيرات الأداء والـ Lazy Loading
 let offersDisplayCount = 20;
 let merchantsDisplayCount = 20;
-
-// ✅ متغيرات الـ Polling للإشعارات
 let notificationPollingTimer = null;
 
 // ============================================================
@@ -761,7 +757,6 @@ function switchTab(name) {
   if (name === 'admin') renderAdminSection('dashboard');
   if (name === 'account') {
     setTimeout(initAccountMapUI, 300);
-    // ✅ عرض إشعاراتي لو موجودة
     setTimeout(() => { if (typeof renderMyNotifications === 'function') renderMyNotifications(); }, 400);
   }
 }
@@ -1445,7 +1440,7 @@ async function hideReq(reqId) {
 }
 
 // ============================================================
-// ✅ Badge Update (✅ محدث مع نظام الإشعارات)
+// ✅ Badge Update
 // ============================================================
 async function updateOfferReqBadge() {
   const mainBadge = $('mainReqBadge');
@@ -1460,7 +1455,8 @@ async function updateOfferReqBadge() {
   await notifications.requestNotificationPermission();
 
   try {
-const result = await notifications.checkMerchantNewRequests(currentMerchant.id, currentMerchant.category);
+    const result = await notifications.checkMerchantNewRequests(currentMerchant.id, currentMerchant.category);
+
     if (mainBadge) {
       if (result.pendingSpecial > 0) {
         mainBadge.innerText = result.pendingSpecial > 9 ? '9+' : result.pendingSpecial;
@@ -1496,7 +1492,6 @@ function startNotificationPolling() {
         await updateOfferReqBadge();
       } else if (currentProfile.role === 'customer') {
         await notifications.checkCustomerPendingInvoices(currentProfile.phone);
-        // ✅ السطر الجديد ده عشان يتابع ردود التجار
         await notifications.checkCustomerOfferReplies(currentProfile.id); 
       }
     } catch (e) {
@@ -1512,6 +1507,58 @@ function stopNotificationPolling() {
   }
 }
 window.pamigoStopPolling = stopNotificationPolling;
+
+// ============================================================
+// ✅ Push Notifications Setup
+// ============================================================
+const VAPID_PUBLIC_KEY = 'BKsWzw5QPTXlsyS6hmW-jvmaSE4ZqFLlOXPpWQrywKbWWy-G1ZVKzwrxHWd8k7J93zwNMpPce2AabCzPnehjXpA';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+async function initPushNotifications() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    console.log('Push notifications are not supported');
+    return;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.register('/sw.js');
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+
+    if (subscription && currentProfile) {
+      const subData = JSON.parse(JSON.stringify(subscription));
+      const { error } = await supabase
+        .from('push_subscriptions')
+        .upsert(
+          { user_id: currentProfile.id, subscription: subData },
+          { onConflict: 'user_id' }
+        );
+      
+      if (error) console.error('Error saving subscription:', error);
+      else console.log('✅ Push subscription saved successfully!');
+    }
+  } catch (error) {
+    console.error('Error setting up push notifications:', error);
+  }
+}
 
 // ============================================================
 // ✅ Merchant Report
@@ -2702,7 +2749,6 @@ async function showMainScreen(profile) {
     getMyMerchant().then(m => {
       currentMerchant = m;
       if (currentMerchant) { $('merchantName').innerText = currentMerchant.name; }
-      // ✅ تفعيل الإشعارات بعد تحميل بيانات التاجر
       setTimeout(() => {
         notifications.requestNotificationPermission();
         notifications.setupRealtimeListeners && notifications.setupRealtimeListeners({ profile, merchant: currentMerchant });
@@ -2712,7 +2758,6 @@ async function showMainScreen(profile) {
   } else {
     currentMerchant = null;
     $('merchantBanner').style.display = 'none';
-    // ✅ تفعيل الإشعارات للعميل/الأدمن
     setTimeout(() => {
       notifications.requestNotificationPermission();
       notifications.setupRealtimeListeners && notifications.setupRealtimeListeners({ profile, merchant: null });
@@ -2724,8 +2769,8 @@ async function showMainScreen(profile) {
   refreshData(); 
   if (userLat === null) updateLocation();
 
-  // ✅ إعادة تعيين الحالة وبدء نظام الإشعارات
   notifications.resetLastKnownState();
+  initPushNotifications(); // ✅ تشغيل الـ Push
 
   if (profile.role === 'merchant') setTimeout(updateOfferReqBadge, 1500);
 
@@ -2741,7 +2786,6 @@ async function showMainScreen(profile) {
     }, 1500);
   }
 
-  // ✅ بدء الـ Polling
   startNotificationPolling();
 }
 
@@ -2844,7 +2888,6 @@ async function handleLogout() {
   if (!confirm('متأكد؟')) return;
   expectedLogin = null;
   
-  // ✅ إيقاف الإشعارات
   stopNotificationPolling();
   notifications.cleanupRealtime();
   notifications.resetLastKnownState();
