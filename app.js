@@ -120,7 +120,7 @@ async function loadMerchants() {
   try {
     const [merchantsResult, offersResult, ratingsResult] = await Promise.all([
       supabase.from('merchants').select('*').eq('frozen', false),
-      supabase.from('offers').select('*').limit(50),
+      supabase.from('offers').select('*').limit(1000), // ✅ زودنا من 50 لـ 1000
       supabase.from('ratings').select('merchant_id, stars')
     ]);
 
@@ -440,8 +440,15 @@ function renderOffersGrid() {
     `;
   }).join('');
 
+  // ✅ التعديل: بدل innerHTML += استخدمنا insertAdjacentHTML
   if (hasMore) {
-    el.innerHTML += `<div style="grid-column: 1 / -1; text-align: center; margin-top: 15px; margin-bottom: 25px;"><button onclick="window.loadMoreOffers()" style="background: #fff; color: #1a2a6c; border: 2px solid #1a2a6c; padding: 10px 30px; border-radius: 30px; font-weight: 700; font-size: 14px; cursor: pointer;">شوف المزيد 👇</button></div>`;
+    el.insertAdjacentHTML('beforeend', `
+      <div style="grid-column: 1 / -1; text-align: center; margin-top: 15px; margin-bottom: 25px;">
+        <button onclick="window.loadMoreOffers()" style="background: #fff; color: #1a2a6c; border: 2px solid #1a2a6c; padding: 10px 30px; border-radius: 30px; font-weight: 700; font-size: 14px; cursor: pointer;">
+          شوف المزيد 👇
+        </button>
+      </div>
+    `);
   }
 }
 
@@ -540,13 +547,17 @@ async function openMerchant(bankCode) {
   currentModalMerchant = m;
   trackOfferEvent({ offerId: null, merchantId: m.id, eventType: 'click' });
 
+  // ✅ حماية: لو m.offers مش موجود، اعتبره فاضي
+  const offersCount = (m.offers || []).length;
+
   const rate = m.cashback_rate || 15;
   const tier = getTier(rate);
   const isWarehouse = m.merchant_type === 'warehouse';
   const logoHtml = m.logo_url ? `<img src="${escapeHtml(m.logo_url)}" style="width:70px;height:70px;object-fit:cover;border-radius:16px;margin:0 auto 10px;display:block">` : `<div style="font-size:60px;text-align:center">${escapeHtml(m.icon || '🏪')}</div>`;
 
   $('modalMerchantName').innerHTML = `${logoHtml}<div style="text-align:center;margin-top:6px">${escapeHtml(m.name)}</div>`;
-  $('modalMerchantInfo').innerHTML = `${escapeHtml(m.icon || '🏪')} • ${(m.offers || []).length} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}${isWarehouse ? ' • 📦 مخزن' : ''}`;
+  // ✅ استخدمنا offersCount هنا بدل m.offers.length
+  $('modalMerchantInfo').innerHTML = `${escapeHtml(m.icon || '🏪')} • ${offersCount} عرض • <span class="tier-chip ${tier.cls}">${tier.icon} ${tier.name}</span> • كاش باك <strong>${rate}%</strong>${m.delivery_available ? ' • 🛵 توصيل متاح' : ''}${isWarehouse ? ' • 📦 مخزن' : ''}`;
 
   const offerViews = await getMerchantOffersViews(m.id).catch(() => ({}));
   const sortedOffers = [...(m.offers || [])].sort((a, b) => (offerViews[b.id] || 0) - (offerViews[a.id] || 0));
@@ -568,7 +579,7 @@ async function openMerchant(bankCode) {
               <div style="flex:1">
                 <h5 style="font-size:16px;margin-bottom:6px;color:var(--primary);font-weight:700">${escapeHtml(o.title)}</h5>
                 ${priceHtml}${descHtml}
-                <p style="font-size:11px;color:#9ca3af;margin-top:6px">عرض ${i + 1} من ${m.offers.length} • ${viewsHtml}</p>
+                <p style="font-size:11px;color:#9ca3af;margin-top:6px">عرض ${i + 1} من ${offersCount} • ${viewsHtml}</p>
               </div>
               <div style="background:#1a2a6c;color:#fff;padding:8px 16px;border-radius:30px;font-weight:700;font-size:15px;white-space:nowrap">${escapeHtml(o.discount)}</div>
             </div>
