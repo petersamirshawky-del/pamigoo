@@ -2987,6 +2987,8 @@ function openCompleteProfileModal(user) {
   $('completeProfileRole').value = 'customer';
   $('completeProfileBankCodeGroup').style.display = 'none';
   $('completeProfileAdminCodeGroup').style.display = 'none';
+  $('completeProfilePasswordGroup').style.display = 'none';
+  if($('completeProfilePassword')) $('completeProfilePassword').value = '';
   $('completeProfileResult').innerText = '';
   const modal = $('completeProfileModal');
   modal.style.display = 'flex';
@@ -3013,6 +3015,7 @@ async function handleCompleteProfile() {
   const role = $('completeProfileRole').value;
   const bankCode = getRealValue('completeProfileBankCode');
   const adminCode = getRealValue('completeProfileAdminCode');
+  const password = $('completeProfilePassword') ? $('completeProfilePassword').value : ''; // ✅ بنقرا الباسورد
   const res = $('completeProfileResult');
 
   if (!phone || !name) { res.style.color = '#ef4444'; res.innerText = '❌ املأ الاسم والموبايل'; return; }
@@ -3020,23 +3023,37 @@ async function handleCompleteProfile() {
   if (role === 'admin' && !adminCode) { res.style.color = '#ef4444'; res.innerText = '❌ لازم بنكود الأدمن'; return; }
 
   const btn = $('completeProfileBtn');
-  btn.disabled = true; btn.innerText = '⏳ جاري الحفظ...';
+  const originalText = btn.innerText;
+  btn.disabled = true; btn.innerText = '⏳ جاري التحقق...';
 
   try {
     const cleanPhone = phone.replace(/\s+/g, '').replace(/^\+20/, '0').replace(/^\+2/, '0').replace(/^0020/, '0');
-    await completeGoogleProfile({ phone: cleanPhone, name, role, bankCode, adminCode });
-    res.style.color = '#10b981'; res.innerText = '✅ تم حفظ البيانات';
+    
+    // ✅ بنبعت الباسورد للدالة
+    await completeGoogleProfile({ phone: cleanPhone, name, password, role, bankCode, adminCode });
+    
+    res.style.color = '#10b981'; res.innerText = '✅ تم حفظ البيانات بنجاح';
     
     setTimeout(async () => {
       window.closeCompleteProfileModal();
       const profile = await getProfile();
       if (profile) await showMainScreen(profile);
     }, 1000);
+
   } catch (e) {
-    res.style.color = '#ef4444'; 
-    res.innerText = '❌ ' + e.message;
-    btn.disabled = false; 
-    btn.innerText = '✅ حفظ البيانات';
+    // ✅ لو الرقم متسجل، هنظهر خانة الباسورد
+    if (e.message === 'PASSWORD_REQUIRED') {
+      $('completeProfilePasswordGroup').style.display = 'block';
+      res.style.color = '#ef4444'; 
+      res.innerText = '⚠️ الرقم ده متسجل معانا قبل كده. اكتب باسوردك القديم عشان نربطهم.';
+      btn.disabled = false; 
+      btn.innerText = '🔗 ربط الحساب';
+    } else {
+      res.style.color = '#ef4444'; 
+      res.innerText = '❌ ' + e.message;
+      btn.disabled = false; 
+      btn.innerText = originalText;
+    }
   }
 }
 
