@@ -127,34 +127,42 @@ export async function signInWithGoogle() {
   return data;
 }
 
-export async function completeGoogleProfile({ phone, name, role = 'customer', bankCode = null, adminCode = null }) {
+export async function completeGoogleProfile({ phone, name, password, role = 'customer', bankCode = null, adminCode = null }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('مش مسجل دخول');
 
   const cleanPhone = cleanPhoneNumber(phone);
 
-  // ✅ 1. نشوف هل الرقم ده متسجل قبل كده؟
+  // 1. نشوف هل الرقم ده متسجل قبل كده؟
   const { data: existingProfile } = await supabase
     .from('profiles')
     .select('id, email')
     .eq('phone', cleanPhone)
     .maybeSingle();
 
-  // ✅ 2. لو الرقم موجود لحساب تاني (الدمج)
+  // 2. لو الرقم موجود لحساب تاني (يعني عميل قديم وعايز يربط)
   if (existingProfile && existingProfile.id !== user.id) {
-    if (!existingProfile.email) {
-      await supabase
-        .from('profiles')
-        .update({ email: user.email, id: user.id })
-        .eq('id', existingProfile.id);
-      
-      await supabase.from('profiles').delete().eq('id', existingProfile.id);
-    } else if (existingProfile.email !== user.email) {
-      throw new Error('رقم الموبايل ده متسجل بالفعل بحساب تاني.');
+    
+    // لو مفيش باسورد مبعوت، بنرمي إيرور مخصوص عشان التطبيق يظهر الخانة
+    if (!password) {
+      throw new Error('PASSWORD_REQUIRED');
     }
+
+    // بنجرب ندخله بالحساب القديم عشان نتأكد إنه هو
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: existingProfile.email,
+      password: password
+    });
+
+    if (signInErr) {
+      throw new Error('الباسورد غير صحيح. جرب تاني أو استخدم رقم موبايل مختلف.');
+    }
+
+    // ✅ لو الباسورد صح، إحنا كده اتأكدنا إنه صاحب الحساب، ومش هنمسح حاجة.
+    return { success: true, merged: true };
   }
 
-  // ✅ 3. التحقق من البنكود أو الأدمن (بقت أسهل)
+  // 3. التحقق من البنكود أو الأدمن (لو الحساب جديد خالص)
   if (role === 'merchant') {
     if (!bankCode || bankCode.trim() === '') throw new Error('لازم البنكود');
   }
@@ -164,15 +172,15 @@ export async function completeGoogleProfile({ phone, name, role = 'customer', ba
     if (checkErr || !check.ok) throw new Error('بنكود الأدمن غير صحيح');
   }
 
-  // ✅ 4. حفظ البروفايل
+  // 4. حفظ البروفايل الجديد
   const { error: profErr } = await supabase.from('profiles').upsert({
     id: user.id, phone: cleanPhone, name, role, email: user.email
   });
   if (profErr) throw profErr;
 
-  // ✅ 5. ربط التاجر (هنا بيتحقق من البنكود في السيرفر)
+  // 5. ربط التاجر (لو تاجر)
   if (role === 'merchant') {
-    const code = bankCode.trim(); // شيلنا toUpperCase
+    const code = bankCode.trim(); 
     const { data: linkResult, error: linkErr } = await supabase.rpc('link_merchant_to_user', { p_bank_code: code });
     if (linkErr) throw new Error('تم حفظ البيانات بس ربط المتجر فشل');
     if (!linkResult.ok) throw new Error(linkResult.error || 'فشل ربط المتجر');
