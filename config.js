@@ -13,6 +13,7 @@ export const CATEGORY_ICONS = {
   fashion: '👗',
   restaurants: '🍕',
   bigfood: '🍔',
+  sweets_bakery: '🍰', // ✅ التصنيف الجديد
   electronics: '📱',
   car_parts: '🛞',
   car_accessories: '🪞',
@@ -25,7 +26,7 @@ export const CATEGORY_ICONS = {
   cosmetics: '💄',
   stationery: '📚',
   toys: '🧸',
-  home_supplies: '🏠' // ✅ الجديد
+  home_supplies: '🏠'
 };
 
 // أسماء التصنيفات بالعربي
@@ -33,6 +34,7 @@ export const CATEGORY_NAMES = {
   fashion: 'ملابس',
   restaurants: 'مطاعم',
   bigfood: 'وجبات',
+  sweets_bakery: 'حلويات ومخبوزات', // ✅ التصنيف الجديد
   electronics: 'إلكترونيات',
   car_parts: 'قطع غيار',
   car_accessories: 'كماليات',
@@ -45,7 +47,7 @@ export const CATEGORY_NAMES = {
   cosmetics: 'مستحضرات تجميل',
   stationery: 'مكتبات',
   toys: 'ألعاب أطفال',
-  home_supplies: 'مستلزمات منزلية' // ✅ الجديد
+  home_supplies: 'مستلزمات منزلية'
 };
 
 // التصنيفات الفرعية
@@ -70,6 +72,13 @@ export const SUB_CATEGORIES = {
     { id: 'veggies', name: 'خضار وفاكهة' },
     { id: 'meat', name: 'لحوم' },
     { id: 'dairy', name: 'ألبان' }
+  ],
+  // ✅ التصنيف الفرعي الجديد للحلويات
+  sweets_bakery: [
+    { id: 'chocolates', name: 'شوكولاتة' },
+    { id: 'cakes', name: 'تورت وحلويات غربية' },
+    { id: 'oriental', name: 'حلويات شرقية' },
+    { id: 'bakery', name: 'مخبوزات وفطائر' }
   ],
   electronics: [
     { id: 'mobiles', name: 'موبايلات' },
@@ -153,7 +162,6 @@ export const SUB_CATEGORIES = {
     { id: 'outdoor', name: 'ألعاب خارجية' },
     { id: 'puzzles', name: 'ألعاب ذكاء' }
   ],
-  // ✅ التصنيف الجديد
   home_supplies: [
     { id: 'tissues', name: 'مناديل ورقية' },
     { id: 'diapers', name: 'بامبرز وحفاضات' },
