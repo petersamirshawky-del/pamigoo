@@ -3001,7 +3001,10 @@ window.closeCompleteProfileModal = function(e) {
   if (!modal) return;
   modal.classList.remove('active');
   modal.style.display = 'none';
-  supabase.auth.signOut();
+  
+  if (e) {
+    supabase.auth.signOut();
+  }
 };
 
 window.onCompleteProfileRoleChange = function(value) {
@@ -3029,13 +3032,18 @@ async function handleCompleteProfile() {
   try {
     const cleanPhone = phone.replace(/\s+/g, '').replace(/^\+20/, '0').replace(/^\+2/, '0').replace(/^0020/, '0');
     
-    // ✅ بنبعت الباسورد للدالة
     await completeGoogleProfile({ phone: cleanPhone, name, password, role, bankCode, adminCode });
     
     res.style.color = '#10b981'; res.innerText = '✅ تم حفظ البيانات بنجاح';
     
     setTimeout(async () => {
-      window.closeCompleteProfileModal();
+      // ✅ إخفاء الشاشة من غير ما نطرد المستخدم
+      const modal = $('completeProfileModal');
+      if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+      }
+      
       const profile = await getProfile();
       if (profile) await showMainScreen(profile);
     }, 1000);
