@@ -12,8 +12,8 @@ export const STORAGE_BUCKET = 'pamigo-media';
 export const CATEGORY_ICONS = {
   fashion: '👗',
   restaurants: '🍕',
-  bigfood: '🍔',
-  sweets_bakery: '🍰', // ✅ التصنيف الجديد
+  bigfood: '🛒', // ✅ تم التغيير من برجر لعربة سوبر ماركت
+  sweets_bakery: '🍰',
   electronics: '📱',
   car_parts: '🛞',
   car_accessories: '🪞',
@@ -33,8 +33,8 @@ export const CATEGORY_ICONS = {
 export const CATEGORY_NAMES = {
   fashion: 'ملابس',
   restaurants: 'مطاعم',
-  bigfood: 'وجبات',
-  sweets_bakery: 'حلويات ومخبوزات', // ✅ التصنيف الجديد
+  bigfood: 'سوبر ماركت وبقالة', // ✅ تم التغيير من وجبات
+  sweets_bakery: 'حلويات ومخبوزات',
   electronics: 'إلكترونيات',
   car_parts: 'قطع غيار',
   car_accessories: 'كماليات',
@@ -73,7 +73,6 @@ export const SUB_CATEGORIES = {
     { id: 'meat', name: 'لحوم' },
     { id: 'dairy', name: 'ألبان' }
   ],
-  // ✅ التصنيف الفرعي الجديد للحلويات
   sweets_bakery: [
     { id: 'chocolates', name: 'شوكولاتة' },
     { id: 'cakes', name: 'تورت وحلويات غربية' },
